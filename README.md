@@ -34,6 +34,18 @@ Planned features:
 
 The NET console, KISS/TCP and the chat panel follow.
 
+### Heard stations
+
+The options decide how heard stations appear:
+
+| Mode | What you get |
+| --- | --- |
+| Off | Only the count "Stations heard (24 h)" and the station select for direct messages |
+| Data only (default) | Additionally the attribute `stations` of that sensor: the 100 most recently heard stations with last heard, RSSI, SNR, hops, battery and position. The attribute is not written to the database. |
+| One device per station | A device per station (behind the own node) with position, last heard, battery, RSSI, SNR and hops. At most 50 devices (adjustable); a device is removed after 7 days without a packet (adjustable) and comes back when the station is heard again. Station devices can also be deleted by hand. |
+
+The station list is stored, so it survives a restart.
+
 ### No MSG All and the message filter
 
 While **No MSG All** is on, Home Assistant shows the same messages as the

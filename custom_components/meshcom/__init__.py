@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -31,6 +33,7 @@ from .coordinator import MeshComWebCoordinator
 from .hub import UdpHub, async_acquire_hub, async_release_hub
 from .node import MeshComNode
 from .services import async_setup_services
+from .stations import StationDevices, StationStore
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -53,6 +56,9 @@ class MeshComRuntime:
     hub: UdpHub
     host: str
     web: MeshComWebCoordinator
+    stations: StationDevices
+    store: StationStore
+    options: dict[str, Any]
 
     def send_datagram(self, data: bytes) -> None:
         """Send to this node's external UDP port."""
@@ -97,7 +103,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         allow_legacy=entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC,
     )
     web = MeshComWebCoordinator(hass, entry, client)
-    entry.runtime_data = MeshComRuntime(node=node, hub=hub, host=entry.data[CONF_HOST], web=web)
+
+    # Heard stations: restored from disk, saved on change, devices per mode.
+    store = StationStore(hass, entry.entry_id)
+    node.restore_stations(await store.async_load())
+    stations = StationDevices(hass, entry, node)
+
+    @callback
+    def _station_heard(callsign: str) -> None:
+        store.async_schedule_save(node)
+        stations.async_station_heard(callsign)
+
+    node.station_listener = _station_heard
+    stations.async_start()
+
+    entry.runtime_data = MeshComRuntime(
+        node=node,
+        hub=hub,
+        host=entry.data[CONF_HOST],
+        web=web,
+        stations=stations,
+        store=store,
+        options=dict(entry.options),
+    )
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
     @callback
     def _apply_web_settings() -> None:
@@ -178,6 +207,34 @@ async def _async_first_web_contact(
     await web.async_refresh()
 
 
+async def _async_options_updated(hass: HomeAssistant, entry: MeshComConfigEntry) -> None:
+    """Reload when the options change (station mode, groups, ...)."""
+    # Data updates (pinning the login method) need no reload.
+    if dict(entry.options) != entry.runtime_data.options:
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        await entry.runtime_data.store.async_save_now(entry.runtime_data.node)
+    return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> None:
+    """Delete the stored station list together with the entry."""
+    await StationStore(hass, entry.entry_id).async_remove()
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: MeshComConfigEntry, device: dr.DeviceEntry
+) -> bool:
+    """Station devices may be deleted; the own node may not."""
+    node = entry.runtime_data.node
+    prefix = f"{node.node_id:06x}_"
+    for domain, identifier in device.identifiers:
+        if domain == DOMAIN and identifier.startswith(prefix):
+            entry.runtime_data.stations.async_device_removed(identifier[len(prefix) :])
+            return True
+    return False

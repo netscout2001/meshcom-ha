@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -23,11 +24,14 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import MeshComConfigEntry
-from .entity import MeshComEntity
-from .node import MeshComNode
+from .const import STATION_ATTRIBUTE_LIMIT, STATION_MODE_DATA, signal_new_station
+from .entity import MeshComEntity, MeshComStationEntity
+from .node import MeshComNode, StationInfo
+from .stations import station_mode
 
 # One update at a time is plenty: values come from pushed packets.
 PARALLEL_UPDATES = 0
@@ -121,6 +125,51 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
     ),
 )
 
+
+@dataclass(frozen=True, kw_only=True)
+class MeshComStationSensorDescription(SensorEntityDescription):
+    """Describes a sensor of a heard station."""
+
+    value_fn: Callable[[StationInfo], StateValue]
+
+
+STATION_SENSORS: tuple[MeshComStationSensorDescription, ...] = (
+    MeshComStationSensorDescription(
+        key="station_last_heard",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda station: station.last_heard,
+    ),
+    MeshComStationSensorDescription(
+        key="station_battery",
+        device_class=SensorDeviceClass.BATTERY,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda station: station.battery or None,
+    ),
+    MeshComStationSensorDescription(
+        key="station_rssi",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda station: station.rssi,
+    ),
+    MeshComStationSensorDescription(
+        key="station_snr",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda station: station.snr,
+    ),
+    MeshComStationSensorDescription(
+        key="station_hops",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda station: station.hops,
+    ),
+)
+
 TELEMETRY_SENSORS: tuple[MeshComSensorDescription, ...] = (
     MeshComSensorDescription(
         key="temperature_1",
@@ -174,7 +223,25 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors."""
     node = entry.runtime_data.node
-    async_add_entities(MeshComSensor(node, description) for description in NODE_SENSORS)
+    with_list = station_mode(entry) == STATION_MODE_DATA
+    async_add_entities(
+        MeshComStationsHeardSensor(node, description, with_list=with_list)
+        if description.key == "stations_heard"
+        else MeshComSensor(node, description)
+        for description in NODE_SENSORS
+    )
+
+    @callback
+    def _add_station(callsign: str) -> None:
+        async_add_entities(
+            MeshComStationSensor(node, callsign, description) for description in STATION_SENSORS
+        )
+
+    for callsign in sorted(entry.runtime_data.stations.tracked):
+        _add_station(callsign)
+    entry.async_on_unload(
+        async_dispatcher_connect(hass, signal_new_station(entry.entry_id), _add_station)
+    )
 
     # Sensor entities only for nodes that actually report sensor values.
     added = False
@@ -215,3 +282,56 @@ class MeshComSensor(MeshComEntity, RestoreSensor, SensorEntity):
         """Current value, or the restored one until the first packet."""
         value = self.entity_description.value_fn(self.node)
         return self._restored if value is None else value
+
+
+class MeshComStationsHeardSensor(MeshComSensor):
+    """Stations heard in 24 h; in "data" mode with the station list as attribute."""
+
+    # The list changes with every packet; keep it out of the database.
+    _unrecorded_attributes = frozenset({"stations"})
+
+    def __init__(
+        self, node: MeshComNode, description: MeshComSensorDescription, *, with_list: bool
+    ) -> None:
+        super().__init__(node, description)
+        self._with_list = with_list
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """The most recently heard stations, newest first."""
+        if not self._with_list:
+            return None
+        stations = list(self.node.stations.values())[-STATION_ATTRIBUTE_LIMIT:]
+        return {
+            "stations": [
+                {
+                    "callsign": station.callsign,
+                    "last_heard": station.last_heard.isoformat(),
+                    "rssi": station.rssi,
+                    "snr": station.snr,
+                    "hops": station.hops,
+                    "battery": station.battery or None,
+                    "latitude": station.latitude,
+                    "longitude": station.longitude,
+                }
+                for station in reversed(stations)
+            ]
+        }
+
+
+class MeshComStationSensor(MeshComStationEntity, SensorEntity):
+    """A sensor of a heard station."""
+
+    entity_description: MeshComStationSensorDescription
+
+    def __init__(
+        self, node: MeshComNode, callsign: str, description: MeshComStationSensorDescription
+    ) -> None:
+        super().__init__(node, callsign, description.key)
+        self.entity_description = description
+
+    @property
+    def native_value(self) -> StateValue:
+        """Value from the station's last packet."""
+        station = self.station
+        return self.entity_description.value_fn(station) if station else None

@@ -109,6 +109,21 @@
       },
       "co2": {
         "name": "CO2"
+      },
+      "station_last_heard": {
+        "name": "Zuletzt gehört"
+      },
+      "station_battery": {
+        "name": "Akku"
+      },
+      "station_rssi": {
+        "name": "RSSI"
+      },
+      "station_snr": {
+        "name": "SNR"
+      },
+      "station_hops": {
+        "name": "Hops"
       }
     },
     "binary_sensor": {
@@ -118,6 +133,9 @@
     },
     "device_tracker": {
       "position": {
+        "name": "Position"
+      },
+      "station_position": {
         "name": "Position"
       }
     },
@@ -224,10 +242,16 @@
         "description": "Administratoren dürfen immer senden. Alles Gesendete geht unter dem Rufzeichen des Nodes über Amateurfunk: Gib nur Nutzer frei, die eine Lizenz haben.",
         "data": {
           "groups": "Gruppen",
-          "send_users": "Weitere Nutzer, die senden dürfen"
+          "send_users": "Weitere Nutzer, die senden dürfen",
+          "station_mode": "Stationen",
+          "station_max": "Maximale Anzahl Stationsgeräte",
+          "station_stale_days": "Stationsgeräte entfernen nach (Tagen)"
         },
         "data_description": {
-          "groups": "Gruppennummern für die Gruppen-Auswahl, durch Kommas getrennt, z. B. 262, 26298."
+          "groups": "Gruppennummern für die Gruppen-Auswahl, durch Kommas getrennt, z. B. 262, 26298.",
+          "station_mode": "Wie gehörte Stationen erscheinen: gar nicht, als Liste im Attribut des Sensors „Stationen gehört“ oder als ein Gerät pro Station.",
+          "station_max": "Nur im Modus „Ein Gerät pro Station“. Weitere Stationen stehen in der Liste, bekommen aber kein Gerät.",
+          "station_stale_days": "Ein Stationsgerät wird entfernt, wenn die Station so viele Tage nicht gehört wurde. Es kommt wieder, sobald die Station wieder gehört wird."
         }
       }
     },
@@ -247,6 +271,15 @@
     "web_downgrade": {
       "title": "MeshCom-Node {node} bietet den sicheren Web-Login nicht mehr an",
       "description": "Der Node hat vorher den sicheren Web-Login genutzt und bietet jetzt nur noch den unverschlüsselten Login von Firmware 4.40a an. Das passiert nach einem Firmware-Downgrade oder wenn ein anderes Gerät unter der Adresse des Nodes antwortet. Home Assistant schickt das Passwort nicht unverschlüsselt. Prüfe den Node; nach einem gewollten Downgrade entferne den Node und füge ihn neu hinzu."
+    }
+  },
+  "selector": {
+    "station_mode": {
+      "options": {
+        "off": "Aus",
+        "data": "Nur Daten (Listen-Attribut)",
+        "entities": "Ein Gerät pro Station"
+      }
     }
   }
 }

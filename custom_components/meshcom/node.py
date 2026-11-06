@@ -34,13 +34,14 @@ from .const import (
     NODE_ACTIVE_TIMEOUT,
     PENDING_ACK_TIMEOUT,
     STATIONS_WINDOW,
+    signal_station,
     signal_update,
 )
 
 
 @dataclass(slots=True)
 class StationInfo:
-    """What we know about a heard station. Data only, no entities (yet)."""
+    """What we know about a heard station."""
 
     callsign: str
     last_heard: datetime
@@ -82,6 +83,9 @@ class MeshComNode:
         self.messages_received = 0
         self.messages_sent = 0
         self.stations: OrderedDict[str, StationInfo] = OrderedDict()
+        #: Called with the callsign whenever a station was heard.
+        self.station_listener: Callable[[str], None] | None = None
+        self._touched: str | None = None
         self._seen: OrderedDict[tuple[str, int], datetime] = OrderedDict()
         self.duplicates = 0
         self._telemetry_listeners: list[Callable[[], None]] = []
@@ -111,6 +115,14 @@ class MeshComNode:
             and dt_util.utcnow() - self.last_packet < NODE_ACTIVE_TIMEOUT
         )
 
+    def restore_stations(self, stations: list[StationInfo]) -> None:
+        """Take over stations stored before a restart (oldest first)."""
+        for station in sorted(stations, key=lambda item: item.last_heard):
+            if station.callsign not in self.stations:
+                self.stations[station.callsign] = station
+        while len(self.stations) > MAX_STATIONS:
+            self.stations.popitem(last=False)
+
     def stations_heard(self, window: timedelta = STATIONS_WINDOW) -> int:
         """Number of distinct stations heard within ``window``."""
         limit = dt_util.utcnow() - window
@@ -135,6 +147,7 @@ class MeshComNode:
         station = self.stations.pop(callsign, None) or StationInfo(callsign, now)
         station.last_heard = now
         self.stations[callsign] = station
+        self._touched = callsign
         while len(self.stations) > MAX_STATIONS:
             self.stations.popitem(last=False)
         return station
@@ -144,6 +157,7 @@ class MeshComNode:
         """Update the state from one validated packet (runs in the event loop)."""
         now = dt_util.utcnow()
         self.last_packet = now
+        self._touched = None
         if isinstance(packet, PositionPacket):
             self._handle_position(packet, now)
         elif isinstance(packet, TelemetryPacket):
@@ -156,6 +170,10 @@ class MeshComNode:
             # Control traffic, not chat. Only proves that the node is alive.
             pass
         async_dispatcher_send(self.hass, signal_update(self.entry_id))
+        if (callsign := self._touched) is not None:
+            async_dispatcher_send(self.hass, signal_station(self.entry_id, callsign))
+            if self.station_listener is not None:
+                self.station_listener(callsign)
 
     def _handle_position(self, packet: PositionPacket, now: datetime) -> None:
         if self._is_duplicate("pos", packet.msg_id.value):
