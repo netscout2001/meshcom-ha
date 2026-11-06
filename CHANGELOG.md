@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.3
+
+### Features
+- Option "Chat: only own groups" (on by default): the chat no longer shows messages to groups the node does not listen to; groups from the options count as own. External UDP delivers all mesh traffic, so foreign groups used to get their own conversation. Events and sensors are unchanged.
+
 ## v0.4.2
 
 ### Features

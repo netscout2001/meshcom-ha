@@ -98,6 +98,7 @@ under **Reconfigure**; if the node rejects one, Home Assistant asks for it
 | --- | --- |
 | Groups | Group numbers for the group select, in addition to the node's own groups |
 | Other users who may send | Non-admin users released for sending and for the chat panel |
+| Chat: only own groups | On by default: messages to groups the node does not listen to stay out of the chat (events still fire) |
 | Stations | Off / Data only (default) / One device per station |
 | Maximum station devices | Default 50 |
 | Remove station devices after (days) | Default 7 |

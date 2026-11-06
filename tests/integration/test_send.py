@@ -416,6 +416,7 @@ async def test_options_flow(
         "station_mode": "data",
         "station_max": 50,
         "station_stale_days": 7,
+        "hide_foreign_groups": True,
     }
 
 

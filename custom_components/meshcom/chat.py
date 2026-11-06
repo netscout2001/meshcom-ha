@@ -24,7 +24,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .aiomeshcom import DestinationKind, SourceType, TextMessagePacket, is_callsign, is_group
-from .const import DOMAIN
+from .const import CONF_GROUPS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +82,24 @@ def conversation_of(packet: TextMessagePacket, *, own: bool) -> str:
     if kind is DestinationKind.DIRECT:
         return f"dm:{packet.destination if own else packet.path.originator}"
     return f"other:{packet.destination}"
+
+
+def own_groups(node_groups: list[str], options: Mapping[str, Any]) -> set[str]:
+    """Groups the node listens to plus the groups configured in the options."""
+    configured = options.get(CONF_GROUPS, [])
+    extra = [g for g in configured if isinstance(g, str)] if isinstance(configured, list) else []
+    return {*node_groups, *extra}
+
+
+def is_foreign_group(conversation: str, groups: set[str]) -> bool:
+    """True for a group conversation of a group the node does not listen to.
+
+    Without any known group (web API not read yet, no groups configured)
+    nothing counts as foreign, so the chat never goes empty by accident.
+    """
+    if not groups or not conversation.startswith("group:"):
+        return False
+    return conversation[6:] not in groups
 
 
 def _valid_conversation(value: Any) -> bool:

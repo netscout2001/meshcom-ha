@@ -8,6 +8,7 @@ validation and rate limit as the ``meshcom.send_message`` action.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import voluptuous as vol
@@ -24,7 +25,8 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 
-from .const import CONF_GROUPS, DOMAIN
+from .chat import is_foreign_group, own_groups
+from .const import CONF_GROUPS, CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS, DOMAIN
 from .sender import allowed_users, async_send_text
 
 _ENTRY_ID = vol.All(str, vol.Length(min=1, max=64))
@@ -37,6 +39,14 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     async_register_command(hass, ws_history)
     async_register_command(hass, ws_subscribe)
     async_register_command(hass, ws_send)
+
+
+def _hidden(entry: Any) -> Callable[[str], bool]:
+    """Conversations the chat does not show (foreign groups, if enabled)."""
+    if not entry.options.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS):
+        return lambda _conversation: False
+    groups = own_groups(entry.runtime_data.node.node_groups, entry.options)
+    return lambda conversation: is_foreign_group(conversation, groups)
 
 
 def _may_read(user: User, entry: Any) -> bool:
@@ -85,8 +95,16 @@ def ws_history(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str,
     if (entry := _entry(hass, connection, msg)) is None:
         return
     history = entry.runtime_data.chat
+    hidden = _hidden(entry)
     connection.send_result(
-        msg["id"], {"messages": [message.as_dict() for message in history.messages]}
+        msg["id"],
+        {
+            "messages": [
+                message.as_dict()
+                for message in history.messages
+                if message.own or not hidden(message.conversation)
+            ]
+        },
     )
 
 
@@ -104,6 +122,8 @@ def ws_subscribe(hass: HomeAssistant, connection: ActiveConnection, msg: dict[st
     def _forward(kind: str, data: dict[str, Any]) -> None:
         # Permissions can change while subscribed (options edited).
         if kind != "closed" and not _may_read(user, entry):
+            return
+        if kind == "message" and not data["own"] and _hidden(entry)(data["conversation"]):
             return
         connection.send_message(event_message(msg["id"], {kind: data}))
 
