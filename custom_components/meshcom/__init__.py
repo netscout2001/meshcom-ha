@@ -22,6 +22,9 @@ from .aiomeshcom import TextMessagePacket
 from .aiomeshcom.webapi import AUTH_HMAC, AUTH_LEGACY, MeshComWebClient, WebApiError
 from .chat import ChatHistory
 from .const import (
+    ACCESS_KISS,
+    ACCESS_UDP,
+    CONF_ACCESS,
     CONF_CALLSIGN,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
@@ -33,6 +36,7 @@ from .const import (
 )
 from .coordinator import MeshComWebCoordinator
 from .hub import UdpHub, async_acquire_hub, async_release_hub
+from .kiss_link import KissLink
 from .node import MeshComNode
 from .panel import async_register_panel, async_unregister_panel
 from .services import async_setup_services
@@ -57,7 +61,8 @@ class MeshComRuntime:
     """Runtime objects of one config entry."""
 
     node: MeshComNode
-    hub: UdpHub
+    hub: UdpHub | None
+    kiss: KissLink | None
     host: str
     web: MeshComWebCoordinator
     stations: StationDevices
@@ -67,6 +72,8 @@ class MeshComRuntime:
 
     def send_datagram(self, data: bytes) -> None:
         """Send to this node's external UDP port."""
+        if self.hub is None:  # pragma: no cover - sender checks the access path first
+            raise OSError("no UDP access")
         self.hub.send(self.host, data)
 
 
@@ -82,24 +89,29 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
     """Set up a MeshCom node from a config entry."""
-    port: int = entry.data[CONF_LISTEN_PORT]
-    try:
-        hub = await async_acquire_hub(hass, port)
-    except OSError as err:
-        raise ConfigEntryNotReady(
-            translation_domain=DOMAIN,
-            translation_key="port_unavailable",
-            translation_placeholders={"port": str(port)},
-        ) from err
-
     node = MeshComNode(hass, entry.entry_id, entry.data[CONF_CALLSIGN], entry.data[CONF_NODE_ID])
-    unregister = hub.register(entry.data[CONF_HOST], node.handle_packet)
+    hub: UdpHub | None = None
+    kiss: KissLink | None = None
+    if entry.data.get(CONF_ACCESS, ACCESS_UDP) == ACCESS_KISS:
+        kiss = KissLink(hass, entry, node)
+    else:
+        port: int = entry.data[CONF_LISTEN_PORT]
+        try:
+            hub = await async_acquire_hub(hass, port)
+        except OSError as err:
+            raise ConfigEntryNotReady(
+                translation_domain=DOMAIN,
+                translation_key="port_unavailable",
+                translation_placeholders={"port": str(port)},
+            ) from err
+        udp_hub = hub
+        unregister = udp_hub.register(entry.data[CONF_HOST], node.handle_packet)
 
-    def _release() -> None:
-        unregister()
-        async_release_hub(hass, hub)
+        def _release() -> None:
+            unregister()
+            async_release_hub(hass, udp_hub)
 
-    entry.async_on_unload(_release)
+        entry.async_on_unload(_release)
 
     client = MeshComWebClient(
         async_get_clientsession(hass),
@@ -137,6 +149,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     entry.runtime_data = MeshComRuntime(
         node=node,
         hub=hub,
+        kiss=kiss,
         host=entry.data[CONF_HOST],
         web=web,
         stations=stations,
@@ -168,6 +181,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await async_register_panel(hass)
+    if kiss is not None:
+        kiss.async_start()
     return True
 
 
@@ -236,6 +251,8 @@ async def _async_options_updated(hass: HomeAssistant, entry: MeshComConfigEntry)
 async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
     """Unload a config entry."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded and entry.runtime_data.kiss is not None:
+        await entry.runtime_data.kiss.async_stop()
     if unloaded:
         await entry.runtime_data.store.async_save_now(entry.runtime_data.node)
         await entry.runtime_data.chat.async_save_now()

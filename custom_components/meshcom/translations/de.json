@@ -1,18 +1,6 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "MeshCom-Node hinzufügen",
-        "description": "Gib die IP-Adresse deines Nodes ein. Stelle am Node 'ext. UDP IP' auf die Adresse von Home Assistant und schalte 'ext UDP' ein. Schalte die externe UDP-Schnittstelle nur bei Nodes ein, die in deinem Heimnetz bleiben.",
-        "data": {
-          "host": "IP-Adresse des Nodes",
-          "listen_port": "UDP-Port in Home Assistant"
-        },
-        "data_description": {
-          "host": "Private IPv4-Adresse des Nodes, zum Beispiel 192.168.1.50.",
-          "listen_port": "Der Node sendet immer an Port 1799. Nur ändern, wenn eine Weiterleitung an einen anderen Port sendet."
-        }
-      },
       "no_packet": {
         "title": "Kein Paket vom Node",
         "description": "Von {host} ist auf UDP-Port {port} nichts angekommen. Prüfe, ob am Node 'ext UDP' eingeschaltet ist und 'ext. UDP IP' auf Home Assistant zeigt. Klicke dann auf der Weboberfläche des Nodes auf 'Send Position' und sende das Formular erneut ab."
@@ -28,14 +16,50 @@
         "title": "Web-Passwort von {node}",
         "description": "Der Node hat das gespeicherte Web-Passwort abgelehnt. Gib das aktuelle ein.",
         "data": {
-          "password": "Web-Passwort"
+          "password": "Web-Passwort",
+          "kiss_password": "Node-Passwort (--passwd)"
         }
       },
       "reconfigure": {
         "title": "Web-Passwort von {node}",
         "description": "Gib das Web-Passwort des Nodes ein oder lass das Feld leer, wenn der Node keines hat.",
         "data": {
-          "password": "Web-Passwort"
+          "password": "Web-Passwort",
+          "kiss_password": "Node-Passwort (--passwd)"
+        }
+      },
+      "udp": {
+        "title": "MeshCom-Node hinzufügen",
+        "description": "Gib die IP-Adresse deines Nodes ein. Stelle am Node 'ext. UDP IP' auf die Adresse von Home Assistant und schalte 'ext UDP' ein. Schalte die externe UDP-Schnittstelle nur bei Nodes ein, die in deinem Heimnetz bleiben.",
+        "data": {
+          "host": "IP-Adresse des Nodes",
+          "listen_port": "UDP-Port in Home Assistant"
+        },
+        "data_description": {
+          "host": "Private IPv4-Adresse des Nodes, zum Beispiel 192.168.1.50.",
+          "listen_port": "Der Node sendet immer an Port 1799. Nur ändern, wenn eine Weiterleitung an einen anderen Port sendet."
+        }
+      },
+      "user": {
+        "title": "MeshCom-Node hinzufügen",
+        "description": "Wie soll Home Assistant den Node erreichen?",
+        "menu_options": {
+          "udp": "Externes UDP (Node im Heimnetz)",
+          "kiss": "KISS über TCP (z. B. mobiler Node)"
+        }
+      },
+      "kiss": {
+        "title": "MeshCom-Node über KISS",
+        "description": "Schalte am Node KISS ein (--kiss on) und, um aus Home Assistant zu senden, KISS TX (--kiss tx on). Schütze die Schnittstelle mit Authentifizierung (--kiss auth on) und dem Node-Passwort (--passwd, bis 14 Zeichen): ohne sie kann sich jedes Gerät im Netz verbinden und unter deinem Rufzeichen senden. Der Node bedient immer nur einen KISS-Client; Home Assistant hält die Verbindung offen.",
+        "data": {
+          "host": "IP-Adresse des Nodes",
+          "kiss_port": "KISS-Port",
+          "callsign": "Rufzeichen des Nodes",
+          "kiss_password": "Node-Passwort (--passwd)"
+        },
+        "data_description": {
+          "callsign": "Das eigene Rufzeichen des Nodes mit SSID, z. B. DO8RE-9. Nur Nachrichten von diesem Rufzeichen gelten als vom Node gesendet.",
+          "kiss_password": "Nur leer lassen, wenn die KISS-Authentifizierung am Node aus ist."
         }
       }
     },
@@ -47,7 +71,12 @@
       "invalid_auth": "Der Node hat das Passwort abgelehnt.",
       "throttled": "Der Node sperrt die Anmeldung nach fünf Fehlversuchen für eine Minute. Warte eine Minute und versuche es erneut.",
       "cannot_connect": "Die Weboberfläche des Nodes ist nicht erreichbar.",
-      "downgrade": "Der Node hatte vorher den sicheren Login angeboten und jetzt nur noch den unverschlüsselten von Firmware 4.40a. Prüfe Firmware und Adresse des Nodes."
+      "downgrade": "Der Node hatte vorher den sicheren Login angeboten und jetzt nur noch den unverschlüsselten von Firmware 4.40a. Prüfe Firmware und Adresse des Nodes.",
+      "invalid_callsign": "Kein gültiges Rufzeichen.",
+      "invalid_kiss_password": "Das Node-Passwort hat 1 bis 14 ASCII-Zeichen.",
+      "kiss_auth_required": "Der Node verlangt sein Passwort (--passwd).",
+      "invalid_kiss_auth": "Der Node hat das Passwort abgelehnt.",
+      "kiss_cannot_connect": "Die KISS-Schnittstelle ist nicht erreichbar. Prüfe --kiss on, die Adresse und ob schon ein anderer KISS-Client verbunden ist."
     },
     "abort": {
       "already_configured": "Dieser Node ist bereits eingerichtet.",
@@ -129,6 +158,9 @@
     "binary_sensor": {
       "active": {
         "name": "Aktiv"
+      },
+      "kiss_connected": {
+        "name": "KISS verbunden"
       }
     },
     "device_tracker": {
@@ -213,6 +245,18 @@
     },
     "web_downgrade": {
       "message": "Der Node bietet den sicheren Web-Login nicht mehr an."
+    },
+    "kiss_offline": {
+      "message": "Die KISS-Verbindung zum Node ist unterbrochen."
+    },
+    "kiss_tx_off": {
+      "message": "Der Node erlaubt kein Senden über KISS (--kiss tx off)."
+    },
+    "kiss_bad_call": {
+      "message": "Der Node hat das Absender-Rufzeichen abgelehnt."
+    },
+    "rate_limited_node": {
+      "message": "Der Node begrenzt das Senden; versuche es gleich noch einmal."
     }
   },
   "services": {
@@ -271,6 +315,10 @@
     "web_downgrade": {
       "title": "MeshCom-Node {node} bietet den sicheren Web-Login nicht mehr an",
       "description": "Der Node hat vorher den sicheren Web-Login genutzt und bietet jetzt nur noch den unverschlüsselten Login von Firmware 4.40a an. Das passiert nach einem Firmware-Downgrade oder wenn ein anderes Gerät unter der Adresse des Nodes antwortet. Home Assistant schickt das Passwort nicht unverschlüsselt. Prüfe den Node; nach einem gewollten Downgrade entferne den Node und füge ihn neu hinzu."
+    },
+    "kiss_auth_off": {
+      "title": "KISS-Schnittstelle von {node} ohne Authentifizierung",
+      "description": "Der Node hat beim Verbinden mit seiner KISS-Schnittstelle kein Passwort verlangt. Dann kann sich jedes Gerät im Netz an Stelle von Home Assistant verbinden und mit KISS TX unter deinem Rufzeichen senden. Setze am Node ein Passwort (--passwd), schalte die KISS-Authentifizierung ein (--kiss auth on) und trage das Passwort in Home Assistant über „Neu konfigurieren“ der Integration ein."
     }
   },
   "selector": {

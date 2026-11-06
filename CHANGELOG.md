@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.0
+
+### Features
+- Second access path per node: KISS over TCP (firmware 4.40a), selectable when adding a node; for nodes whose external UDP stays off, e.g. a mobile node
+- Optional KISS authentication (HMAC-SHA256 with the node password), reauthentication when the node rejects it, repair warning when the node does not ask for a password
+- Receiving positions, messages and acknowledgements via KISS, including RSSI/SNR and full callsigns of stations with an SSID above 15; sending via KISS with delivery tracking
+- Binary sensor "KISS connected"; automatic reconnect
+
+### Security
+- KISS frames go through the same validation as UDP datagrams; a frame with the node's callsign but a measured RSSI is not treated as the node's own
+
 ## v0.3.0
 
 ### Features

@@ -401,7 +401,17 @@ def parse_datagram(data: bytes) -> Packet:
     Raises :class:`InvalidPacketError` with a stable reason code for every
     datagram that is not a complete, valid MeshCom packet.
     """
-    obj = _load(data)
+    return parse_object(_load(data))
+
+
+def parse_object(obj: dict[str, Any]) -> Packet:
+    """Validate an already decoded packet object (same rules as datagrams).
+
+    Used by the KISS decoder, which builds the same object from an AX.25
+    frame, so that both access paths share one set of checks.
+    """
+    if len(obj) > MAX_JSON_KEYS:
+        _fail("too_many_keys")
     packet_type = obj.get("type")
     if not isinstance(packet_type, str) or packet_type not in _PARSERS:
         _fail("unknown_type")
