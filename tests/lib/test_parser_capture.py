@@ -9,6 +9,7 @@ from aiomeshcom import (
     DestinationKind,
     InvalidPacketError,
     PositionPacket,
+    RemoteManagementPacket,
     SourceType,
     TelemetryPacket,
     TextMessagePacket,
@@ -24,7 +25,7 @@ def parsed(node_packets: list[bytes]) -> list[Packet]:
 
 
 def test_every_node_packet_is_valid(node_packets: list[bytes]) -> None:
-    assert len(node_packets) == 96
+    assert len(node_packets) == 161
     for data in node_packets:
         parse_datagram(data)
 
@@ -44,11 +45,12 @@ def test_packet_type_counts(parsed: list[Packet]) -> None:
         name = type(packet).__name__
         counts[name] = counts.get(name, 0) + 1
     assert counts == {
-        "PositionPacket": 41,
-        "TelemetryPacket": 41,
-        "TextMessagePacket": 5,
-        "AckMessagePacket": 2,
-        "TimeBeaconPacket": 7,
+        "PositionPacket": 62,
+        "TelemetryPacket": 62,
+        "TextMessagePacket": 10,
+        "AckMessagePacket": 3,
+        "RemoteManagementPacket": 7,
+        "TimeBeaconPacket": 17,
     }
 
 
@@ -62,7 +64,7 @@ def _own(parsed: list[Packet], kind: type) -> list[Packet]:
 
 def test_own_position(parsed: list[Packet]) -> None:
     own = _own(parsed, PositionPacket)
-    assert len(own) == 2
+    assert len(own) == 4
     pos = own[0]
     assert isinstance(pos, PositionPacket)
     assert pos.path.originator == "OWN1-12"
@@ -104,7 +106,7 @@ def test_backslash_symbol_table(parsed: list[Packet]) -> None:
 
 def test_real_sensor_telemetry(parsed: list[Packet]) -> None:
     with_sensors = [p for p in parsed if isinstance(p, TelemetryPacket) and p.has_sensor_data]
-    assert len(with_sensors) == 5
+    assert len(with_sensors) == 10
     tele = with_sensors[0]
     assert tele.temperature_1 == 8
     assert tele.temperature_2 == pytest.approx(3.9)
@@ -137,6 +139,7 @@ def test_direct_messages_carry_sequence(parsed: list[Packet]) -> None:
         ("Test2", 724),
         ("Test3 mit ACK", 725),
         ("Re Test", 603),
+        ("Sample text 5", 106),
     ]
     for message in direct:
         # The sequence number is the counter in the lower 10 bits of the id.
@@ -148,6 +151,7 @@ def test_text_acknowledgements(parsed: list[Packet]) -> None:
     assert [(a.path.originator, a.acknowledged_station, a.sequence) for a in acks] == [
         ("OWN1-9", "OWN1-12", 724),
         ("OWN1-9", "OWN1-12", 725),
+        ("TST33-90", "TST33-92", 106),
     ]
     assert not any(a.rejected for a in acks)
 
@@ -163,7 +167,7 @@ def test_own_messages_share_node_id(parsed: list[Packet]) -> None:
 
 def test_time_beacons(parsed: list[Packet]) -> None:
     beacons = [p for p in parsed if isinstance(p, TimeBeaconPacket)]
-    assert len(beacons) == 7
+    assert len(beacons) == 17
     assert all(b.text.startswith("{CET}") for b in beacons)
 
 
@@ -182,9 +186,28 @@ def test_group_message_from_server(parsed: list[Packet]) -> None:
         for p in parsed
         if isinstance(p, TextMessagePacket) and p.destination_kind is DestinationKind.GROUP
     ]
-    assert len(group) == 1
+    assert [p.destination for p in group] == ["26298", "26299", "26386", "26298"]
     message = group[0]
     assert message.destination == "26298"
     assert message.source_type is SourceType.UDP
     assert message.sequence is None
     assert message.path.originator == "TST37-99"
+
+
+def test_other_addressee(parsed: list[Packet]) -> None:
+    """A message to a non-callsign addressee ("TEST") is kept, not dropped."""
+    other = [
+        p
+        for p in parsed
+        if isinstance(p, TextMessagePacket) and p.destination_kind is DestinationKind.OTHER
+    ]
+    assert [p.destination for p in other] == ["TEST"]
+
+
+def test_remote_management(parsed: list[Packet]) -> None:
+    """RM1 commands and replies are control traffic, never chat."""
+    rm = [p for p in parsed if isinstance(p, RemoteManagementPacket)]
+    assert len(rm) == 7
+    assert sum(p.is_reply for p in rm) == 2
+    assert rm[0].counter == 1793960391
+    assert not any(isinstance(p, TextMessagePacket) and p.text.startswith("RM1") for p in parsed)

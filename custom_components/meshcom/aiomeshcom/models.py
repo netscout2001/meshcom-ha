@@ -20,6 +20,9 @@ class DestinationKind(StrEnum):
     BROADCAST = "broadcast"
     GROUP = "group"
     DIRECT = "direct"
+    #: Any other APRS addressee, e.g. "TEST" (seen in the field). Received
+    #: only; the builders never send to it.
+    OTHER = "other"
 
 
 class DeliveryStatus(IntEnum):
@@ -205,6 +208,23 @@ class AckMessagePacket:
 
 
 @dataclass(frozen=True, slots=True)
+class RemoteManagementPacket:
+    """Authenticated remote management between nodes ("RM1 ...").
+
+    Commands and replies are HMAC-signed by the firmware; the signature is a
+    16-hex tag at the end of the text. They are control traffic, not chat.
+    """
+
+    source_type: SourceType
+    path: Path
+    msg_id: MessageId
+    destination: str
+    counter: int
+    is_reply: bool
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
 class TimeBeaconPacket:
     """A time beacon of a MeshCom server (``{CET}2026-11-06 09:28:08``)."""
 
@@ -229,6 +249,7 @@ type Packet = (
     | TelemetryPacket
     | TextMessagePacket
     | AckMessagePacket
+    | RemoteManagementPacket
     | TimeBeaconPacket
     | DeliveryStatusPacket
 )

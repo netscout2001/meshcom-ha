@@ -55,7 +55,8 @@ def build_text_message(destination: str, text: str) -> bytes:
         raise InvalidOutgoingError("text_too_long")
     if contains_unwanted(text):
         raise InvalidOutgoingError("text_control_characters")
-    if text.startswith(TIME_BEACON_PREFIX):
+    if text.startswith((TIME_BEACON_PREFIX, "RM1 ")):
+        # Time beacons and remote-management commands are control traffic.
         raise InvalidOutgoingError("text_reserved_prefix")
     if _ACK_LIKE_RE.fullmatch(text) or _SEQUENCE_LIKE_RE.fullmatch(text):
         raise InvalidOutgoingError("text_reserved_suffix")

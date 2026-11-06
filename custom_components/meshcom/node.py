@@ -18,6 +18,7 @@ from .aiomeshcom import (
     Firmware,
     Packet,
     PositionPacket,
+    RemoteManagementPacket,
     SourceType,
     TelemetryPacket,
     TextMessagePacket,
@@ -134,8 +135,9 @@ class MeshComNode:
             self._handle_message(packet, now)
         elif isinstance(packet, (AckMessagePacket, DeliveryStatusPacket)):
             self._handle_delivery(packet)
-        elif isinstance(packet, TimeBeaconPacket):
-            pass  # Not shown; only proves that the node is alive.
+        elif isinstance(packet, (TimeBeaconPacket, RemoteManagementPacket)):
+            # Control traffic, not chat. Only proves that the node is alive.
+            pass
         async_dispatcher_send(self.hass, signal_update(self.entry_id))
 
     def _handle_position(self, packet: PositionPacket, now: datetime) -> None:
@@ -171,8 +173,16 @@ class MeshComNode:
         if self._is_duplicate("msg", packet.msg_id.value):
             return
         is_own = packet.source_type is SourceType.NODE
+        # Direct messages between other stations are heard too. They are
+        # passed on as events but do not count as messages for this node.
+        to_me = (
+            packet.destination_kind is not DestinationKind.DIRECT
+            or packet.destination == self.callsign
+        )
         if is_own:
             self.messages_sent += 1
+        elif not to_me:
+            self._station(packet.path.originator, now)
         else:
             self.messages_received += 1
             self.last_message = ReceivedMessage(
@@ -200,6 +210,7 @@ class MeshComNode:
                 "text": packet.text,
                 "text_cleaned": packet.text_cleaned,
                 "is_own": is_own,
+                "to_me": to_me and not is_own,
                 "via_server": packet.source_type is SourceType.UDP,
                 "msg_id": str(packet.msg_id),
                 "sequence": packet.sequence,
