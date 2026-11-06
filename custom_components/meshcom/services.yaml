@@ -1,0 +1,18 @@
+send_message:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: meshcom
+    destination:
+      required: true
+      example: "262"
+      selector:
+        text:
+    message:
+      required: true
+      example: "Hallo aus Home Assistant"
+      selector:
+        text:
+          multiline: false

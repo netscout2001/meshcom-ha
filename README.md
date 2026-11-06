@@ -16,17 +16,32 @@ Planned features:
 - Access via the node's external UDP interface, the web API (with or without
   web password) and the NET console
 
-## Current state (phase 1, receive only)
+## Current state
 
 - One config entry per node; several nodes share one UDP port
 - Sensors: battery, last message, last sender, message counters, stations
   heard in the last 24 h, firmware, RSSI/SNR (disabled by default), and
   environment sensors if the node reports them
 - Binary sensor "Active" and a device tracker for the node's position
-- Events `meshcom_message` and `meshcom_delivery_update`
+- Events `meshcom_message`, `meshcom_message_sent` and
+  `meshcom_delivery_update` (only for acknowledgements of your own messages)
+- Sending: recipient type, group and station selects, a message text field,
+  send and clear buttons, and the action `meshcom.send_message`
 - Diagnostics without addresses, positions or message text
 
-Sending, the web API, the NET console, KISS/TCP and the chat panel follow.
+The web API, the NET console, KISS/TCP and the chat panel follow.
+
+### Who may send
+
+Everything sent goes out on amateur radio under the node's callsign.
+
+- Administrators may send. Other users only if released in the options.
+- Automations may send (they are configured by an administrator).
+- At most 3 messages in a row, then one every 30 seconds, for the whole
+  Home Assistant instance.
+- The switch **Allow sending** blocks sending through a node completely.
+- Every transmission appears in the logbook with the user or automation that
+  triggered it.
 
 ## Installation (manual, for testing)
 

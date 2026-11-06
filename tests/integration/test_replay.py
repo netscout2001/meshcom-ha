@@ -27,7 +27,7 @@ from custom_components.meshcom.const import (
 )
 from custom_components.meshcom.hub import UdpHub, _Protocol
 
-from .conftest import NODE_HOST, OWN_TELEMETRY, datagram, inject
+from .conftest import NODE_HOST, OWN_MESSAGE, OWN_TELEMETRY, datagram, inject
 
 CAPTURE = Path(__file__).parent.parent / "lib" / "fixtures" / "capture_2026-11-06.anon.jsonl"
 CAPTURE_HOST = "192.0.2.15"
@@ -89,6 +89,9 @@ async def test_delivery_status_datagram(
 ) -> None:
     """The node's own ack datagram fires a delivery event."""
     events = async_capture_events(hass, EVENT_DELIVERY)
+    # Status for a message that is not ours is ignored.
+    inject(init_integration, datagram(type="ack", msg_id="63CF32D4", status=2))
+    inject(init_integration, OWN_MESSAGE)
     inject(init_integration, datagram(type="ack", msg_id="63CF32D4", status=9))
     inject(
         init_integration,
