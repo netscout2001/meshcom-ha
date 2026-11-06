@@ -66,11 +66,15 @@ async def test_replay_capture(hass: HomeAssistant) -> None:
 
     hub = entry.runtime_data.hub
     node = entry.runtime_data.node
-    assert hub.accepted == 96
+    assert hub.accepted == 161
     assert hub.dropped["unknown_sender"] == 2  # the two test packets
     assert node.messages_sent == 2
-    assert node.messages_received == 3  # 1 broadcast, 1 DM reply, 1 group message
-    assert len(messages) == 5
+    # broadcast, DM reply, four group messages, one "TEST"; not the DM
+    # between two other stations and not the remote-management traffic
+    assert node.messages_received == 7
+    assert len(messages) == 10
+    assert sum(1 for m in messages if m.data["to_me"]) == 7
+    # the third acknowledgement in the capture belongs to other stations
     assert len(deliveries) == 2
     assert [d.data["sequence"] for d in deliveries] == [724, 725]
     assert node.stations_heard() > 20

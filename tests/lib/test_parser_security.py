@@ -18,6 +18,7 @@ from aiomeshcom import (
     DeliveryStatus,
     DeliveryStatusPacket,
     InvalidPacketError,
+    RemoteManagementPacket,
     TextMessagePacket,
     parse_datagram,
 )
@@ -148,8 +149,10 @@ def test_unknown_scalar_keys_are_ignored() -> None:
         ({"msg_id": "XYZ"}, "field_msg_id"),
         ({"msg_id": 1234}, "field_msg_id"),
         ({"dst": "<b>"}, "field_dst"),
-        ({"dst": "123456"}, "field_dst"),
+        ({"dst": "ABCDEFGHIJ"}, "field_dst"),
         ({"dst": "TOOLONGCALL"}, "field_dst"),
+        ({"dst": "test"}, "field_dst"),
+        ({"dst": "T\u0415ST"}, "field_dst"),
         ({"msg": 5}, "field_msg"),
         ({"msg": "x" * 257}, "field_msg"),
         ({"firmware": "5.x"}, "field_firmware"),
@@ -289,6 +292,20 @@ def test_ack_text_for_other_station_is_a_normal_message() -> None:
 
 def test_ack_text_in_broadcast_is_a_normal_message() -> None:
     packet = parse_datagram(msg(dst="*", msg="OWN1-12  :ack724"))
+    assert isinstance(packet, TextMessagePacket)
+
+
+def test_remote_management_command_and_reply() -> None:
+    command = parse_datagram(msg(dst="OWN1-12", msg="RM1 1793960391 status " + "a" * 16))
+    reply = parse_datagram(msg(dst="OWN1-9", msg="RM1 1793960391 err busy " + "b" * 16))
+    assert isinstance(command, RemoteManagementPacket)
+    assert not command.is_reply
+    assert isinstance(reply, RemoteManagementPacket)
+    assert reply.is_reply
+
+
+def test_rm_text_in_group_is_a_normal_message() -> None:
+    packet = parse_datagram(msg(dst="262", msg="RM1 1 status x"))
     assert isinstance(packet, TextMessagePacket)
 
 

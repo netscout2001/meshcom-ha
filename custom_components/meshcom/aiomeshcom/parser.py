@@ -42,6 +42,7 @@ from .models import (
     Path,
     PositionPacket,
     Radio,
+    RemoteManagementPacket,
     SourceType,
     TelemetryPacket,
     TextMessagePacket,
@@ -57,6 +58,10 @@ _ACK_TEXT_RE: Final = re.compile(r"([A-Z0-9-]{1,9}) *:(ack|rej)([0-9]{1,3})")
 # Sequence number at the end of a direct message: "Test2{724". The closing
 # brace is optional (APRS allows "{724}" as well).
 _SEQUENCE_RE: Final = re.compile(r"\{([0-9]{1,3})\}?\Z")
+# Any APRS addressee: up to 9 characters, upper case letters, digits, '-'.
+_ADDRESSEE_RE: Final = re.compile(r"[A-Z0-9-]{1,9}")
+# Remote management (firmware remote_cmd.h): "RM1 <ctr> <cmd|ok|err> ... <tag>"
+_RM_RE: Final = re.compile(r"RM1 ([0-9]{1,10}) (\S+)")
 _VIA_RE: Final = re.compile(r"[A-Za-z0-9_-]{1,12}")
 _DIGITAL_INPUTS_RE: Final = re.compile(r"[01]{1,16}")
 
@@ -297,6 +302,8 @@ def _destination_kind(destination: str) -> DestinationKind:
         return DestinationKind.GROUP
     if is_callsign(destination):
         return DestinationKind.DIRECT
+    if _ADDRESSEE_RE.fullmatch(destination):
+        return DestinationKind.OTHER
     _fail("field_dst")
 
 
@@ -314,6 +321,18 @@ def _parse_message(obj: dict[str, Any]) -> Packet:
         return TimeBeaconPacket(source_type=source_type, path=path, msg_id=msg_id, text=text)
 
     if kind is DestinationKind.DIRECT:
+        rm = _RM_RE.match(raw_text)
+        if rm is not None:
+            text, _ = clean_text(raw_text)
+            return RemoteManagementPacket(
+                source_type=source_type,
+                path=path,
+                msg_id=msg_id,
+                destination=destination,
+                counter=int(rm.group(1)),
+                is_reply=rm.group(2) in ("ok", "err"),
+                text=text,
+            )
         ack = _ACK_TEXT_RE.fullmatch(raw_text)
         # Only a text addressed to the message's own destination counts as an
         # acknowledgement; anything else stays a normal message.

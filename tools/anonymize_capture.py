@@ -26,6 +26,7 @@ from typing import Any
 
 _CALL_RE = re.compile(r"\b([A-Z0-9]{3,7})(-[0-9]{1,2})?\b")
 _ACK_RE = re.compile(r"([A-Z0-9-]{1,9}) *:(ack|rej)([0-9]{1,3})")
+_TAG_RE = re.compile(r"\b[0-9a-f]{16}\b")
 _SEQ_RE = re.compile(r"\{[0-9]{1,3}\}?\Z")
 
 
@@ -75,6 +76,10 @@ class Anonymizer:
     def text(self, value: str, *, own: bool, destination: str) -> str:
         if value.startswith("{CET}"):
             return value
+        if value.startswith("RM1 "):
+            # Remote management carries HMAC tags over known text. Published
+            # tags would allow offline guessing of the node password.
+            return _TAG_RE.sub("0" * 16, value)
         ack = _ACK_RE.fullmatch(value)
         if ack is not None:
             call = self.callsign(ack.group(1))
@@ -100,7 +105,8 @@ class Anonymizer:
             out["src"] = self.path(out["src"])
         # Group numbers ("26298") are not personal data and stay unchanged.
         dst = out.get("dst")
-        if isinstance(dst, str) and _CALL_RE.fullmatch(dst) and not dst.isdigit():
+        is_call = isinstance(dst, str) and any(c.isdigit() for c in dst) and not dst.isdigit()
+        if is_call and _CALL_RE.fullmatch(dst):
             out["dst"] = self.callsign(out["dst"])
         if isinstance(out.get("from"), str):
             out["from"] = self.callsign(out["from"])
