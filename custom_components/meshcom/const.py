@@ -67,3 +67,7 @@ ATTR_DESTINATION: Final = "destination"
 ATTR_MESSAGE: Final = "message"
 
 ISSUE_WEB_PASSWORD_MISSING: Final = "web_password_missing"  # noqa: S105  # issue id, not a secret
+ISSUE_WEB_LEGACY_LOGIN: Final = "web_legacy_login"
+ISSUE_WEB_DOWNGRADE: Final = "web_downgrade"
+#: Login method of the node's web API, pinned once the secure login was used.
+CONF_WEB_AUTH: Final = "web_auth"

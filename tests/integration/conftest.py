@@ -49,15 +49,33 @@ class FakeWebClient:
         self.error: WebApiError | None = None
         self.calls: list[tuple[str, ...]] = []
         self.passwords: list[str | None] = []
+        #: Login method the node offers: "hmac" or "legacy" (4.40a).
+        self.method = "legacy"
+        self.allow_legacy = True
+        self.auth_method: str | None = None
+        self._password: str | None = None
 
-    def factory(self, _session: object, host: str, password: str | None) -> FakeWebClient:
-        """Called like ``MeshComWebClient(session, host, password)``."""
+    def factory(
+        self, _session: object, host: str, password: str | None, *, allow_legacy: bool = True
+    ) -> FakeWebClient:
+        """Called like ``MeshComWebClient(session, host, password, allow_legacy=...)``."""
         self.passwords.append(password)
+        self._password = password
+        self.allow_legacy = allow_legacy
         return self
 
     def _raise(self) -> None:
         if self.error is not None:
             raise self.error
+        if self._password is None:
+            return
+        if self.method == "legacy" and not self.allow_legacy:
+            from custom_components.meshcom.aiomeshcom.webapi import (  # noqa: PLC0415
+                WebDowngradeError,
+            )
+
+            raise WebDowngradeError("secure login not offered")
+        self.auth_method = self.method
 
     async def get_status(self) -> tuple[bool, list[str]]:
         """Read nomsgall and the groups."""

@@ -46,7 +46,8 @@
       "invalid_host": "Enter a private IPv4 address, for example 192.168.1.50.",
       "invalid_auth": "The node rejected the password.",
       "throttled": "The node blocks logins for a minute after five failed attempts. Wait a minute and try again.",
-      "cannot_connect": "The node's web interface cannot be reached."
+      "cannot_connect": "The node's web interface cannot be reached.",
+      "downgrade": "The node offered the secure login before and now only the unencrypted one of firmware 4.40a. Check the node's firmware and address."
     },
     "abort": {
       "already_configured": "This node is already configured.",
@@ -191,6 +192,9 @@
     },
     "web_unavailable": {
       "message": "The node's web interface cannot be reached."
+    },
+    "web_downgrade": {
+      "message": "The node no longer offers the secure web login."
     }
   },
   "services": {
@@ -235,6 +239,14 @@
     "web_password_missing": {
       "title": "MeshCom node {node} has no web password",
       "description": "Without a web password, every device and every website opened in a browser on your network can read the node's WLAN password and change its settings. Set one on the node with `--webpwd` followed by the password (up to 19 characters) and enter it in Home Assistant via the integration's Reconfigure option."
+    },
+    "web_legacy_login": {
+      "title": "MeshCom node {node} uses the unencrypted web login",
+      "description": "Firmware 4.40a only knows a login that sends the web password unencrypted in the address, after which the node trusts Home Assistant's IP address. Home Assistant therefore logs out right after each query (every 5 minutes), so the node trusts it only for seconds. Anyone who can read your network traffic can still see the password. Update the node to a firmware with the secure login; Home Assistant then switches to it by itself and never back."
+    },
+    "web_downgrade": {
+      "title": "MeshCom node {node} no longer offers the secure web login",
+      "description": "The node used the secure web login before and now only offers the unencrypted login of firmware 4.40a. That happens after a firmware downgrade, or if another device answers at the node's address. Home Assistant does not send the password unencrypted. Check the node; after a deliberate downgrade, remove and add the node again."
     }
   }
 }

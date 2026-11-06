@@ -38,8 +38,11 @@ from custom_components.meshcom.aiomeshcom.webapi import (
 from custom_components.meshcom.const import (
     CONF_GROUPS,
     CONF_SEND_USERS,
+    CONF_WEB_AUTH,
     DOMAIN,
     EVENT_MESSAGE,
+    ISSUE_WEB_DOWNGRADE,
+    ISSUE_WEB_LEGACY_LOGIN,
     ISSUE_WEB_PASSWORD_MISSING,
 )
 
@@ -488,3 +491,109 @@ async def test_diagnostics_hide_password(
         "no_msg_all": False,
         "groups": 2,
     }
+
+
+# --- login method (4.40a plain text vs. secure login) ------------------------
+
+
+async def _setup_with_password(hass: HomeAssistant, entry: MockConfigEntry, **extra: str) -> None:
+    entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, CONF_PASSWORD: PASSWORD, **extra}
+    )
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_legacy_login_warns(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """4.40a works, with a repair warning; nothing is pinned."""
+    await _setup_with_password(hass, mock_config_entry)
+    assert hass.states.get(NO_MSG_ALL).state == STATE_OFF  # type: ignore[union-attr]
+    issue_id = f"{ISSUE_WEB_LEGACY_LOGIN}_{mock_config_entry.entry_id}"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+    assert CONF_WEB_AUTH not in mock_config_entry.data
+    assert web_client.allow_legacy is True
+
+
+async def test_upgrade_pins_secure_login(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """After a firmware update the secure login is used and pinned for good."""
+    await _setup_with_password(hass, mock_config_entry)
+    web_client.method = "hmac"
+    await _refresh(hass, mock_config_entry)
+    assert mock_config_entry.data[CONF_WEB_AUTH] == "hmac"
+    assert web_client.allow_legacy is False
+    issue_id = f"{ISSUE_WEB_LEGACY_LOGIN}_{mock_config_entry.entry_id}"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+    # The node falls back to 4.40a: no plain-text login, an error instead.
+    web_client.method = "legacy"
+    await _refresh(hass, mock_config_entry)
+    assert hass.states.get(NO_MSG_ALL).state == STATE_UNAVAILABLE  # type: ignore[union-attr]
+    issue_id = f"{ISSUE_WEB_DOWNGRADE}_{mock_config_entry.entry_id}"
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None
+    assert issue.severity is ir.IssueSeverity.ERROR
+    with pytest.raises(HomeAssistantError) as err:
+        await mock_config_entry.runtime_data.web.async_set_no_msg_all(True)
+    assert err.value.translation_key == "web_downgrade"
+
+    # Secure login back: the error goes away.
+    web_client.method = "hmac"
+    await _refresh(hass, mock_config_entry)
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_pinned_entry_never_allows_legacy(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """A pinned entry starts with the plain-text login switched off."""
+    await _setup_with_password(hass, mock_config_entry, **{CONF_WEB_AUTH: "hmac"})
+    assert web_client.allow_legacy is False
+
+
+async def test_flow_pins_secure_login(hass: HomeAssistant, web_client: FakeWebClient) -> None:
+    """A node with secure login is pinned right at setup."""
+    web_client.method = "hmac"
+    flow_id = await _flow_at_web_step(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_PASSWORD: PASSWORD})
+    assert result["data"][CONF_WEB_AUTH] == "hmac"
+
+
+async def test_flow_legacy_not_pinned(hass: HomeAssistant, web_client: FakeWebClient) -> None:
+    """A 4.40a node is set up without pinning."""
+    flow_id = await _flow_at_web_step(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_PASSWORD: PASSWORD})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert CONF_WEB_AUTH not in result["data"]
+
+
+async def test_reauth_pinned_refuses_downgrade(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """Reauth of a pinned node does not accept the plain-text login."""
+    web_client.method = "hmac"
+    await _setup_with_password(hass, mock_config_entry, **{CONF_WEB_AUTH: "hmac"})
+    web_client.method = "legacy"
+    result = await mock_config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+    )
+    assert result["errors"] == {"base": "downgrade"}
+    assert web_client.allow_legacy is False
+
+
+async def test_reconfigure_pins_after_update(
+    hass: HomeAssistant, init_integration: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """Reconfiguring against an updated node pins the secure login."""
+    web_client.method = "hmac"
+    result = await init_integration.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+    )
+    assert result["reason"] == "reconfigure_successful"
+    assert init_integration.data[CONF_WEB_AUTH] == "hmac"
