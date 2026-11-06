@@ -14,10 +14,13 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 from aiomeshcom.webapi import (
+    AUTH_HMAC,
+    AUTH_LEGACY,
     MeshComWebClient,
     WebApiError,
     WebAuthError,
     WebConnectionError,
+    WebDowngradeError,
     WebThrottledError,
 )
 
@@ -26,7 +29,11 @@ PASSWORD = "Secret-Web-19chars"
 
 @dataclass
 class FakeNode:
-    """Behaves like firmware 4.40a (web_functions.cpp, web_auth.cpp)."""
+    """Behaves like the firmware (web_functions.cpp, web_auth.cpp).
+
+    ``legacy=False``: dev firmware with WEB-AUTH-01 (nonce + HMAC, cookie).
+    ``legacy=True``: release 4.40a (``/?nodepassword=``, trusts the client IP).
+    """
 
     password: str | None = PASSWORD
     params: dict[str, str] = field(
@@ -44,10 +51,15 @@ class FakeNode:
     headers_ok: bool = True
     #: Misbehaviour to simulate (see test_misbehaving_node).
     mode: str = "normal"
+    legacy: bool = False
+    ip_trusted: bool = False
+    plaintext_seen: list[str] = field(default_factory=list)
 
     def authorised(self, request: web.Request) -> bool:
         if self.password is None:
             return True
+        if self.legacy:
+            return self.ip_trusted
         cookie = request.headers.get("Cookie", "")
         return cookie.startswith("mcs=") and cookie[4:] in self.sessions
 
@@ -55,6 +67,8 @@ class FakeNode:
         self.requests.append(request.path_qs)
         self.headers_ok &= request.headers.get("X-MC") == "1"
         query = request.query_string
+        if self.legacy:
+            return self.root_legacy(request)
         if query == "loginnonce" and self.mode == "bad_nonce":
             return web.Response(text="not-a-nonce")
         if query.startswith("login=") and self.mode == "login_throttled":
@@ -92,6 +106,23 @@ class FakeNode:
             self.sessions.discard(cookie[4:])
             return web.Response(text="")
         return web.Response(status=404)
+
+    def root_legacy(self, request: web.Request) -> web.Response:
+        """4.40a: 200 with a big HTML page for the login, 401 for unknown paths."""
+        raw = request.raw_path.partition("?")[2]
+        if raw.startswith("nodepassword="):
+            # The node percent-decodes the rest of the request line.
+            value = request.query.get("nodepassword", "")
+            if value == "":
+                self.ip_trusted = False
+            else:
+                self.plaintext_seen.append(value)
+                if value == self.password:
+                    self.ip_trusted = True
+            return web.Response(text="<html>" + "x" * 6000)
+        if self.password is not None and not self.ip_trusted:
+            return web.Response(status=401, text="Unauthorized")
+        return web.Response(text="<html>" + "y" * 6000)
 
     async def getparam(self, request: web.Request) -> web.Response:
         self.requests.append(request.path_qs)
@@ -141,9 +172,19 @@ async def session() -> AsyncGenerator[aiohttp.ClientSession]:
 
 
 def client(
-    session: aiohttp.ClientSession, server: TestServer, password: str | None = PASSWORD
+    session: aiohttp.ClientSession,
+    server: TestServer,
+    password: str | None = PASSWORD,
+    *,
+    allow_legacy: bool = True,
 ) -> MeshComWebClient:
-    return MeshComWebClient(session, f"{server.host}:{server.port}", password, timeout=5)
+    return MeshComWebClient(
+        session,
+        f"{server.host}:{server.port}",
+        password,
+        allow_legacy=allow_legacy,
+        timeout=5,
+    )
 
 
 async def test_login_read_logout(
@@ -275,7 +316,7 @@ async def test_garbage_answers(
 @pytest.mark.parametrize(
     ("mode", "error"),
     [
-        ("bad_nonce", WebConnectionError),
+        ("bad_nonce", WebAuthError),
         ("login_throttled", WebThrottledError),
         ("login_no_cookie", WebConnectionError),
         ("login_garbage", WebAuthError),
@@ -303,3 +344,87 @@ async def test_failed_logout_is_ignored(
     """The session expires on its own; a broken logout does not fail the request."""
     node.mode = "logout_breaks"
     assert await client(session, server).get_param("nomsgall") == "off"
+
+
+# --- firmware 4.40a (legacy login) ------------------------------------------
+
+
+async def test_hmac_preferred(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """A node with nonce login is never sent the plain-text password."""
+    web_client = client(session, server)
+    await web_client.get_param("nomsgall")
+    assert web_client.auth_method == AUTH_HMAC
+    assert not any("nodepassword" in r for r in node.requests)
+
+
+async def test_legacy_login_read_logout(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """4.40a: login, request, and the IP trust is ended right away."""
+    node.legacy = True
+    web_client = client(session, server)
+    assert await web_client.get_status() == (False, ["262", "26298"])
+    assert web_client.auth_method == AUTH_LEGACY
+    assert node.ip_trusted is False
+    assert node.requests[0] == "/?loginnonce"
+    assert node.requests[-1] == "/?nodepassword="
+    assert (
+        sum(r.startswith("/?nodepassword=") and r != "/?nodepassword=" for r in node.requests) == 1
+    )
+
+
+@pytest.mark.parametrize("password", ["a b&c=d/e%f+g", "\u00e4\u00f6\u00fc-#?"])
+async def test_legacy_password_encoding(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode, password: str
+) -> None:
+    """Special characters arrive at the node unchanged."""
+    node.legacy = True
+    node.password = password
+    assert await client(session, server, password).get_param("nomsgall") == "off"
+    assert node.plaintext_seen == [password]
+
+
+async def test_legacy_wrong_password(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """The login answer is 200 either way; the next request reveals it."""
+    node.legacy = True
+    with pytest.raises(WebAuthError):
+        await client(session, server, "wrong").get_param("nomsgall")
+    assert node.requests[-1] == "/?nodepassword="
+
+
+async def test_legacy_set_param(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    node.legacy = True
+    assert await client(session, server).set_param("nomsgall", "on") == "on"
+    assert node.params["nomsgall"] == "on"
+    assert node.ip_trusted is False
+
+
+async def test_no_downgrade(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """Pinned to the secure login: the plain-text password is never sent."""
+    node.legacy = True
+    web_client = client(session, server, allow_legacy=False)
+    with pytest.raises(WebDowngradeError):
+        await web_client.get_param("nomsgall")
+    assert node.plaintext_seen == []
+    assert not any("nodepassword" in r for r in node.requests)
+    assert web_client.auth_method is None
+
+
+async def test_legacy_open_node(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """4.40a without web password: no login at all."""
+    node.legacy = True
+    node.password = None
+    web_client = client(session, server, None)
+    assert await web_client.is_open() is True
+    assert await web_client.get_param("nomsgall") == "off"
+    assert not any("nodepassword" in r or "login" in r for r in node.requests)

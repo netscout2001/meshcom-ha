@@ -46,7 +46,8 @@
       "invalid_host": "Gib eine private IPv4-Adresse ein, zum Beispiel 192.168.1.50.",
       "invalid_auth": "Der Node hat das Passwort abgelehnt.",
       "throttled": "Der Node sperrt die Anmeldung nach fünf Fehlversuchen für eine Minute. Warte eine Minute und versuche es erneut.",
-      "cannot_connect": "Die Weboberfläche des Nodes ist nicht erreichbar."
+      "cannot_connect": "Die Weboberfläche des Nodes ist nicht erreichbar.",
+      "downgrade": "Der Node hatte vorher den sicheren Login angeboten und jetzt nur noch den unverschlüsselten von Firmware 4.40a. Prüfe Firmware und Adresse des Nodes."
     },
     "abort": {
       "already_configured": "Dieser Node ist bereits eingerichtet.",
@@ -191,6 +192,9 @@
     },
     "web_unavailable": {
       "message": "Die Weboberfläche des Nodes ist nicht erreichbar."
+    },
+    "web_downgrade": {
+      "message": "Der Node bietet den sicheren Web-Login nicht mehr an."
     }
   },
   "services": {
@@ -235,6 +239,14 @@
     "web_password_missing": {
       "title": "MeshCom-Node {node} hat kein Web-Passwort",
       "description": "Ohne Web-Passwort kann jedes Gerät und jede im Browser geöffnete Webseite in deinem Netz das WLAN-Passwort des Nodes auslesen und seine Einstellungen ändern. Setze am Node eines mit `--webpwd` und dem Passwort (bis 19 Zeichen) und trage es in Home Assistant über „Neu konfigurieren“ der Integration ein."
+    },
+    "web_legacy_login": {
+      "title": "MeshCom-Node {node} nutzt den unverschlüsselten Web-Login",
+      "description": "Firmware 4.40a kennt nur einen Login, der das Web-Passwort unverschlüsselt in der Adresse schickt; danach vertraut der Node der IP-Adresse von Home Assistant. Home Assistant meldet sich deshalb nach jeder Abfrage (alle 5 Minuten) sofort wieder ab, sodass der Node ihm nur Sekunden vertraut. Wer deinen Netzwerkverkehr mitlesen kann, sieht das Passwort trotzdem. Aktualisiere den Node auf eine Firmware mit sicherem Login; Home Assistant wechselt dann von selbst dorthin und nie wieder zurück."
+    },
+    "web_downgrade": {
+      "title": "MeshCom-Node {node} bietet den sicheren Web-Login nicht mehr an",
+      "description": "Der Node hat vorher den sicheren Web-Login genutzt und bietet jetzt nur noch den unverschlüsselten Login von Firmware 4.40a an. Das passiert nach einem Firmware-Downgrade oder wenn ein anderes Gerät unter der Adresse des Nodes antwortet. Home Assistant schickt das Passwort nicht unverschlüsselt. Prüfe den Node; nach einem gewollten Downgrade entferne den Node und füge ihn neu hinzu."
     }
   }
 }

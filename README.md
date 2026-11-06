@@ -46,6 +46,17 @@ Assistant asks for the new one (reauthentication); the password can also be
 changed under **Reconfigure**. A node without a web password gets a repair
 hint.
 
+### Web login and firmware 4.40a
+
+Firmware 4.40a only has a plain-text web login: the password travels
+unencrypted in the URL, and the node then trusts the client's IP address
+for 4 hours. Home Assistant uses it only if the node offers nothing better,
+logs out right after every query (every 5 minutes) so the trust lasts
+seconds, and shows a repair warning. Newer firmware has a nonce/HMAC login
+where the password never travels. Home Assistant switches to it by itself
+as soon as the node offers it and from then on never uses the plain-text
+login for that node again (protection against downgrades and impostors).
+
 ### Who may send
 
 Everything sent goes out on amateur radio under the node's callsign.

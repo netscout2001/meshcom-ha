@@ -36,9 +36,11 @@ from homeassistant.helpers.selector import (
 
 from .aiomeshcom import Packet, PositionPacket, SourceType, TextMessagePacket, is_group
 from .aiomeshcom.webapi import (
+    AUTH_HMAC,
     MeshComWebClient,
     WebApiError,
     WebAuthError,
+    WebDowngradeError,
     WebThrottledError,
 )
 from .const import (
@@ -47,6 +49,7 @@ from .const import (
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
     CONF_SEND_USERS,
+    CONF_WEB_AUTH,
     DEFAULT_LISTEN_PORT,
     DOMAIN,
     SETUP_WAIT_TIMEOUT,
@@ -190,7 +193,7 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None and self._found is not None:
             password = user_input.get(CONF_PASSWORD) or None
-            errors = await _async_validate_web(self.hass, self._host, password)
+            errors, method = await _async_validate_web(self.hass, self._host, password)
             if not errors:
                 callsign, node_id = self._found
                 data: dict[str, Any] = {
@@ -201,6 +204,8 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
                 if password:
                     data[CONF_PASSWORD] = password
+                if method == AUTH_HMAC:
+                    data[CONF_WEB_AUTH] = AUTH_HMAC
                 return self.async_create_entry(title=callsign, data=data)
         return self.async_show_form(step_id="web", data_schema=_PASSWORD_SCHEMA, errors=errors)
 
@@ -216,10 +221,15 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             password = user_input.get(CONF_PASSWORD) or None
-            errors = await _async_validate_web(self.hass, entry.data[CONF_HOST], password)
+            errors, method = await _async_validate_web(
+                self.hass,
+                entry.data[CONF_HOST],
+                password,
+                allow_legacy=entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC,
+            )
             if not errors:
                 return self.async_update_reload_and_abort(
-                    entry, data=_with_password(entry.data, password)
+                    entry, data=_with_password(entry.data, password, method)
                 )
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -236,10 +246,15 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             password = user_input.get(CONF_PASSWORD) or None
-            errors = await _async_validate_web(self.hass, entry.data[CONF_HOST], password)
+            errors, method = await _async_validate_web(
+                self.hass,
+                entry.data[CONF_HOST],
+                password,
+                allow_legacy=entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC,
+            )
             if not errors:
                 return self.async_update_reload_and_abort(
-                    entry, data=_with_password(entry.data, password)
+                    entry, data=_with_password(entry.data, password, method)
                 )
         return self.async_show_form(
             step_id="reconfigure",
@@ -254,27 +269,38 @@ _PASSWORD_SCHEMA = vol.Schema(
 )
 
 
-def _with_password(data: Mapping[str, Any], password: str | None) -> dict[str, Any]:
+def _with_password(
+    data: Mapping[str, Any], password: str | None, method: str | None
+) -> dict[str, Any]:
     new = {key: value for key, value in data.items() if key != CONF_PASSWORD}
     if password:
         new[CONF_PASSWORD] = password
+    if method == AUTH_HMAC:
+        new[CONF_WEB_AUTH] = AUTH_HMAC
     return new
 
 
 async def _async_validate_web(
-    hass: HomeAssistant, host: str, password: str | None
-) -> dict[str, str]:
-    """Check the web password with one login (no retries, see F-06)."""
-    client = MeshComWebClient(async_get_clientsession(hass), host, password)
+    hass: HomeAssistant, host: str, password: str | None, *, allow_legacy: bool = True
+) -> tuple[dict[str, str], str | None]:
+    """Check the web password with one login (no retries, see F-06).
+
+    Returns the errors and the login method the node used.
+    """
+    client = MeshComWebClient(
+        async_get_clientsession(hass), host, password, allow_legacy=allow_legacy
+    )
     try:
         await client.get_param("nomsgall")
     except WebAuthError:
-        return {"base": "invalid_auth"}
+        return {"base": "invalid_auth"}, None
     except WebThrottledError:
-        return {"base": "throttled"}
+        return {"base": "throttled"}, None
+    except WebDowngradeError:
+        return {"base": "downgrade"}, None
     except WebApiError:
-        return {"base": "cannot_connect"}
-    return {}
+        return {"base": "cannot_connect"}, None
+    return {}, client.auth_method
 
 
 def _parse_groups(value: str) -> list[str] | None:

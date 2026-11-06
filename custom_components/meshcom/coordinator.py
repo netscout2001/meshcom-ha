@@ -9,15 +9,17 @@ from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .aiomeshcom.webapi import (
     MeshComWebClient,
     WebApiError,
     WebAuthError,
+    WebDowngradeError,
     WebThrottledError,
 )
-from .const import DOMAIN
+from .const import DOMAIN, ISSUE_WEB_DOWNGRADE
 
 if TYPE_CHECKING:
     from . import MeshComConfigEntry
@@ -65,11 +67,29 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             ) from err
         except WebThrottledError as err:
             raise UpdateFailed(translation_domain=DOMAIN, translation_key="web_throttled") from err
+        except WebDowngradeError as err:
+            # The node used the secure login before and now offers only the
+            # plain-text one: firmware downgrade or someone impersonating it.
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                self._downgrade_issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key=ISSUE_WEB_DOWNGRADE,
+                translation_placeholders={"node": self.config_entry.title},
+            )
+            raise UpdateFailed(translation_domain=DOMAIN, translation_key="web_downgrade") from err
         except WebApiError as err:
             raise UpdateFailed(
                 translation_domain=DOMAIN, translation_key="web_unavailable"
             ) from err
+        ir.async_delete_issue(self.hass, DOMAIN, self._downgrade_issue_id)
         return WebData(no_msg_all=no_msg_all, groups=groups)
+
+    @property
+    def _downgrade_issue_id(self) -> str:
+        return f"{ISSUE_WEB_DOWNGRADE}_{self.config_entry.entry_id}"
 
     async def async_set_no_msg_all(self, enabled: bool) -> None:
         """Switch "No MSG All" on the node and take over the node's answer."""
@@ -79,6 +99,10 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             self.config_entry.async_start_reauth(self.hass)
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="web_auth_failed"
+            ) from err
+        except WebDowngradeError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="web_downgrade"
             ) from err
         except WebApiError as err:
             raise HomeAssistantError(

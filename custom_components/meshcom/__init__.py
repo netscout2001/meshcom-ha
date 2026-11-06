@@ -16,12 +16,14 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType
 
-from .aiomeshcom.webapi import MeshComWebClient, WebApiError
+from .aiomeshcom.webapi import AUTH_HMAC, AUTH_LEGACY, MeshComWebClient, WebApiError
 from .const import (
     CONF_CALLSIGN,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
+    CONF_WEB_AUTH,
     DOMAIN,
+    ISSUE_WEB_LEGACY_LOGIN,
     ISSUE_WEB_PASSWORD_MISSING,
     signal_update,
 )
@@ -88,7 +90,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     entry.async_on_unload(_release)
 
     client = MeshComWebClient(
-        async_get_clientsession(hass), entry.data[CONF_HOST], entry.data.get(CONF_PASSWORD)
+        async_get_clientsession(hass),
+        entry.data[CONF_HOST],
+        entry.data.get(CONF_PASSWORD),
+        # Never fall back to the plain-text login once the node used the secure one.
+        allow_legacy=entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC,
     )
     web = MeshComWebCoordinator(hass, entry, client)
     entry.runtime_data = MeshComRuntime(node=node, hub=hub, host=entry.data[CONF_HOST], web=web)
@@ -98,6 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         # The HA filter follows the node's "No MSG All" switch.
         if web.data is not None:
             node.apply_web_settings(no_msg_all=web.data.no_msg_all, groups=web.data.groups)
+        _async_track_login_method(hass, entry, client)
 
     entry.async_on_unload(web.async_add_listener(_apply_web_settings))
     # Not awaited: a mobile node may be away, which must not block setup.
@@ -114,6 +121,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+@callback
+def _async_track_login_method(
+    hass: HomeAssistant, entry: MeshComConfigEntry, client: MeshComWebClient
+) -> None:
+    """Pin the secure login once used; warn while the plain-text login is in use."""
+    issue_id = f"{ISSUE_WEB_LEGACY_LOGIN}_{entry.entry_id}"
+    if client.auth_method == AUTH_HMAC:
+        client.allow_legacy = False
+        if entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC:
+            hass.config_entries.async_update_entry(
+                entry, data={**entry.data, CONF_WEB_AUTH: AUTH_HMAC}
+            )
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+    elif client.auth_method == AUTH_LEGACY:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_WEB_LEGACY_LOGIN,
+            translation_placeholders={"node": entry.title},
+        )
 
 
 async def _async_first_web_contact(

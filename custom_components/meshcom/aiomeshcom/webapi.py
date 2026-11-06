@@ -2,11 +2,16 @@
 
 Security properties (security concept C-04, C-10, C-16, F-05, F-06):
 
-* Login only by nonce and HMAC-SHA256 (``/?loginnonce``, ``/?login=``);
-  the password itself never travels. The legacy plain-text login is not
-  supported.
+* Preferred login: nonce and HMAC-SHA256 (``/?loginnonce``, ``/?login=``,
+  firmware with WEB-AUTH-01); the password itself never travels.
+* Firmware 4.40a only knows ``/?nodepassword=<password>`` (plain text in
+  the URL), after which the node trusts the client's *IP address* for 4 h.
+  It is used only when the node offers no nonce login and the caller allows
+  it (``allow_legacy``). Once a node has used the secure login, the caller
+  pins it and never falls back again (no downgrade).
 * Every operation logs in, does its request and logs out again, so a
-  session cookie is valid only for seconds (the node has no TLS).
+  session (cookie or IP trust) is valid only for seconds (the node has no
+  TLS).
 * The session cookie is kept in memory for one operation and sent
   explicitly; it never lands in a shared cookie jar.
 * Only allowlisted parameters can be read or written. Parameters that
@@ -23,9 +28,12 @@ import hashlib
 import hmac
 import json
 import re
+from dataclasses import dataclass
 from typing import Any, Final
+from urllib.parse import quote
 
 import aiohttp
+from yarl import URL
 
 from .const import SECRET_WEB_PARAMETERS
 from .errors import MeshComError
@@ -36,6 +44,9 @@ READABLE_PARAMETERS: Final = frozenset({"nomsgall", "setgrc", "setcall"})
 WRITABLE_PARAMETERS: Final = {"nomsgall": frozenset({"on", "off"})}
 
 _MAX_RESPONSE_BYTES: Final = 4096
+#: Login method used by the node.
+AUTH_HMAC: Final = "hmac"
+AUTH_LEGACY: Final = "legacy"
 _NONCE_RE: Final = re.compile(r"[0-9a-f]{32}")
 _TOKEN_RE: Final = re.compile(r"mcs=([0-9a-f]{32})")
 #: Sent on every request; required by nodes built with MC_WEB_GUARD=1.
@@ -57,6 +68,16 @@ class WebAuthError(WebApiError):
     """The node rejected the login or requires one."""
 
 
+class WebDowngradeError(WebApiError):
+    """The node no longer offers the secure login it used before."""
+
+
+@dataclass(slots=True)
+class _Session:
+    method: str
+    token: str | None = None
+
+
 class WebThrottledError(WebApiError):
     """The node blocks logins for a minute after five failed attempts."""
 
@@ -70,31 +91,43 @@ class MeshComWebClient:
         host: str,
         password: str | None,
         *,
+        allow_legacy: bool = True,
         timeout: float = 10.0,
     ) -> None:
         self._session = session
         self._base = f"http://{host}"
         self._password = password or None
+        self.allow_legacy = allow_legacy
+        #: Login method of the last successful login, or None.
+        self.auth_method: str | None = None
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._lock = asyncio.Lock()
 
     # --- transport -------------------------------------------------------------
 
-    async def _get(self, path: str, token: str | None = None) -> tuple[int, str, str | None]:
-        """GET ``path``; returns status, body and the session token if one was set."""
+    async def _get(
+        self, path: str, token: str | None = None, *, truncate: bool = False
+    ) -> tuple[int, str, str | None]:
+        """GET ``path``; returns status, body and the session token if one was set.
+
+        ``path`` must already be percent-encoded. With ``truncate`` an
+        oversized body (an HTML page) is cut instead of rejected.
+        """
         headers = dict(_HEADERS)
         if token is not None:
             headers["Cookie"] = f"mcs={token}"
         try:
             async with self._session.get(
-                self._base + path,
+                URL(self._base + path, encoded=True),
                 headers=headers,
                 timeout=self._timeout,
                 allow_redirects=False,
             ) as response:
                 body = await response.content.read(_MAX_RESPONSE_BYTES + 1)
                 if len(body) > _MAX_RESPONSE_BYTES:
-                    raise WebConnectionError("response too large")
+                    if not truncate:
+                        raise WebConnectionError("response too large")
+                    body = body[:_MAX_RESPONSE_BYTES]
                 new_token = None
                 for cookie in response.headers.getall("Set-Cookie", []):
                     match = _TOKEN_RE.match(cookie)
@@ -104,17 +137,36 @@ class MeshComWebClient:
         except (aiohttp.ClientError, TimeoutError) as err:
             raise WebConnectionError(type(err).__name__) from err
 
-    async def _login(self) -> str | None:
-        if self._password is None:
+    async def _login(self) -> _Session | None:
+        password = self._password
+        if password is None:
             return None
-        status, body, _ = await self._get("/?loginnonce")
+        # 4.40a answers 401 (or an HTML page) here; newer firmware a nonce.
+        status, body, _ = await self._get("/?loginnonce", truncate=True)
         nonce = body.strip()
         if status == 403:
             raise WebThrottledError("login throttled")
-        if status != 200 or _NONCE_RE.fullmatch(nonce) is None:
-            raise WebConnectionError("no login nonce")
+        if status == 200 and _NONCE_RE.fullmatch(nonce) is not None:
+            session = _Session(AUTH_HMAC, await self._login_hmac(password, nonce))
+        elif self.allow_legacy:
+            session = await self._login_legacy(password)
+        else:
+            raise WebDowngradeError("secure login not offered")
+        self.auth_method = session.method
+        return session
+
+    async def _login_legacy(self, password: str) -> _Session:
+        """Firmware 4.40a: plain-text password; the node then trusts our IP.
+
+        The answer is always 200 with an HTML page, also for a wrong
+        password; the following request tells (401 = rejected).
+        """
+        await self._get("/?nodepassword=" + quote(password, safe=""), truncate=True)
+        return _Session(AUTH_LEGACY)
+
+    async def _login_hmac(self, password: str, nonce: str) -> str:
         # The node computes HMAC-SHA256(key=password, msg=the 32 hex characters).
-        mac = hmac.new(self._password.encode(), nonce.encode(), hashlib.sha256).hexdigest()
+        mac = hmac.new(password.encode(), nonce.encode(), hashlib.sha256).hexdigest()
         status, body, token = await self._get(f"/?login={nonce}.{mac}")
         if status == 200 and token is not None:
             return token
@@ -125,12 +177,16 @@ class MeshComWebClient:
             raise WebAuthError("login rejected")  # no node text in logs
         raise WebConnectionError("unexpected login answer")
 
-    async def _logout(self, token: str | None) -> None:
-        if token is None:
+    async def _logout(self, session: _Session | None) -> None:
+        if session is None:
             return
         # The session expires on its own; a failed logout is not an error.
         with contextlib.suppress(WebConnectionError):
-            await self._get("/?logout", token)
+            if session.method == AUTH_HMAC:
+                await self._get("/?logout", session.token)
+            else:
+                # An empty password ends the node's trust in our IP address.
+                await self._get("/?nodepassword=", truncate=True)
 
     async def _request(self, path: str, name: str) -> str:
         return (await self._requests([(path, name)]))[name]
@@ -139,13 +195,14 @@ class MeshComWebClient:
         """Several requests in one login session."""
         answers: list[tuple[str, int, str]] = []
         async with self._lock:
-            token = await self._login()
+            session = await self._login()
+            token = session.token if session is not None else None
             try:
                 for path, name in requests:
                     status, body, _ = await self._get(path, token)
                     answers.append((name, status, body))
             finally:
-                await self._logout(token)
+                await self._logout(session)
         return {name: _value(name, status, body) for name, status, body in answers}
 
     async def get_params(self, names: list[str]) -> dict[str, str]:
