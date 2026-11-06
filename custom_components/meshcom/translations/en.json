@@ -234,7 +234,7 @@
   "issues": {
     "web_password_missing": {
       "title": "MeshCom node {node} has no web password",
-      "description": "Without a web password, every device and every website opened in a browser on your network can read the node's WLAN password and change its settings. Set one on the node with `--webpwd <password>` (up to 19 characters) and enter it in Home Assistant via the integration's Reconfigure option."
+      "description": "Without a web password, every device and every website opened in a browser on your network can read the node's WLAN password and change its settings. Set one on the node with `--webpwd` followed by the password (up to 19 characters) and enter it in Home Assistant via the integration's Reconfigure option."
     }
   }
 }
