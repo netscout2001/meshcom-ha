@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.2
+
+### Features
+- Chat panel: conversations with unread messages show a coloured badge with the number of new messages and a bold title; read state is remembered per browser
+
 ## v0.4.1
 
 ### Fixes

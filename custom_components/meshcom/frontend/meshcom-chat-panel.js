@@ -109,8 +109,10 @@ const STYLE = `
   display: flex; justify-content: space-between; gap: 8px; }
 .conv:hover, .conv.active { background: var(--secondary-background-color); }
 .conv .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.badge { background: var(--primary-color); color: var(--text-primary-color); border-radius: 10px;
-  padding: 0 7px; font-size: 12px; line-height: 20px; }
+.badge { background: var(--accent-color, var(--primary-color)); color: var(--text-accent-color, #fff);
+  border-radius: 10px; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box;
+  font-size: 12px; font-weight: bold; line-height: 20px; text-align: center; flex-shrink: 0; }
+.conv.unread .name { font-weight: bold; }
 .newchat { display: flex; gap: 4px; padding: 8px; border-top: 1px solid var(--divider-color); margin-top: auto; }
 .newchat input { flex: 1; min-width: 0; text-transform: uppercase; }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -146,7 +148,8 @@ class MeshComChatPanel extends HTMLElement {
     this._entryId = null;
     this._messages = [];
     this._active = "all";
-    this._unread = new Map();
+    // Last read message time per conversation, kept per browser.
+    this._read = {};
     this._unsubscribe = null;
     this._started = false;
     this._error = "";
@@ -283,10 +286,18 @@ class MeshComChatPanel extends HTMLElement {
     this._stopSubscription();
     this._entryId = entryId;
     this._nodeSelect.value = entryId;
-    this._unread.clear();
     try {
       const history = await this._hass.callWS({ type: "meshcom/chat/history", entry_id: entryId });
       this._messages = history.messages;
+      const stored = this._loadRead(entryId);
+      if (stored === null) {
+        // First visit in this browser: the history counts as read.
+        this._read = {};
+        for (const m of this._messages) this._read[m.conversation] = m.time;
+        this._saveRead();
+      } else {
+        this._read = stored;
+      }
       this._unsubscribe = await this._hass.connection.subscribeMessage(
         (event) => this._onEvent(entryId, event),
         { type: "meshcom/chat/subscribe", entry_id: entryId }
@@ -338,9 +349,6 @@ class MeshComChatPanel extends HTMLElement {
       const message = event.message;
       this._messages.push(message);
       if (this._messages.length > 500) this._messages.shift();
-      if (message.conversation !== this._active && !message.own) {
-        this._unread.set(message.conversation, (this._unread.get(message.conversation) || 0) + 1);
-      }
       this._render();
       if (message.conversation === this._active) this._scrollDown();
     } else if (event.status) {
@@ -350,6 +358,55 @@ class MeshComChatPanel extends HTMLElement {
         this._render();
       }
     }
+  }
+
+  get _readKey() {
+    return `meshcom-chat-read:${this._entryId}`;
+  }
+
+  _loadRead(entryId) {
+    // Browser storage can be missing or blocked; then nothing is remembered.
+    try {
+      const raw = window.localStorage.getItem(`meshcom-chat-read:${entryId}`);
+      if (raw === null) return null;
+      const data = JSON.parse(raw);
+      if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
+      const read = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (typeof key === "string" && key.length < 40 && typeof value === "string" && value.length < 40) {
+          read[key] = value;
+        }
+      }
+      return read;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  _saveRead() {
+    try {
+      window.localStorage.setItem(this._readKey, JSON.stringify(this._read));
+    } catch (err) {
+      // not stored: badges start from scratch next time
+    }
+  }
+
+  _markRead(id, messages) {
+    if (!messages.length) return;
+    const newest = messages[messages.length - 1].time;
+    if (this._read[id] !== newest) {
+      this._read[id] = newest;
+      this._saveRead();
+    }
+  }
+
+  _unreadCount(id) {
+    const since = this._read[id] || "";
+    let count = 0;
+    for (const m of this._messages) {
+      if (m.conversation === id && !m.own && m.time > since) count += 1;
+    }
+    return count;
   }
 
   _conversations() {
@@ -379,15 +436,17 @@ class MeshComChatPanel extends HTMLElement {
 
     this._convList.replaceChildren(
       ...this._conversations().map((id) => {
-        const row = el("div", id === this._active ? "conv active" : "conv");
+        const unread = id === this._active ? 0 : this._unreadCount(id);
+        const classes = ["conv"];
+        if (id === this._active) classes.push("active");
+        if (unread) classes.push("unread");
+        const row = el("div", classes.join(" "));
         const name = el("span", "name", conversationTitle(id, t));
         name.dir = "auto";
         row.append(name);
-        const unread = this._unread.get(id);
-        if (unread) row.append(el("span", "badge", unread));
+        if (unread) row.append(el("span", "badge", unread > 99 ? "99+" : unread));
         row.addEventListener("click", () => {
           this._active = id;
-          this._unread.delete(id);
           this._render();
           this._scrollDown();
         });
@@ -396,6 +455,7 @@ class MeshComChatPanel extends HTMLElement {
     );
 
     const messages = this._messages.filter((m) => m.conversation === this._active);
+    this._markRead(this._active, messages);
     if (!messages.length) {
       this._messageList.replaceChildren(el("div", "empty", t.empty));
     } else {

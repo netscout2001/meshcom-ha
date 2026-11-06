@@ -139,7 +139,9 @@ The station list is stored and survives a restart.
 The sidebar entry **MeshCom** opens a chat with a conversation for messages
 to all, for every group and every direct-message partner, plus read-only
 conversations for other addressees (e.g. `TEST`). Delivery of your direct
-messages is shown (sent, delivered, rejected). The last 500 messages per node
+messages is shown (sent, delivered, rejected). Conversations with new
+messages show a badge with their number (read state is kept per browser).
+The last 500 messages per node
 are stored. Administrators and the users released in the options may use it.
 
 ### No MSG All and the message filter
