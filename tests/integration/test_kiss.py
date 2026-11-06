@@ -336,6 +336,8 @@ async def test_connects_and_receives(
     node = entry.runtime_data.node
     assert node.position is not None
     assert node.position.battery == 88
+    assert node.firmware is None  # KISS carries no version
+    assert hass.states.get("sensor.meshcom_do8re_9_firmware").state == "unknown"  # type: ignore[union-attr]
     issue_id = f"{ISSUE_KISS_AUTH_OFF}_{entry.entry_id}"
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
     assert entry.runtime_data.hub is None

@@ -183,7 +183,9 @@ class MeshComNode:
             return
         if packet.source_type is SourceType.NODE:
             self.position = packet
-            self.firmware = packet.firmware
+            # KISS frames carry no firmware version; keep what is known.
+            if packet.firmware.minor is not None:
+                self.firmware = packet.firmware
             return
         if packet.radio.rssi is not None:
             self.last_radio = (packet.radio.rssi, packet.radio.snr)
