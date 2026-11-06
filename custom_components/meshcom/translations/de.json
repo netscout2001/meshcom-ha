@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MeshCom-Node hinzufügen",
+        "description": "Gib die IP-Adresse deines Nodes ein. Stelle am Node 'ext. UDP IP' auf die Adresse von Home Assistant und schalte 'ext UDP' ein. Schalte die externe UDP-Schnittstelle nur bei Nodes ein, die in deinem Heimnetz bleiben.",
+        "data": {
+          "host": "IP-Adresse des Nodes",
+          "listen_port": "UDP-Port in Home Assistant"
+        },
+        "data_description": {
+          "host": "Private IPv4-Adresse des Nodes, zum Beispiel 192.168.1.50.",
+          "listen_port": "Der Node sendet immer an Port 1799. Nur ändern, wenn eine Weiterleitung an einen anderen Port sendet."
+        }
+      },
+      "no_packet": {
+        "title": "Kein Paket vom Node",
+        "description": "Von {host} ist auf UDP-Port {port} nichts angekommen. Prüfe, ob am Node 'ext UDP' eingeschaltet ist und 'ext. UDP IP' auf Home Assistant zeigt. Klicke dann auf der Weboberfläche des Nodes auf 'Send Position' und sende das Formular erneut ab."
+      }
+    },
+    "progress": {
+      "wait_for_node": "Warte auf ein Paket vom Node {host} (UDP-Port {port}). Klicke auf der Weboberfläche des Nodes auf 'Send Position', dann kommt sofort eines."
+    },
+    "error": {
+      "invalid_host": "Gib eine private IPv4-Adresse ein, zum Beispiel 192.168.1.50."
+    },
+    "abort": {
+      "already_configured": "Dieser Node ist bereits eingerichtet.",
+      "port_unavailable": "UDP-Port {port} konnte nicht geöffnet werden. Möglicherweise nutzt ihn ein anderes Programm.",
+      "unknown": "Unerwarteter Fehler."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Akku"
+      },
+      "altitude": {
+        "name": "Höhe"
+      },
+      "last_message": {
+        "name": "Letzte Nachricht"
+      },
+      "last_sender": {
+        "name": "Letzter Absender"
+      },
+      "last_message_time": {
+        "name": "Letzte Nachricht empfangen"
+      },
+      "messages_received": {
+        "name": "Nachrichten empfangen"
+      },
+      "messages_sent": {
+        "name": "Nachrichten gesendet"
+      },
+      "stations_heard": {
+        "name": "Gehörte Stationen (24 h)"
+      },
+      "last_rssi": {
+        "name": "Letzter RSSI"
+      },
+      "last_snr": {
+        "name": "Letzter SNR"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "temperature_1": {
+        "name": "Temperatur 1"
+      },
+      "temperature_2": {
+        "name": "Temperatur 2"
+      },
+      "humidity": {
+        "name": "Luftfeuchtigkeit"
+      },
+      "pressure_qfe": {
+        "name": "Luftdruck (QFE)"
+      },
+      "pressure_qnh": {
+        "name": "Luftdruck (QNH)"
+      },
+      "co2": {
+        "name": "CO2"
+      }
+    },
+    "binary_sensor": {
+      "active": {
+        "name": "Aktiv"
+      }
+    },
+    "device_tracker": {
+      "position": {
+        "name": "Position"
+      }
+    }
+  },
+  "exceptions": {
+    "port_unavailable": {
+      "message": "UDP-Port {port} konnte nicht geöffnet werden. Möglicherweise nutzt ihn ein anderes Programm."
+    }
+  }
+}

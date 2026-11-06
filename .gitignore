@@ -2,7 +2,7 @@
 # Captures contain callsigns, positions and messages of other radio amateurs.
 # Only anonymised fixtures under tests/fixtures/ are allowed in the repo.
 *.jsonl
-!tests/fixtures/*.anon.jsonl
+!tests/**/fixtures/*.anon.jsonl
 captures/
 *.pcap
 *.pcapng

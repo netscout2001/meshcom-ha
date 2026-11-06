@@ -32,21 +32,29 @@ test = [
 Homepage = "https://github.com/netscout2001/meshcom-ha"
 Issues = "https://github.com/netscout2001/meshcom-ha/issues"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+# The library lives inside the integration so that HACS ships it with the
+# integration. It has no Home Assistant dependency and can be published to
+# PyPI separately later.
+[tool.setuptools]
+packages = ["aiomeshcom"]
+package-dir = { "aiomeshcom" = "custom_components/meshcom/aiomeshcom" }
 
 [tool.setuptools.package-data]
 aiomeshcom = ["py.typed"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/lib"]
 addopts = "--strict-markers --cov=aiomeshcom --cov-report=term-missing"
 
 [tool.coverage.report]
 fail_under = 95
 
 [tool.mypy]
-files = ["src", "tests"]
+# The library is checked as the top-level package "aiomeshcom"; the
+# integration (which needs Home Assistant) is checked in its own CI job.
+files = ["custom_components/meshcom/aiomeshcom", "tests/lib"]
+mypy_path = "custom_components/meshcom"
+explicit_package_bases = true
 strict = true
 python_version = "3.13"
 
@@ -62,7 +70,10 @@ select = [
 ignore = ["PLR2004", "TRY003"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "PLR2004", "PLR0913"]
+"tests/**" = ["S101", "S104", "PLR2004", "PLR0913", "SLF001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aiomeshcom", "custom_components"]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
