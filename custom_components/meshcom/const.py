@@ -37,9 +37,31 @@ RATE_LIMIT_PER_SECOND: Final = 20.0
 RATE_LIMIT_BURST: Final = 60.0
 
 EVENT_MESSAGE: Final = f"{DOMAIN}_message"
+EVENT_MESSAGE_SENT: Final = f"{DOMAIN}_message_sent"
 EVENT_DELIVERY: Final = f"{DOMAIN}_delivery_update"
 
 
 def signal_update(entry_id: str) -> str:
     """Dispatcher signal for state changes of one node."""
     return f"{DOMAIN}_update_{entry_id}"
+
+
+# --- sending ---------------------------------------------------------------
+
+#: Options: HA users (besides administrators) who may transmit.
+CONF_SEND_USERS: Final = "send_users"
+#: Options: group numbers offered in the group select.
+CONF_GROUPS: Final = "groups"
+
+#: Transmit rate limit for the whole Home Assistant instance, over all nodes
+#: (security concept C-06, T3): a short burst, then one message per interval.
+SEND_BURST: Final = 3
+SEND_INTERVAL: Final = timedelta(seconds=30)
+
+#: How long an own direct message waits for its acknowledgement.
+PENDING_ACK_TIMEOUT: Final = timedelta(minutes=30)
+MAX_PENDING_ACKS: Final = 100
+
+SERVICE_SEND_MESSAGE: Final = "send_message"
+ATTR_DESTINATION: Final = "destination"
+ATTR_MESSAGE: Final = "message"

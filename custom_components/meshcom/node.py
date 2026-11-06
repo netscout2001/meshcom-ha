@@ -29,8 +29,10 @@ from .const import (
     DEDUP_WINDOW,
     EVENT_DELIVERY,
     EVENT_MESSAGE,
+    MAX_PENDING_ACKS,
     MAX_STATIONS,
     NODE_ACTIVE_TIMEOUT,
+    PENDING_ACK_TIMEOUT,
     STATIONS_WINDOW,
     signal_update,
 )
@@ -83,6 +85,17 @@ class MeshComNode:
         self._seen: OrderedDict[tuple[str, int], datetime] = OrderedDict()
         self.duplicates = 0
         self._telemetry_listeners: list[Callable[[], None]] = []
+        # Sending
+        self.sending_enabled = True
+        self.compose_kind = DestinationKind.BROADCAST
+        self.compose_group: str | None = None
+        self.compose_station: str | None = None
+        self.compose_text = ""
+        #: Own direct messages waiting for an acknowledgement:
+        #: (destination, sequence) -> (message id, sent at).
+        self._pending: OrderedDict[tuple[str, int], tuple[str, datetime]] = OrderedDict()
+        #: Ids of own messages, for the node's own delivery-status datagrams.
+        self._own_ids: OrderedDict[int, datetime] = OrderedDict()
 
     # --- derived values -------------------------------------------------------
 
@@ -181,6 +194,7 @@ class MeshComNode:
         )
         if is_own:
             self.messages_sent += 1
+            self._track_own(packet, now)
         elif not to_me:
             self._station(packet.path.originator, now)
         else:
@@ -219,26 +233,51 @@ class MeshComNode:
             },
         )
 
+    def _track_own(self, packet: TextMessagePacket, now: datetime) -> None:
+        """Remember own messages so acknowledgements can be matched (C-13)."""
+        self._own_ids[packet.msg_id.value] = now
+        if packet.destination_kind is DestinationKind.DIRECT and packet.sequence is not None:
+            self._pending[(packet.destination, packet.sequence)] = (str(packet.msg_id), now)
+        limit = now - PENDING_ACK_TIMEOUT
+        while self._pending and (
+            len(self._pending) > MAX_PENDING_ACKS or next(iter(self._pending.values()))[1] < limit
+        ):
+            self._pending.popitem(last=False)
+        while self._own_ids and (
+            len(self._own_ids) > MAX_PENDING_ACKS or next(iter(self._own_ids.values())) < limit
+        ):
+            self._own_ids.popitem(last=False)
+
     def _handle_delivery(self, packet: AckMessagePacket | DeliveryStatusPacket) -> None:
+        """Fire a delivery event only for an open own message (C-13).
+
+        Any station can send an acknowledgement text, so it counts only if it
+        is addressed to this node, comes from the station the message went to
+        and carries the sequence number of a message still waiting.
+        """
         if isinstance(packet, AckMessagePacket):
-            # Only acknowledgements addressed to this node count (C-13). Matching
-            # them to open own messages follows with the send path.
             if packet.acknowledged_station != self.callsign:
+                return
+            pending = self._pending.pop((packet.path.originator, packet.sequence), None)
+            if pending is None:
+                return
+            data: dict[str, object] = {
+                "entry_id": self.entry_id,
+                "node": self.callsign,
+                "msg_id": pending[0],
+                "from": packet.path.originator,
+                "sequence": packet.sequence,
+                "status": "rejected" if packet.rejected else "delivered",
+                "source": "text",
+            }
+        else:
+            if packet.msg_id.value not in self._own_ids:
                 return
             data = {
                 "entry_id": self.entry_id,
                 "node": self.callsign,
-                "from": packet.path.originator,
-                "sequence": packet.sequence,
-                "rejected": packet.rejected,
-                "source": "text",
-            }
-        else:
-            data = {
-                "entry_id": self.entry_id,
-                "node": self.callsign,
-                "from": packet.from_station,
                 "msg_id": str(packet.msg_id),
+                "from": packet.from_station,
                 "status": packet.status.name.lower(),
                 "source": "node",
             }

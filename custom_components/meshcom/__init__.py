@@ -9,14 +9,27 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.typing import ConfigType
 
 from .const import CONF_CALLSIGN, CONF_LISTEN_PORT, CONF_NODE_ID, DOMAIN, signal_update
 from .hub import UdpHub, async_acquire_hub, async_release_hub
 from .node import MeshComNode
+from .services import async_setup_services
 
-PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.DEVICE_TRACKER,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.TEXT,
+]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 @dataclass(slots=True)
@@ -25,9 +38,20 @@ class MeshComRuntime:
 
     node: MeshComNode
     hub: UdpHub
+    host: str
+
+    def send_datagram(self, data: bytes) -> None:
+        """Send to this node's external UDP port."""
+        self.hub.send(self.host, data)
 
 
 type MeshComConfigEntry = ConfigEntry[MeshComRuntime]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the services (once, independent of config entries)."""
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
@@ -50,7 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         async_release_hub(hass, hub)
 
     entry.async_on_unload(_release)
-    entry.runtime_data = MeshComRuntime(node=node, hub=hub)
+    entry.runtime_data = MeshComRuntime(node=node, hub=hub, host=entry.data[CONF_HOST])
 
     # Time-based states ("active", "heard within 24 h") need a periodic refresh.
     @callback

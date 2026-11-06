@@ -14,14 +14,28 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_HOST
+from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
-from .aiomeshcom import Packet, PositionPacket, SourceType, TextMessagePacket
+from .aiomeshcom import Packet, PositionPacket, SourceType, TextMessagePacket, is_group
 from .const import (
     CONF_CALLSIGN,
+    CONF_GROUPS,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
+    CONF_SEND_USERS,
     DEFAULT_LISTEN_PORT,
     DOMAIN,
     SETUP_WAIT_TIMEOUT,
@@ -54,6 +68,12 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
     MINOR_VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> MeshComOptionsFlow:
+        """Options: groups and who may transmit."""
+        return MeshComOptionsFlow()
 
     def __init__(self) -> None:
         self._host = ""
@@ -161,3 +181,48 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_NODE_ID: node_id,
             },
         )
+
+
+def _parse_groups(value: str) -> list[str] | None:
+    """Comma separated group numbers, or None if one is invalid."""
+    groups = [part.strip() for part in value.split(",") if part.strip()]
+    if len(groups) > 20 or not all(is_group(group) for group in groups):
+        return None
+    return list(dict.fromkeys(groups))
+
+
+class MeshComOptionsFlow(OptionsFlow):
+    """Groups for the group select and users released for sending."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Show and save the options."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            groups = _parse_groups(user_input.get(CONF_GROUPS, ""))
+            if groups is None:
+                errors[CONF_GROUPS] = "invalid_groups"
+            else:
+                return self.async_create_entry(
+                    data={
+                        CONF_GROUPS: groups,
+                        CONF_SEND_USERS: list(user_input.get(CONF_SEND_USERS, [])),
+                    }
+                )
+        # Administrators may always transmit; only other users are offered.
+        users = [
+            SelectOptionDict(value=user.id, label=user.name or user.id)
+            for user in await self.hass.auth.async_get_users()
+            if user.is_active and not user.system_generated and not user.is_admin
+        ]
+        options = self.config_entry.options
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_GROUPS, default=", ".join(options.get(CONF_GROUPS, []))): str,
+                vol.Optional(
+                    CONF_SEND_USERS, default=options.get(CONF_SEND_USERS, [])
+                ): SelectSelector(
+                    SelectSelectorConfig(options=users, multiple=True, mode=SelectSelectorMode.LIST)
+                ),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

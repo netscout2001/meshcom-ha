@@ -93,11 +93,104 @@
       "position": {
         "name": "Position"
       }
+    },
+    "switch": {
+      "sending_enabled": {
+        "name": "Senden erlauben"
+      }
+    },
+    "select": {
+      "recipient_type": {
+        "name": "Empfängertyp",
+        "state": {
+          "broadcast": "Alle (*)",
+          "group": "Gruppe",
+          "direct": "Direktnachricht"
+        }
+      },
+      "group": {
+        "name": "Gruppe"
+      },
+      "station": {
+        "name": "Station"
+      }
+    },
+    "text": {
+      "message": {
+        "name": "Nachricht"
+      }
+    },
+    "button": {
+      "send": {
+        "name": "Senden"
+      },
+      "clear": {
+        "name": "Nachricht leeren"
+      }
     }
   },
   "exceptions": {
     "port_unavailable": {
       "message": "UDP-Port {port} konnte nicht geöffnet werden. Möglicherweise nutzt ihn ein anderes Programm."
+    },
+    "sending_disabled": {
+      "message": "Senden ist für diesen Node ausgeschaltet."
+    },
+    "invalid_message": {
+      "message": "Die Nachricht kann nicht gesendet werden ({reason})."
+    },
+    "rate_limited": {
+      "message": "Zu viele Nachrichten. Warte {seconds} Sekunden und versuche es erneut."
+    },
+    "send_failed": {
+      "message": "Die Nachricht konnte nicht an den Node übergeben werden."
+    },
+    "entry_not_found": {
+      "message": "Kein MeshCom-Node mit dieser ID."
+    },
+    "entry_not_loaded": {
+      "message": "Der MeshCom-Node ist nicht geladen."
+    },
+    "no_recipient": {
+      "message": "Wähle zuerst eine Gruppe oder Station."
+    }
+  },
+  "services": {
+    "send_message": {
+      "name": "Nachricht senden",
+      "description": "Sendet eine Textnachricht über das MeshCom-Netz unter dem Rufzeichen des Nodes. Senden dürfen Administratoren und in den Optionen freigegebene Nutzer.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Node",
+          "description": "Der MeshCom-Node, der sendet."
+        },
+        "destination": {
+          "name": "Ziel",
+          "description": "* für alle, eine Gruppennummer oder ein Rufzeichen."
+        },
+        "message": {
+          "name": "Nachricht",
+          "description": "Bis 150 Byte; Umlaute zählen doppelt."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MeshCom-Optionen",
+        "description": "Administratoren dürfen immer senden. Alles Gesendete geht unter dem Rufzeichen des Nodes über Amateurfunk: Gib nur Nutzer frei, die eine Lizenz haben.",
+        "data": {
+          "groups": "Gruppen",
+          "send_users": "Weitere Nutzer, die senden dürfen"
+        },
+        "data_description": {
+          "groups": "Gruppennummern für die Gruppen-Auswahl, durch Kommas getrennt, z. B. 262, 26298."
+        }
+      }
+    },
+    "error": {
+      "invalid_groups": "Gib bis zu 20 Gruppennummern mit 1 bis 5 Ziffern ein, durch Kommas getrennt."
     }
   }
 }

@@ -93,11 +93,104 @@
       "position": {
         "name": "Position"
       }
+    },
+    "switch": {
+      "sending_enabled": {
+        "name": "Allow sending"
+      }
+    },
+    "select": {
+      "recipient_type": {
+        "name": "Recipient type",
+        "state": {
+          "broadcast": "All (*)",
+          "group": "Group",
+          "direct": "Direct message"
+        }
+      },
+      "group": {
+        "name": "Group"
+      },
+      "station": {
+        "name": "Station"
+      }
+    },
+    "text": {
+      "message": {
+        "name": "Message"
+      }
+    },
+    "button": {
+      "send": {
+        "name": "Send"
+      },
+      "clear": {
+        "name": "Clear message"
+      }
     }
   },
   "exceptions": {
     "port_unavailable": {
       "message": "UDP port {port} could not be opened. Another program may be using it."
+    },
+    "sending_disabled": {
+      "message": "Sending is switched off for this node."
+    },
+    "invalid_message": {
+      "message": "The message cannot be sent ({reason})."
+    },
+    "rate_limited": {
+      "message": "Too many messages. Wait {seconds} seconds and try again."
+    },
+    "send_failed": {
+      "message": "The message could not be handed to the node."
+    },
+    "entry_not_found": {
+      "message": "No MeshCom node with this ID."
+    },
+    "entry_not_loaded": {
+      "message": "The MeshCom node is not loaded."
+    },
+    "no_recipient": {
+      "message": "Select a group or station first."
+    }
+  },
+  "services": {
+    "send_message": {
+      "name": "Send message",
+      "description": "Sends a text message over the MeshCom network under the node's callsign. Administrators and users released in the options may send.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Node",
+          "description": "The MeshCom node that transmits."
+        },
+        "destination": {
+          "name": "Destination",
+          "description": "* for all, a group number or a callsign."
+        },
+        "message": {
+          "name": "Message",
+          "description": "Up to 150 bytes; umlauts count twice."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MeshCom options",
+        "description": "Administrators may always send. Everything sent goes out on amateur radio under the node's callsign: only release users who hold a licence.",
+        "data": {
+          "groups": "Groups",
+          "send_users": "Other users who may send"
+        },
+        "data_description": {
+          "groups": "Comma separated group numbers for the group select, e.g. 262, 26298."
+        }
+      }
+    },
+    "error": {
+      "invalid_groups": "Enter up to 20 group numbers with 1 to 5 digits, separated by commas."
     }
   }
 }

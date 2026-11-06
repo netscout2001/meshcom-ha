@@ -1,0 +1,37 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "active": { "default": "mdi:radio-tower" }
+    },
+    "button": {
+      "send": { "default": "mdi:send" },
+      "clear": { "default": "mdi:close-circle-outline" }
+    },
+    "select": {
+      "recipient_type": { "default": "mdi:account-multiple" },
+      "group": { "default": "mdi:forum" },
+      "station": { "default": "mdi:account" }
+    },
+    "sensor": {
+      "last_message": { "default": "mdi:message-text" },
+      "last_sender": { "default": "mdi:account-voice" },
+      "last_message_time": { "default": "mdi:clock-outline" },
+      "messages_received": { "default": "mdi:message-arrow-left" },
+      "messages_sent": { "default": "mdi:message-arrow-right" },
+      "stations_heard": { "default": "mdi:access-point-network" },
+      "firmware": { "default": "mdi:chip" }
+    },
+    "switch": {
+      "sending_enabled": {
+        "default": "mdi:send-lock",
+        "state": { "on": "mdi:send-check", "off": "mdi:send-lock" }
+      }
+    },
+    "text": {
+      "message": { "default": "mdi:message-draw" }
+    }
+  },
+  "services": {
+    "send_message": { "service": "mdi:send" }
+  }
+}

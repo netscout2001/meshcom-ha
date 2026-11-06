@@ -124,11 +124,19 @@ async def test_messages_and_events(hass: HomeAssistant, init_integration: MockCo
 async def test_ack_event(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
     """A text acknowledgement addressed to this node fires a delivery event."""
     events = async_capture_events(hass, EVENT_DELIVERY)
+    # Without an open own message the acknowledgement counts for nothing (C-13).
     inject(init_integration, ACK_TEXT)
+    await hass.async_block_till_done()
+    assert events == []
+
+    inject(init_integration, OWN_MESSAGE)
+    inject(init_integration, ACK_TEXT.replace(b"43758258", b"43758259"))
     await hass.async_block_till_done()
     assert len(events) == 1
     assert events[0].data["from"] == "DO8RE-9"
     assert events[0].data["sequence"] == 724
+    assert events[0].data["msg_id"] == "63CF32D4"
+    assert events[0].data["status"] == "delivered"
 
 
 async def test_telemetry_entities_only_with_sensor_data(
