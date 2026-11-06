@@ -85,6 +85,9 @@ class MeshComNode:
         self.stations: OrderedDict[str, StationInfo] = OrderedDict()
         #: Called with the callsign whenever a station was heard.
         self.station_listener: Callable[[str], None] | None = None
+        #: Chat history hooks: (packet, own, time) and (msg id, status).
+        self.message_listener: Callable[[TextMessagePacket, bool, datetime], None] | None = None
+        self.delivery_listener: Callable[[str, str], None] | None = None
         self._touched: str | None = None
         self._seen: OrderedDict[tuple[str, int], datetime] = OrderedDict()
         self.duplicates = 0
@@ -237,6 +240,8 @@ class MeshComNode:
             if packet.radio.rssi is not None:
                 self.last_radio = (packet.radio.rssi, packet.radio.snr)
             self._station(packet.path.originator, now)
+        if (is_own or to_me) and self.message_listener is not None:
+            self.message_listener(packet, is_own, now)
         # Message text is untrusted data. It is passed on as data only; never
         # use it as a command or template (security concept C-02, C-11).
         self.hass.bus.async_fire(
@@ -309,6 +314,8 @@ class MeshComNode:
                 "source": "node",
             }
         self.hass.bus.async_fire(EVENT_DELIVERY, data)
+        if self.delivery_listener is not None:
+            self.delivery_listener(str(data["msg_id"]), str(data["status"]))
 
     @callback
     def apply_web_settings(self, *, no_msg_all: bool, groups: list[str]) -> None:

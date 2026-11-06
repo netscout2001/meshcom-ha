@@ -11,7 +11,6 @@ Planned features:
 - Heard stations as devices or as plain data (configurable)
 - Sending and receiving messages: broadcast, groups and direct messages,
   with delivery status
-- A chat panel in the Home Assistant sidebar
 - Support for several nodes at once
 - Access via the node's external UDP interface, the web API (with or without
   web password) and the NET console
@@ -32,7 +31,24 @@ Planned features:
   node's groups. The node is read every 5 minutes with one login.
 - Diagnostics without addresses, positions, message text or passwords
 
-The NET console, KISS/TCP and the chat panel follow.
+KISS/TCP and (optionally) the NET console follow.
+
+### Chat panel
+
+The sidebar entry **MeshCom** opens a chat with one conversation each for
+messages to all, every group and every direct-message partner (plus
+read-only conversations for messages to other addressees, e.g. `TEST`).
+Delivery of own direct messages is shown (sent, delivered, rejected).
+
+- Readable by administrators and by the users released for sending in the
+  node's options; other users get nothing.
+- Sending uses the same checks as the action `meshcom.send_message`: the
+  "Allow sending" switch, the permission, the validation of the text and
+  the rate limit.
+- While **No MSG All** is on, the chat shows only what the node shows.
+- The last 500 messages per node are stored and survive a restart.
+- Message text is shown as plain text only. The panel never interprets
+  it as HTML and never turns it into links.
 
 ### Heard stations
 
