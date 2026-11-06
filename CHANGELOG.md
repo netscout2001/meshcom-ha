@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.5
+
+### Fixes
+- Several nodes starting at the same time no longer register the chat panel twice ("Overwriting panel meshcom-chat"). This race was also the cause of the earlier "already been setup" errors.
+
 ## v0.4.4
 
 ### Fixes
