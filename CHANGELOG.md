@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.1
+
+### Fixes
+- KISS nodes: the "Firmware" sensor and the device stay without a version instead of showing "unknown" (KISS frames carry no firmware version)
+
+### Documentation
+- README rewritten: supported devices, installation via HACS, configuration fields and options, entities, actions and events, data updates, examples, known limitations, troubleshooting and removal
+
 ## v0.4.0
 
 ### Features

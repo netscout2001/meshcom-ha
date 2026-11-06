@@ -1,147 +1,279 @@
 # MeshCom for Home Assistant
 
-> **Status: early development – not ready for use.**
+> **Status: beta.** Feedback and bug reports are welcome in the
+> [issue tracker](https://github.com/netscout2001/meshcom-ha/issues).
 
 A Home Assistant integration for the [MeshCom](https://icssw.org/en/meshcom/)
-LoRa mesh network (433 MHz amateur radio).
+LoRa mesh network (433 MHz amateur radio). It shows your own MeshCom nodes and
+the stations they hear, lets you read and send messages (broadcast, groups,
+direct messages with delivery status) from a chat panel, dashboards and
+automations, and switches node settings such as **No MSG All**.
 
-Planned features:
+Everything sent goes out on amateur radio under your node's callsign. Use it
+only with a valid licence and the node's callsign.
 
-- Sensors, buttons and device trackers for your own MeshCom nodes
-- Heard stations as devices or as plain data (configurable)
-- Sending and receiving messages: broadcast, groups and direct messages,
-  with delivery status
-- Support for several nodes at once
-- Access via the node's external UDP interface, the web API (with or without
-  web password) and the NET console
+## Contents
 
-## Current state
+- [Supported devices](#supported-devices)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [What you get](#what-you-get)
+- [Actions and events](#actions-and-events)
+- [Data updates](#data-updates)
+- [Examples](#examples)
+- [Known limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
+- [Removal](#removal)
+- [Security](#security)
+- [Development](#development)
 
-- One config entry per node; several nodes share one UDP port
-- Sensors: battery, last message, last sender, message counters, stations
-  heard in the last 24 h, firmware, RSSI/SNR (disabled by default), and
-  environment sensors if the node reports them
-- Binary sensor "Active" and a device tracker for the node's position
-- Events `meshcom_message`, `meshcom_message_sent` and
-  `meshcom_delivery_update` (only for acknowledgements of your own messages)
-- Sending: recipient type, group and station selects, a message text field,
-  send and clear buttons, and the action `meshcom.send_message`
-- Web API (optional web password): the switch **No MSG All** shows and sets
-  the node's setting of the same name, and the group select offers the
-  node's groups. The node is read every 5 minutes with one login.
-- Diagnostics without addresses, positions, message text or passwords
+## Supported devices
 
-The NET console may follow as an option.
+- MeshCom nodes with firmware **4.40a** (tested). Firmware 4.34z to 4.40a
+  have the same web API; older firmware has no web API (UDP still works).
+- **External UDP** works on every node with the "ext UDP" function.
+- **KISS over TCP** needs an ESP32-based node with firmware 4.40a.
+- Several nodes at once, each as its own entry; UDP nodes share one port.
 
-### Access path: external UDP or KISS over TCP
+## Installation
 
-When adding a node you choose how Home Assistant reaches it:
+### HACS (recommended)
 
-- **External UDP** for nodes in the home network: the node sends every
-  packet to Home Assistant (`--extudpip`, `--extudp on`).
-- **KISS over TCP** (port 8001), e.g. for a mobile node whose external UDP
-  should stay off: enable `--kiss on`, for sending `--kiss tx on`, and
-  protect it with `--kiss auth on` and the node password `--passwd` (up to
-  14 characters). Without authentication anyone in the network can connect
-  and transmit under your callsign; Home Assistant shows a repair warning.
+1. In HACS open the menu (three dots) → **Custom repositories**, add
+   `https://github.com/netscout2001/meshcom-ha` with type **Integration**.
+2. Search for **MeshCom**, install it and restart Home Assistant.
 
-Notes on KISS:
+HACS installs the latest release and reports new ones as updates.
 
-- The node serves one KISS client at a time. Home Assistant keeps the
-  connection open and reconnects on its own (a mobile node out of reach is
-  normal); the binary sensor **KISS connected** shows the state.
-- KISS frames carry no MeshCom message id and no firmware version, so the
-  "Firmware" sensor stays empty and the node id is derived from the
-  callsign.
-- RSSI/SNR need `--kiss meta on`; stations with an SSID above 15 are shown
-  with their full callsign.
-- A rejected node password starts reauthentication; Home Assistant does
-  not retry with a wrong password.
+### Manual
 
-### Chat panel
+Copy `custom_components/meshcom` from the latest release into the
+`custom_components` folder of your configuration and restart Home Assistant.
 
-The sidebar entry **MeshCom** opens a chat with one conversation each for
-messages to all, every group and every direct-message partner (plus
-read-only conversations for messages to other addressees, e.g. `TEST`).
-Delivery of own direct messages is shown (sent, delivered, rejected).
+The integration icon needs Home Assistant 2026.3 or newer; the integration
+itself runs on 2025.6 or newer.
 
-- Readable by administrators and by the users released for sending in the
-  node's options; other users get nothing.
-- Sending uses the same checks as the action `meshcom.send_message`: the
-  "Allow sending" switch, the permission, the validation of the text and
-  the rate limit.
-- While **No MSG All** is on, the chat shows only what the node shows.
-- The last 500 messages per node are stored and survive a restart.
-- Message text is shown as plain text only. The panel never interprets
-  it as HTML and never turns it into links.
+## Configuration
+
+**Settings → Devices & services → Add integration → MeshCom.** First choose
+how Home Assistant reaches the node.
+
+### External UDP (node in the home network)
+
+On the node set **ext. UDP IP** to the address of Home Assistant and enable
+**ext UDP** (`--extudpip <ip>`, `--extudp on`).
+
+| Field | Meaning |
+| --- | --- |
+| Node IP address | Private IPv4 address of the node |
+| UDP port in Home Assistant | 1799; the node always sends to this port |
+
+While Home Assistant waits, click **Send Position** on the node's web page.
+The node is identified by its own beacon (callsign and node id).
+
+### KISS over TCP (e.g. a mobile node)
+
+On the node: `--kiss on`, for sending from Home Assistant `--kiss tx on`, for
+RSSI/SNR `--kiss meta on`, and protect it with `--kiss auth on` and the node
+password `--passwd`.
+
+| Field | Meaning |
+| --- | --- |
+| Node IP address | Private IPv4 address of the node |
+| KISS port | 8001 |
+| Callsign of the node | The node's own callsign with SSID, e.g. `DO8RE-9` |
+| Node password | `--passwd` (1 to 14 characters); empty only if KISS authentication is off |
+
+### Web password (both access paths)
+
+Next, Home Assistant asks for the node's web password (`--webpwd`), used to
+read and switch node settings. Leave it empty if the node has none (not
+recommended, see [Security](#security)). Both passwords can be changed later
+under **Reconfigure**; if the node rejects one, Home Assistant asks for it
+(reauthentication).
+
+### Options
+
+| Option | Meaning |
+| --- | --- |
+| Groups | Group numbers for the group select, in addition to the node's own groups |
+| Other users who may send | Non-admin users released for sending and for the chat panel |
+| Stations | Off / Data only (default) / One device per station |
+| Maximum station devices | Default 50 |
+| Remove station devices after (days) | Default 7 |
+
+Changing the options reloads the node.
+
+## What you get
+
+### Entities of the own node
+
+| Entity | Notes |
+| --- | --- |
+| Battery, Altitude | From the node's beacon; altitude disabled by default |
+| Last message, Last sender, Last message time | Messages to you, your groups and to all |
+| Messages received, Messages sent | Counters |
+| Stations heard (24 h) | In "data only" mode with the list attribute `stations` |
+| Last RSSI, Last SNR | Disabled by default |
+| Firmware | UDP access only |
+| Temperature, humidity, pressure, CO2 | Only if the node reports sensor values |
+| Active (binary sensor) | On while the node sends packets |
+| KISS connected (binary sensor) | KISS access only |
+| Position (device tracker) | Position of the node's beacon |
+| Recipient type, Group, Station (selects), Message (text), Send, Clear (buttons) | Compose and send from a dashboard |
+| Allow sending (switch) | Kill switch: off blocks every transmission through this node |
+| No MSG All (switch) | The node's setting, read and written via the web API |
 
 ### Heard stations
 
-The options decide how heard stations appear:
-
 | Mode | What you get |
 | --- | --- |
-| Off | Only the count "Stations heard (24 h)" and the station select for direct messages |
-| Data only (default) | Additionally the attribute `stations` of that sensor: the 100 most recently heard stations with last heard, RSSI, SNR, hops, battery and position. The attribute is not written to the database. |
-| One device per station | A device per station (behind the own node) with position, last heard, battery, RSSI, SNR and hops. At most 50 devices (adjustable); a device is removed after 7 days without a packet (adjustable) and comes back when the station is heard again. Station devices can also be deleted by hand. |
+| Off | Only the count and the station select for direct messages |
+| Data only (default) | The attribute `stations` of "Stations heard": the 100 most recently heard stations with last heard, RSSI, SNR, hops, battery and position. Not written to the database. |
+| One device per station | A device per station (behind the own node) with position, last heard, battery, RSSI, SNR and hops. Limited in number; removed after the configured days without a packet and back when heard again; can be deleted by hand. |
 
-The station list is stored, so it survives a restart.
+The station list is stored and survives a restart.
+
+### Chat panel
+
+The sidebar entry **MeshCom** opens a chat with a conversation for messages
+to all, for every group and every direct-message partner, plus read-only
+conversations for other addressees (e.g. `TEST`). Delivery of your direct
+messages is shown (sent, delivered, rejected). The last 500 messages per node
+are stored. Administrators and the users released in the options may use it.
 
 ### No MSG All and the message filter
 
-While **No MSG All** is on, Home Assistant shows the same messages as the
-node's display: messages to the node's own groups and direct messages to
-the node. Messages to all (`*`), to other groups and to other addressees
-create no event and do not change the "last message" sensors; the senders
-are still counted as heard stations. Only administrators (and automations)
-may change the switch. If the node rejects the stored password, Home
-Assistant asks for the new one (reauthentication); the password can also be
-changed under **Reconfigure**. A node without a web password gets a repair
-hint.
-
-### Web login and firmware 4.40a
-
-Firmware 4.40a only has a plain-text web login: the password travels
-unencrypted in the URL, and the node then trusts the client's IP address
-for 4 hours. Home Assistant uses it only if the node offers nothing better,
-logs out right after every query (every 5 minutes) so the trust lasts
-seconds, and shows a repair warning. Newer firmware has a nonce/HMAC login
-where the password never travels. Home Assistant switches to it by itself
-as soon as the node offers it and from then on never uses the plain-text
-login for that node again (protection against downgrades and impostors).
+While **No MSG All** is on, Home Assistant shows what the node's display
+shows: messages to your groups and direct messages to you. Messages to all,
+to other groups and other addressees create no event, do not change the
+"last message" sensors and do not appear in the chat; the senders still
+count as heard stations.
 
 ### Who may send
 
-Everything sent goes out on amateur radio under the node's callsign.
-
-- Administrators may send. Other users only if released in the options.
-- Automations may send (they are configured by an administrator).
+- Administrators, and users released in the options. Automations may send.
 - At most 3 messages in a row, then one every 30 seconds, for the whole
   Home Assistant instance.
-- The switch **Allow sending** blocks sending through a node completely.
-- Every transmission appears in the logbook with the user or automation that
-  triggered it.
+- **Allow sending** off blocks everything for that node.
+- Every transmission appears in the logbook with the user or automation.
 
-## Installation (manual, for testing)
+## Actions and events
 
-1. Copy `custom_components/meshcom` into the `custom_components` folder of
-   your Home Assistant configuration and restart Home Assistant.
-2. On the node, set **ext. UDP IP** to the IP address of Home Assistant and
-   enable **ext UDP**.
-3. In Home Assistant go to **Settings → Devices & services → Add integration
-   → MeshCom** and enter the node's IP address.
-4. While Home Assistant waits, click **Send Position** on the node's web page.
-5. Enter the node's web password, or leave it empty if the node has none.
+### Action `meshcom.send_message`
 
-## Repository layout
-
-| Path | Content |
+| Field | Meaning |
 | --- | --- |
-| `custom_components/meshcom/` | The Home Assistant integration |
-| `custom_components/meshcom/aiomeshcom/` | Protocol library (asyncio, no Home Assistant dependency) |
-| `tests/lib/` | Library tests, including anonymised real-world packets |
-| `tests/integration/` | Home Assistant integration tests |
-| `tools/` | Helper scripts (capture anonymiser) |
+| `config_entry_id` | The node to send through |
+| `destination` | `*` (all), a group number (`262`) or a callsign (`DO8RE-12`) |
+| `message` | Text, at most 150 bytes, no line breaks or control characters |
+
+Texts that look like protocol control traffic (`{CET}…`, `RM1 …`, endings
+like `:ack12` or `{123`) are refused.
+
+### Events
+
+| Event | Fired for |
+| --- | --- |
+| `meshcom_message` | Every received or own text message (`sender`, `destination`, `destination_kind`, `text`, `to_me`, `is_own`, `via_server`, `path`, `rssi`, `snr`, `msg_id`) |
+| `meshcom_message_sent` | A message sent from Home Assistant (with the context of the user or automation) |
+| `meshcom_delivery_update` | Delivery status of your own messages (`msg_id`, `status`, `from`) |
+
+Message text is untrusted data from the radio. Use it as data only; never
+feed it into templates that are executed, commands or scripts.
+
+## Data updates
+
+- **UDP and KISS are push:** every packet updates the entities immediately.
+- **Web API** (No MSG All, groups): read every 5 minutes with one login,
+  and right after a change from Home Assistant.
+- "Active" turns off when the node sent nothing for 65 minutes (beacons
+  come every 30 minutes by default).
+
+## Examples
+
+Notify on a direct message to you:
+
+```yaml
+automation:
+  - alias: MeshCom direct message
+    triggers:
+      - trigger: event
+        event_type: meshcom_message
+        event_data:
+          destination_kind: direct
+          to_me: true
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          title: "MeshCom from {{ trigger.event.data.sender }}"
+          message: "{{ trigger.event.data.text }}"
+```
+
+Send a daily message to a group:
+
+```yaml
+automation:
+  - alias: MeshCom good morning
+    triggers:
+      - trigger: time
+        at: "07:30:00"
+    actions:
+      - action: meshcom.send_message
+        data:
+          config_entry_id: YOUR_ENTRY_ID
+          destination: "262"
+          message: "Guten Morgen aus dem Shack"
+```
+
+Use cases: a chat on the wall tablet, notifications for direct messages,
+presence of a mobile node ("Active"), a map of heard stations, switching
+**No MSG All** at night.
+
+## Known limitations
+
+- **KISS:** frames carry no MeshCom message id and no firmware version, so
+  the "Firmware" sensor stays empty and the node id is derived from the
+  callsign. The node serves one KISS client at a time; Home Assistant keeps
+  that slot. RSSI/SNR are those of the last hop and need `--kiss meta on`.
+- **Firmware 4.34z–4.40a web login** is plain text (see [Security](#security)).
+- Direct messages between other stations are passed on as events but not
+  counted and not shown in the chat.
+- A temperature of exactly 0.0 °C is reported as unknown (the node sends 0
+  for "no value").
+- HACS installs releases, not the newest commit.
+
+## Troubleshooting
+
+| Problem | What to check |
+| --- | --- |
+| "No packet from the node" during setup | ext UDP on, ext. UDP IP = Home Assistant, then "Send Position" |
+| "The node's web interface cannot be reached" | IP address; firmware 4.34z or newer |
+| Warning "uses the unencrypted web login" | Expected with firmware up to 4.40a; disappears after an update with the secure login |
+| "KISS interface cannot be reached" | `--kiss on`, port 8001, no other KISS client connected |
+| Warning "KISS interface without authentication" | Set `--passwd` and `--kiss auth on`, then Reconfigure |
+| Sending fails with "does not allow sending via KISS" | `--kiss tx on` |
+| Chat panel is empty | User is neither administrator nor released in the options |
+| No icon | Home Assistant 2026.3 or newer needed |
+
+Debug logging:
+
+```yaml
+logger:
+  logs:
+    custom_components.meshcom: debug
+```
+
+Diagnostics (device page → Download diagnostics) contain no addresses,
+positions, message text or passwords and can be attached to an issue.
+
+## Removal
+
+1. **Settings → Devices & services → MeshCom → ⋮ → Delete** for each node.
+   The stored station list and chat history are deleted with it.
+2. Uninstall in HACS (or delete `custom_components/meshcom`) and restart.
+3. On the node, switch off what you enabled for Home Assistant: ext UDP
+   (`--extudp off`) or KISS (`--kiss off`).
 
 ## Security
 
@@ -149,16 +281,29 @@ Everything received from the mesh is treated as untrusted data. Transmitting
 is restricted to administrators by default. See [SECURITY.md](SECURITY.md)
 for the security policy and how to report a vulnerability.
 
-### Recommended node settings
+Recommended node settings:
 
-- Set a **web password** on every node (`--webpwd <password>`, up to 19
-  characters). Without it, the node's web API is open to every device and
-  every browser on your network.
-- Only enable the external UDP interface on nodes that stay in your home
-  network. The interface accepts commands from any device on the network the
-  node is connected to.
+- Set a **web password** on every node (`--webpwd`, up to 19 characters).
+  Without it, every device and every browser on your network can read the
+  node's WLAN password.
+- Firmware 4.34z to 4.40a send the web password unencrypted and then trust
+  the client's IP address for 4 hours. Home Assistant logs out right after
+  every query and switches to the secure nonce/HMAC login as soon as the
+  node offers it, never back.
+- Only enable **ext UDP** on nodes that stay in your home network; the
+  interface accepts commands from any device on that network.
+- For **KISS**, always use `--kiss auth on` with `--passwd`.
 
 ## Development
+
+| Path | Content |
+| --- | --- |
+| `custom_components/meshcom/` | The Home Assistant integration |
+| `custom_components/meshcom/aiomeshcom/` | Protocol library (asyncio, no Home Assistant dependency) |
+| `custom_components/meshcom/frontend/` | Chat panel (plain web component) |
+| `tests/lib/` | Library tests, including anonymised real-world packets |
+| `tests/integration/` | Home Assistant integration tests |
+| `tools/` | Capture anonymiser, brand icon source |
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
@@ -173,6 +318,9 @@ pytest tests/integration -o addopts="" -o asyncio_mode=auto \
   --cov --cov-config=tests/integration/.coveragerc
 mypy --config-file tests/integration/mypy.ini custom_components/meshcom tests/integration
 ```
+
+A new version in `manifest.json` together with a section in `CHANGELOG.md`
+creates the release when it reaches `main`.
 
 ## License
 
