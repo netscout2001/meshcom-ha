@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
@@ -20,6 +20,9 @@ from custom_components.meshcom.const import (
 )
 from custom_components.meshcom.hub import UdpHub
 
+if TYPE_CHECKING:
+    from custom_components.meshcom.aiomeshcom.webapi import WebApiError
+
 NODE_HOST = "192.168.1.50"
 NODE_ID = 0x63CF32D3 >> 10
 
@@ -34,6 +37,63 @@ def no_socket() -> Generator[None]:
     """Tests do not open a real UDP socket; datagrams are injected."""
     with patch.object(UdpHub, "async_start", return_value=None):
         yield
+
+
+class FakeWebClient:
+    """Stands in for the node web API; one shared state for all instances."""
+
+    def __init__(self) -> None:
+        self.no_msg_all = False
+        self.groups = ["262", "26298"]
+        self.open = False
+        self.error: WebApiError | None = None
+        self.calls: list[tuple[str, ...]] = []
+        self.passwords: list[str | None] = []
+
+    def factory(self, _session: object, host: str, password: str | None) -> FakeWebClient:
+        """Called like ``MeshComWebClient(session, host, password)``."""
+        self.passwords.append(password)
+        return self
+
+    def _raise(self) -> None:
+        if self.error is not None:
+            raise self.error
+
+    async def get_status(self) -> tuple[bool, list[str]]:
+        """Read nomsgall and the groups."""
+        self.calls.append(("get_status",))
+        self._raise()
+        return self.no_msg_all, list(self.groups)
+
+    async def get_param(self, name: str) -> str:
+        """Read one parameter."""
+        self.calls.append(("get_param", name))
+        self._raise()
+        return "on" if self.no_msg_all else "off"
+
+    async def set_param(self, name: str, value: str) -> str:
+        """Write one parameter."""
+        self.calls.append(("set_param", name, value))
+        self._raise()
+        self.no_msg_all = value == "on"
+        return value
+
+    async def is_open(self) -> bool:
+        """True if the node answers without a password."""
+        self.calls.append(("is_open",))
+        self._raise()
+        return self.open
+
+
+@pytest.fixture(autouse=True)
+def web_client() -> Generator[FakeWebClient]:
+    """No real HTTP to the node; tests drive the fake."""
+    fake = FakeWebClient()
+    with (
+        patch("custom_components.meshcom.MeshComWebClient", side_effect=fake.factory),
+        patch("custom_components.meshcom.config_flow.MeshComWebClient", side_effect=fake.factory),
+    ):
+        yield fake
 
 
 def datagram(**fields: Any) -> bytes:

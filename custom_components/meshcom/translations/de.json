@@ -16,18 +16,44 @@
       "no_packet": {
         "title": "Kein Paket vom Node",
         "description": "Von {host} ist auf UDP-Port {port} nichts angekommen. Prüfe, ob am Node 'ext UDP' eingeschaltet ist und 'ext. UDP IP' auf Home Assistant zeigt. Klicke dann auf der Weboberfläche des Nodes auf 'Send Position' und sende das Formular erneut ab."
+      },
+      "web": {
+        "title": "Web-Passwort",
+        "description": "Wenn der Node ein Web-Passwort hat (--webpwd), gib es hier ein. Damit liest und schaltet Home Assistant Einstellungen am Node. Leer lassen, wenn der Node keines hat (nicht empfohlen: ohne Passwort kann jedes Gerät in deinem Netz das WLAN-Passwort des Nodes auslesen).",
+        "data": {
+          "password": "Web-Passwort"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Web-Passwort von {node}",
+        "description": "Der Node hat das gespeicherte Web-Passwort abgelehnt. Gib das aktuelle ein.",
+        "data": {
+          "password": "Web-Passwort"
+        }
+      },
+      "reconfigure": {
+        "title": "Web-Passwort von {node}",
+        "description": "Gib das Web-Passwort des Nodes ein oder lass das Feld leer, wenn der Node keines hat.",
+        "data": {
+          "password": "Web-Passwort"
+        }
       }
     },
     "progress": {
       "wait_for_node": "Warte auf ein Paket vom Node {host} (UDP-Port {port}). Klicke auf der Weboberfläche des Nodes auf 'Send Position', dann kommt sofort eines."
     },
     "error": {
-      "invalid_host": "Gib eine private IPv4-Adresse ein, zum Beispiel 192.168.1.50."
+      "invalid_host": "Gib eine private IPv4-Adresse ein, zum Beispiel 192.168.1.50.",
+      "invalid_auth": "Der Node hat das Passwort abgelehnt.",
+      "throttled": "Der Node sperrt die Anmeldung nach fünf Fehlversuchen für eine Minute. Warte eine Minute und versuche es erneut.",
+      "cannot_connect": "Die Weboberfläche des Nodes ist nicht erreichbar."
     },
     "abort": {
       "already_configured": "Dieser Node ist bereits eingerichtet.",
       "port_unavailable": "UDP-Port {port} konnte nicht geöffnet werden. Möglicherweise nutzt ihn ein anderes Programm.",
-      "unknown": "Unerwarteter Fehler."
+      "unknown": "Unerwarteter Fehler.",
+      "reauth_successful": "Das Web-Passwort wurde aktualisiert.",
+      "reconfigure_successful": "Das Web-Passwort wurde aktualisiert."
     }
   },
   "entity": {
@@ -97,6 +123,9 @@
     "switch": {
       "sending_enabled": {
         "name": "Senden erlauben"
+      },
+      "no_msg_all": {
+        "name": "No MSG All"
       }
     },
     "select": {
@@ -153,6 +182,15 @@
     },
     "no_recipient": {
       "message": "Wähle zuerst eine Gruppe oder Station."
+    },
+    "web_auth_failed": {
+      "message": "Der Node hat die Web-Anmeldung abgelehnt."
+    },
+    "web_throttled": {
+      "message": "Der Node sperrt die Anmeldung nach Fehlversuchen für eine Minute."
+    },
+    "web_unavailable": {
+      "message": "Die Weboberfläche des Nodes ist nicht erreichbar."
     }
   },
   "services": {
@@ -191,6 +229,12 @@
     },
     "error": {
       "invalid_groups": "Gib bis zu 20 Gruppennummern mit 1 bis 5 Ziffern ein, durch Kommas getrennt."
+    }
+  },
+  "issues": {
+    "web_password_missing": {
+      "title": "MeshCom-Node {node} hat kein Web-Passwort",
+      "description": "Ohne Web-Passwort kann jedes Gerät und jede im Browser geöffnete Webseite in deinem Netz das WLAN-Passwort des Nodes auslesen und seine Einstellungen ändern. Setze am Node eines mit `--webpwd` und dem Passwort (bis 19 Zeichen) und trage es in Home Assistant über „Neu konfigurieren“ der Integration ein."
     }
   }
 }

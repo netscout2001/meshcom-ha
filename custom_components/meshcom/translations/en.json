@@ -16,18 +16,44 @@
       "no_packet": {
         "title": "No packet from the node",
         "description": "Nothing arrived from {host} on UDP port {port}. Check that 'ext UDP' is enabled on the node and that 'ext. UDP IP' points to Home Assistant, then click 'Send Position' on the node's web page and submit to try again."
+      },
+      "web": {
+        "title": "Web password",
+        "description": "If the node has a web password (--webpwd), enter it here. Home Assistant reads and switches node settings with it. Leave empty if the node has none (not recommended: without it, every device on your network can read the node's WLAN password).",
+        "data": {
+          "password": "Web password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Web password of {node}",
+        "description": "The node rejected the stored web password. Enter the current one.",
+        "data": {
+          "password": "Web password"
+        }
+      },
+      "reconfigure": {
+        "title": "Web password of {node}",
+        "description": "Enter the node's web password, or leave empty if the node has none.",
+        "data": {
+          "password": "Web password"
+        }
       }
     },
     "progress": {
       "wait_for_node": "Waiting for a packet from the node at {host} (UDP port {port}). Click 'Send Position' on the node's web page to send one right away."
     },
     "error": {
-      "invalid_host": "Enter a private IPv4 address, for example 192.168.1.50."
+      "invalid_host": "Enter a private IPv4 address, for example 192.168.1.50.",
+      "invalid_auth": "The node rejected the password.",
+      "throttled": "The node blocks logins for a minute after five failed attempts. Wait a minute and try again.",
+      "cannot_connect": "The node's web interface cannot be reached."
     },
     "abort": {
       "already_configured": "This node is already configured.",
       "port_unavailable": "UDP port {port} could not be opened. Another program may be using it.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "reauth_successful": "The web password was updated.",
+      "reconfigure_successful": "The web password was updated."
     }
   },
   "entity": {
@@ -97,6 +123,9 @@
     "switch": {
       "sending_enabled": {
         "name": "Allow sending"
+      },
+      "no_msg_all": {
+        "name": "No MSG All"
       }
     },
     "select": {
@@ -153,6 +182,15 @@
     },
     "no_recipient": {
       "message": "Select a group or station first."
+    },
+    "web_auth_failed": {
+      "message": "The node rejected the web login."
+    },
+    "web_throttled": {
+      "message": "The node blocks logins for a minute after failed attempts."
+    },
+    "web_unavailable": {
+      "message": "The node's web interface cannot be reached."
     }
   },
   "services": {
@@ -191,6 +229,12 @@
     },
     "error": {
       "invalid_groups": "Enter up to 20 group numbers with 1 to 5 digits, separated by commas."
+    }
+  },
+  "issues": {
+    "web_password_missing": {
+      "title": "MeshCom node {node} has no web password",
+      "description": "Without a web password, every device and every website opened in a browser on your network can read the node's WLAN password and change its settings. Set one on the node with `--webpwd` followed by the password (up to 19 characters) and enter it in Home Assistant via the integration's Reconfigure option."
     }
   }
 }

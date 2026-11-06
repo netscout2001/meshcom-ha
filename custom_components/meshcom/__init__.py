@@ -6,15 +6,26 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, Platform
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType
 
-from .const import CONF_CALLSIGN, CONF_LISTEN_PORT, CONF_NODE_ID, DOMAIN, signal_update
+from .aiomeshcom.webapi import MeshComWebClient, WebApiError
+from .const import (
+    CONF_CALLSIGN,
+    CONF_LISTEN_PORT,
+    CONF_NODE_ID,
+    DOMAIN,
+    ISSUE_WEB_PASSWORD_MISSING,
+    signal_update,
+)
+from .coordinator import MeshComWebCoordinator
 from .hub import UdpHub, async_acquire_hub, async_release_hub
 from .node import MeshComNode
 from .services import async_setup_services
@@ -39,6 +50,7 @@ class MeshComRuntime:
     node: MeshComNode
     hub: UdpHub
     host: str
+    web: MeshComWebCoordinator
 
     def send_datagram(self, data: bytes) -> None:
         """Send to this node's external UDP port."""
@@ -74,7 +86,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         async_release_hub(hass, hub)
 
     entry.async_on_unload(_release)
-    entry.runtime_data = MeshComRuntime(node=node, hub=hub, host=entry.data[CONF_HOST])
+
+    client = MeshComWebClient(
+        async_get_clientsession(hass), entry.data[CONF_HOST], entry.data.get(CONF_PASSWORD)
+    )
+    web = MeshComWebCoordinator(hass, entry, client)
+    entry.runtime_data = MeshComRuntime(node=node, hub=hub, host=entry.data[CONF_HOST], web=web)
+
+    @callback
+    def _apply_web_settings() -> None:
+        # The HA filter follows the node's "No MSG All" switch.
+        if web.data is not None:
+            node.apply_web_settings(no_msg_all=web.data.no_msg_all, groups=web.data.groups)
+
+    entry.async_on_unload(web.async_add_listener(_apply_web_settings))
+    # Not awaited: a mobile node may be away, which must not block setup.
+    entry.async_create_background_task(
+        hass, _async_first_web_contact(hass, entry, client, web), f"{DOMAIN} web start"
+    )
 
     # Time-based states ("active", "heard within 24 h") need a periodic refresh.
     @callback
@@ -85,6 +114,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def _async_first_web_contact(
+    hass: HomeAssistant,
+    entry: MeshComConfigEntry,
+    client: MeshComWebClient,
+    web: MeshComWebCoordinator,
+) -> None:
+    """First poll, and a repair hint if the node has no web password (F-01)."""
+    issue_id = f"{ISSUE_WEB_PASSWORD_MISSING}_{entry.entry_id}"
+    if entry.data.get(CONF_PASSWORD):
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+    else:
+        try:
+            node_is_open = await client.is_open()
+        except WebApiError:
+            node_is_open = False
+        if node_is_open:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_WEB_PASSWORD_MISSING,
+                translation_placeholders={"node": entry.title},
+            )
+        else:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+    await web.async_refresh()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
