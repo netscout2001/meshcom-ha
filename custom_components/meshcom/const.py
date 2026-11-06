@@ -71,3 +71,39 @@ ISSUE_WEB_LEGACY_LOGIN: Final = "web_legacy_login"
 ISSUE_WEB_DOWNGRADE: Final = "web_downgrade"
 #: Login method of the node's web API, pinned once the secure login was used.
 CONF_WEB_AUTH: Final = "web_auth"
+
+# --- stations ----------------------------------------------------------------
+
+#: Options: how heard stations appear in Home Assistant.
+CONF_STATION_MODE: Final = "station_mode"
+STATION_MODE_OFF: Final = "off"
+STATION_MODE_DATA: Final = "data"
+STATION_MODE_ENTITIES: Final = "entities"
+STATION_MODES: Final = (STATION_MODE_OFF, STATION_MODE_DATA, STATION_MODE_ENTITIES)
+DEFAULT_STATION_MODE: Final = STATION_MODE_DATA
+#: Options: at most this many station devices per node.
+CONF_STATION_MAX: Final = "station_max"
+DEFAULT_STATION_MAX: Final = 50
+STATION_MAX_LIMIT: Final = 200
+#: Options: station devices are removed after this many days without a packet.
+CONF_STATION_STALE_DAYS: Final = "station_stale_days"
+DEFAULT_STATION_STALE_DAYS: Final = 7
+STATION_STALE_DAYS_LIMIT: Final = 90
+#: Stations in the "stations" attribute (data mode), newest first.
+STATION_ATTRIBUTE_LIMIT: Final = 100
+#: Stations not heard for this long are dropped from the stored list.
+STATION_STORE_MAX_AGE: Final = timedelta(days=STATION_STALE_DAYS_LIMIT)
+STATION_STORE_VERSION: Final = 1
+#: Delay before the station list is written to disk.
+STATION_SAVE_DELAY: Final = 60
+STATION_CLEANUP_INTERVAL: Final = timedelta(hours=1)
+
+
+def signal_station(entry_id: str, callsign: str) -> str:
+    """Dispatcher signal for state changes of one heard station."""
+    return f"{DOMAIN}_station_{entry_id}_{callsign}"
+
+
+def signal_new_station(entry_id: str) -> str:
+    """Dispatcher signal: entities for a station should be added."""
+    return f"{DOMAIN}_new_station_{entry_id}"

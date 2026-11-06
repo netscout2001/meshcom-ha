@@ -14,6 +14,7 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 
 from . import MeshComConfigEntry
+from .stations import station_mode
 
 TO_REDACT = {CONF_HOST, CONF_PASSWORD}
 
@@ -46,5 +47,7 @@ async def async_get_config_entry_diagnostics(
             "filter_active": node.filter_active,
             "messages_filtered": node.messages_filtered,
             "stations_heard_24h": node.stations_heard(),
+            "station_mode": station_mode(entry),
+            "station_devices": len(runtime.stations.tracked),
         },
     }

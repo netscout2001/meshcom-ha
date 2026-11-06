@@ -411,6 +411,9 @@ async def test_options_flow(
     assert init_integration.options == {
         CONF_GROUPS: ["262", "26298"],
         CONF_SEND_USERS: [hass_read_only_user.id],
+        "station_mode": "data",
+        "station_max": 50,
+        "station_stale_days": 7,
     }
 
 

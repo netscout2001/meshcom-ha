@@ -25,6 +25,9 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -49,12 +52,21 @@ from .const import (
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
     CONF_SEND_USERS,
+    CONF_STATION_MAX,
+    CONF_STATION_MODE,
+    CONF_STATION_STALE_DAYS,
     CONF_WEB_AUTH,
     DEFAULT_LISTEN_PORT,
+    DEFAULT_STATION_MAX,
+    DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
     SETUP_WAIT_TIMEOUT,
+    STATION_MAX_LIMIT,
+    STATION_MODES,
+    STATION_STALE_DAYS_LIMIT,
 )
 from .hub import async_acquire_hub, async_release_hub
+from .stations import station_mode
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -326,6 +338,9 @@ class MeshComOptionsFlow(OptionsFlow):
                     data={
                         CONF_GROUPS: groups,
                         CONF_SEND_USERS: list(user_input.get(CONF_SEND_USERS, [])),
+                        CONF_STATION_MODE: user_input[CONF_STATION_MODE],
+                        CONF_STATION_MAX: int(user_input[CONF_STATION_MAX]),
+                        CONF_STATION_STALE_DAYS: int(user_input[CONF_STATION_STALE_DAYS]),
                     }
                 )
         # Administrators may always transmit; only other users are offered.
@@ -342,6 +357,31 @@ class MeshComOptionsFlow(OptionsFlow):
                     CONF_SEND_USERS, default=options.get(CONF_SEND_USERS, [])
                 ): SelectSelector(
                     SelectSelectorConfig(options=users, multiple=True, mode=SelectSelectorMode.LIST)
+                ),
+                vol.Required(
+                    CONF_STATION_MODE, default=station_mode(self.config_entry)
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=list(STATION_MODES),
+                        mode=SelectSelectorMode.LIST,
+                        translation_key=CONF_STATION_MODE,
+                    )
+                ),
+                vol.Required(
+                    CONF_STATION_MAX,
+                    default=options.get(CONF_STATION_MAX, DEFAULT_STATION_MAX),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=1, max=STATION_MAX_LIMIT, step=1, mode=NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Required(
+                    CONF_STATION_STALE_DAYS,
+                    default=options.get(CONF_STATION_STALE_DAYS, DEFAULT_STATION_STALE_DAYS),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=1, max=STATION_STALE_DAYS_LIMIT, step=1, mode=NumberSelectorMode.BOX
+                    )
                 ),
             }
         )

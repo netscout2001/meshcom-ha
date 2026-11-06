@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.0
+
+### Features
+- Station mode in the options: off, data only (list attribute of "Stations heard", default) or one device per station with position, last heard, battery, RSSI, SNR and hops
+- Station devices appear automatically, are limited (default 50) and are removed after a number of days without a packet (default 7); they can also be deleted by hand
+- The station list is stored and survives a restart
+- Changing the options reloads the node
+
 ## v0.1.0
 
 First release of the MeshCom integration for Home Assistant.
