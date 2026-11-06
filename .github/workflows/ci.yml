@@ -91,6 +91,8 @@ jobs:
 
   hacs:
     name: HACS validation
+    # HACS can only validate public repositories.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

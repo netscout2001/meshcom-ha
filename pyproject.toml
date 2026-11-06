@@ -44,6 +44,7 @@ aiomeshcom = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/lib"]
+pythonpath = ["."]
 addopts = "--strict-markers --cov=aiomeshcom --cov-report=term-missing"
 
 [tool.coverage.report]
