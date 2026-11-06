@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Generator
 from datetime import timedelta
 from typing import Any
@@ -598,3 +599,26 @@ async def test_panel_failure_does_not_break_setup(
         assert await hass.config_entries.async_reload(mock_config_entry.entry_id)
         await hass.async_block_till_done()
     assert mock_config_entry.state.name == "LOADED"
+
+
+async def test_two_nodes_set_up_together(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Two nodes starting at the same time register the panel once, without errors."""
+    second = MockConfigEntry(
+        domain=DOMAIN,
+        title="DO8RE-9",
+        unique_id="abcdef",
+        data={**mock_config_entry.data, "host": "192.168.1.51", "node_id": 0xABCDEF},
+    )
+    mock_config_entry.add_to_hass(hass)
+    second.add_to_hass(hass)
+    await asyncio.gather(
+        hass.config_entries.async_setup(mock_config_entry.entry_id),
+        hass.config_entries.async_setup(second.entry_id),
+    )
+    await hass.async_block_till_done()
+    assert mock_config_entry.state.name == "LOADED"
+    assert second.state.name == "LOADED"
+    assert PANEL_URL_PATH in hass.data[DATA_PANELS]
+    assert "could not be registered" not in caplog.text
