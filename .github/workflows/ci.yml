@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: the workflow only needs to read the code.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  library:
+    name: Library – lint, types, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Actions are pinned to full commit SHAs (security concept C-17).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Guard – no raw radio captures in the repository
+        run: |
+          if git ls-files '*.jsonl' '*.pcap' '*.pcapng' | grep -v '^tests/fixtures/.*\.anon\.jsonl$'; then
+            echo "::error::Raw capture files must not be committed. Anonymise them with tools/anonymize_capture.py."
+            exit 1
+          fi
+
+      - name: Install
+        run: pip install -e ".[test]"
+
+      - name: Ruff (lint, incl. Trojan-Source checks)
+        run: ruff check --output-format=github .
+
+      - name: Ruff (format)
+        run: ruff format --check .
+
+      - name: Mypy (strict)
+        run: mypy
+
+      - name: Bandit
+        run: bandit -q -r src -c pyproject.toml
+
+      - name: Tests
+        run: pytest

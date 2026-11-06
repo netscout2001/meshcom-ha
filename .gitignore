@@ -1,0 +1,42 @@
+# --- Real radio captures: never commit -----------------------------------
+# Captures contain callsigns, positions and messages of other radio amateurs.
+# Only anonymised fixtures under tests/fixtures/ are allowed in the repo.
+*.jsonl
+!tests/fixtures/*.anon.jsonl
+captures/
+*.pcap
+*.pcapng
+
+# --- Secrets ---------------------------------------------------------------
+.env
+.env.*
+secrets.yaml
+*.pem
+*.key
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Node / frontend -------------------------------------------------------
+node_modules/
+frontend/dist/
+
+# --- Editors / OS ----------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
