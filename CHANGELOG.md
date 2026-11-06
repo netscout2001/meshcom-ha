@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.4
+
+### Fixes
+- Setup: the chat panel is registered before the platforms, and a panel error no longer stops the node. Before, an error after the platforms had started left them loaded, and the next reload failed with "already been setup".
+
 ## v0.4.3
 
 ### Features
