@@ -584,3 +584,17 @@ async def test_stored_foreign_groups_hidden_later(
     client = await hass_ws_client(hass)
     history = await _call(client, type="meshcom/chat/history", entry_id=mock_config_entry.entry_id)
     assert history["result"]["messages"] == []
+
+
+async def test_panel_failure_does_not_break_setup(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A panel error is logged; the node loads and reloads cleanly."""
+    with patch("custom_components.meshcom.async_register_panel", side_effect=RuntimeError("boom")):
+        mock_config_entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+        assert mock_config_entry.state.name == "LOADED"
+        assert await hass.config_entries.async_reload(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+    assert mock_config_entry.state.name == "LOADED"

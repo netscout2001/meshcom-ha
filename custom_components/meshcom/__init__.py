@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -56,6 +57,8 @@ PLATFORMS: list[Platform] = [
 ]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -191,11 +194,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
 
     entry.async_on_unload(async_track_time_interval(hass, _refresh, timedelta(minutes=1)))
 
+    # Everything that can fail runs before the platforms: an error after
+    # forwarding would leave them loaded, and the next reload fails with
+    # "already been setup". The panel is optional; a failure must not stop
+    # the node.
+    await _async_register_panel_safely(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    await async_register_panel(hass)
     if kiss is not None:
         kiss.async_start()
     return True
+
+
+async def _async_register_panel_safely(hass: HomeAssistant) -> None:
+    """The chat panel is optional: an error is logged and does not stop the node."""
+    try:
+        await async_register_panel(hass)
+    except Exception:
+        _LOGGER.exception("The MeshCom chat panel could not be registered")
 
 
 @callback
