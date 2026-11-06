@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
@@ -20,16 +21,26 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_HOST
-from homeassistant.core import callback
+from homeassistant.const import CONF_HOST, CONF_PASSWORD
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 
 from .aiomeshcom import Packet, PositionPacket, SourceType, TextMessagePacket, is_group
+from .aiomeshcom.webapi import (
+    MeshComWebClient,
+    WebApiError,
+    WebAuthError,
+    WebThrottledError,
+)
 from .const import (
     CONF_CALLSIGN,
     CONF_GROUPS,
@@ -166,21 +177,104 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Create the entry."""
+        """Node identified; continue with the web password."""
         if self._found is None:
             return self.async_abort(reason="unknown")
-        callsign, node_id = self._found
+        _, node_id = self._found
         await self.async_set_unique_id(f"{node_id:06x}")
         self._abort_if_unique_id_configured(updates={CONF_HOST: self._host})
-        return self.async_create_entry(
-            title=callsign,
-            data={
-                CONF_HOST: self._host,
-                CONF_LISTEN_PORT: self._port,
-                CONF_CALLSIGN: callsign,
-                CONF_NODE_ID: node_id,
-            },
+        return await self.async_step_web()
+
+    async def async_step_web(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Optional web password of the node (``--webpwd``)."""
+        errors: dict[str, str] = {}
+        if user_input is not None and self._found is not None:
+            password = user_input.get(CONF_PASSWORD) or None
+            errors = await _async_validate_web(self.hass, self._host, password)
+            if not errors:
+                callsign, node_id = self._found
+                data: dict[str, Any] = {
+                    CONF_HOST: self._host,
+                    CONF_LISTEN_PORT: self._port,
+                    CONF_CALLSIGN: callsign,
+                    CONF_NODE_ID: node_id,
+                }
+                if password:
+                    data[CONF_PASSWORD] = password
+                return self.async_create_entry(title=callsign, data=data)
+        return self.async_show_form(step_id="web", data_schema=_PASSWORD_SCHEMA, errors=errors)
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        """The node rejected the stored web password."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask for the current web password."""
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            password = user_input.get(CONF_PASSWORD) or None
+            errors = await _async_validate_web(self.hass, entry.data[CONF_HOST], password)
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry, data=_with_password(entry.data, password)
+                )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=_PASSWORD_SCHEMA,
+            errors=errors,
+            description_placeholders={"node": entry.title},
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the web password of an existing node."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            password = user_input.get(CONF_PASSWORD) or None
+            errors = await _async_validate_web(self.hass, entry.data[CONF_HOST], password)
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry, data=_with_password(entry.data, password)
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_PASSWORD_SCHEMA,
+            errors=errors,
+            description_placeholders={"node": entry.title},
+        )
+
+
+_PASSWORD_SCHEMA = vol.Schema(
+    {vol.Optional(CONF_PASSWORD): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))}
+)
+
+
+def _with_password(data: Mapping[str, Any], password: str | None) -> dict[str, Any]:
+    new = {key: value for key, value in data.items() if key != CONF_PASSWORD}
+    if password:
+        new[CONF_PASSWORD] = password
+    return new
+
+
+async def _async_validate_web(
+    hass: HomeAssistant, host: str, password: str | None
+) -> dict[str, str]:
+    """Check the web password with one login (no retries, see F-06)."""
+    client = MeshComWebClient(async_get_clientsession(hass), host, password)
+    try:
+        await client.get_param("nomsgall")
+    except WebAuthError:
+        return {"base": "invalid_auth"}
+    except WebThrottledError:
+        return {"base": "throttled"}
+    except WebApiError:
+        return {"base": "cannot_connect"}
+    return {}
 
 
 def _parse_groups(value: str) -> list[str] | None:

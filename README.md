@@ -27,9 +27,24 @@ Planned features:
   `meshcom_delivery_update` (only for acknowledgements of your own messages)
 - Sending: recipient type, group and station selects, a message text field,
   send and clear buttons, and the action `meshcom.send_message`
-- Diagnostics without addresses, positions or message text
+- Web API (optional web password): the switch **No MSG All** shows and sets
+  the node's setting of the same name, and the group select offers the
+  node's groups. The node is read every 5 minutes with one login.
+- Diagnostics without addresses, positions, message text or passwords
 
-The web API, the NET console, KISS/TCP and the chat panel follow.
+The NET console, KISS/TCP and the chat panel follow.
+
+### No MSG All and the message filter
+
+While **No MSG All** is on, Home Assistant shows the same messages as the
+node's display: messages to the node's own groups and direct messages to
+the node. Messages to all (`*`), to other groups and to other addressees
+create no event and do not change the "last message" sensors; the senders
+are still counted as heard stations. Only administrators (and automations)
+may change the switch. If the node rejects the stored password, Home
+Assistant asks for the new one (reauthentication); the password can also be
+changed under **Reconfigure**. A node without a web password gets a repair
+hint.
 
 ### Who may send
 
@@ -52,6 +67,7 @@ Everything sent goes out on amateur radio under the node's callsign.
 3. In Home Assistant go to **Settings → Devices & services → Add integration
    → MeshCom** and enter the node's IP address.
 4. While Home Assistant waits, click **Send Position** on the node's web page.
+5. Enter the node's web password, or leave it empty if the node has none.
 
 ## Repository layout
 

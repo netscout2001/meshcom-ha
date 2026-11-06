@@ -38,9 +38,7 @@ rules:
   integration-owner: done
   log-when-unavailable: todo
   parallel-updates: done
-  reauthentication-flow:
-    status: exempt
-    comment: No credentials until the web API (phase 2).
+  reauthentication-flow: done
   test-coverage: done
 
   # Gold
@@ -66,13 +64,11 @@ rules:
   entity-translations: done
   exception-translations: done
   icon-translations: done
-  reconfiguration-flow: todo
-  repair-issues: todo
+  reconfiguration-flow: done
+  repair-issues: done
   stale-devices: todo
 
   # Platinum
   async-dependency: done
-  inject-websession:
-    status: exempt
-    comment: No HTTP client yet (web API follows in phase 2).
+  inject-websession: done
   strict-typing: done

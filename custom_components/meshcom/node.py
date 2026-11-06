@@ -96,6 +96,10 @@ class MeshComNode:
         self._pending: OrderedDict[tuple[str, int], tuple[str, datetime]] = OrderedDict()
         #: Ids of own messages, for the node's own delivery-status datagrams.
         self._own_ids: OrderedDict[int, datetime] = OrderedDict()
+        # Filter, coupled to the node's "No MSG All" switch (read via web API)
+        self.filter_active = False
+        self.node_groups: list[str] = []
+        self.messages_filtered = 0
 
     # --- derived values -------------------------------------------------------
 
@@ -197,6 +201,11 @@ class MeshComNode:
             self._track_own(packet, now)
         elif not to_me:
             self._station(packet.path.originator, now)
+        elif self.is_filtered(packet):
+            # Filtered: the station is still known, but no message, no event.
+            self.messages_filtered += 1
+            self._station(packet.path.originator, now)
+            return
         else:
             self.messages_received += 1
             self.last_message = ReceivedMessage(
@@ -282,6 +291,30 @@ class MeshComNode:
                 "source": "node",
             }
         self.hass.bus.async_fire(EVENT_DELIVERY, data)
+
+    @callback
+    def apply_web_settings(self, *, no_msg_all: bool, groups: list[str]) -> None:
+        """Take over the node's settings read via the web API."""
+        changed = no_msg_all != self.filter_active or groups != self.node_groups
+        self.filter_active = no_msg_all
+        self.node_groups = list(groups)
+        if changed:
+            # The group select offers the node's groups.
+            async_dispatcher_send(self.hass, signal_update(self.entry_id))
+
+    def is_filtered(self, packet: TextMessagePacket) -> bool:
+        """With "No MSG All" on the node, show only the node's groups and own DMs.
+
+        Like the node's own display: messages to all (*), to foreign groups
+        and to other addressees are hidden. Direct messages are handled by
+        the "to_me" rule.
+        """
+        if not self.filter_active:
+            return False
+        kind = packet.destination_kind
+        if kind is DestinationKind.GROUP:
+            return packet.destination not in self.node_groups
+        return kind is not DestinationKind.DIRECT
 
     @callback
     def add_telemetry_listener(self, listener: Callable[[], None]) -> Callable[[], None]:

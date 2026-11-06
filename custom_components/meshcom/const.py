@@ -65,3 +65,5 @@ MAX_PENDING_ACKS: Final = 100
 SERVICE_SEND_MESSAGE: Final = "send_message"
 ATTR_DESTINATION: Final = "destination"
 ATTR_MESSAGE: Final = "message"
+
+ISSUE_WEB_PASSWORD_MISSING: Final = "web_password_missing"  # noqa: S105  # issue id, not a secret

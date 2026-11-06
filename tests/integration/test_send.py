@@ -32,7 +32,14 @@ from custom_components.meshcom.const import (
 from custom_components.meshcom.hub import UdpHub
 from custom_components.meshcom.logbook import async_describe_events
 
-from .conftest import ACK_TEXT, INCOMING_MESSAGE, NODE_HOST, OWN_MESSAGE, inject
+from .conftest import (
+    ACK_TEXT,
+    INCOMING_MESSAGE,
+    NODE_HOST,
+    OWN_MESSAGE,
+    FakeWebClient,
+    inject,
+)
 
 BUTTON_DOMAIN, SERVICE_PRESS = "button", "press"
 SWITCH_DOMAIN = "switch"
@@ -262,9 +269,17 @@ async def test_compose_broadcast(
 
 
 async def test_compose_group(
-    hass: HomeAssistant, init_integration: MockConfigEntry, mock_send: MagicMock
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_send: MagicMock,
+    web_client: FakeWebClient,
 ) -> None:
-    """Groups come from the options."""
+    """Groups come from the options when the node reports none."""
+    web_client.groups = []
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    init_integration = mock_config_entry
     assert hass.states.get(GROUP_SELECT).state == "unavailable"  # type: ignore[union-attr]
     hass.config_entries.async_update_entry(
         init_integration, options={CONF_GROUPS: ["262", "26298"], CONF_SEND_USERS: []}

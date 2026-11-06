@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant import config_entries
-from homeassistant.const import CONF_HOST
+from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -49,8 +49,12 @@ async def test_full_flow(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"])
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "web"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "DO8RE-12"
+    assert CONF_PASSWORD not in result["data"]
     assert result["result"].unique_id == f"{NODE_ID:06x}"
     assert result["data"][CONF_HOST] == NODE_HOST
     # The flow's temporary listener is gone; only the new entry is registered.

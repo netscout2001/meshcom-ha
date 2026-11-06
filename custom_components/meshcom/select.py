@@ -62,9 +62,10 @@ class MeshComGroupSelect(MeshComEntity, SelectEntity):
 
     @property
     def options(self) -> list[str]:
-        """Configured groups (validated when saved in the options)."""
-        groups = self._entry.options.get(CONF_GROUPS, [])
-        return [group for group in groups if isinstance(group, str) and is_group(group)]
+        """Groups of the node (web API) plus groups from the options."""
+        configured = self._entry.options.get(CONF_GROUPS, [])
+        groups = [*self.node.node_groups, *configured]
+        return list(dict.fromkeys(g for g in groups if isinstance(g, str) and is_group(g)))
 
     @property
     def available(self) -> bool:
