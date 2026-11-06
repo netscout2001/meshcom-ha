@@ -120,3 +120,7 @@ CONF_KISS_PASSWORD: Final = "kiss_password"  # noqa: S105  # config key, not a s
 ISSUE_KISS_AUTH_OFF: Final = "kiss_auth_off"
 #: Waits between reconnect attempts (seconds); the last one repeats.
 KISS_RECONNECT_DELAYS: Final = (5, 10, 30, 60)
+
+#: Options: the chat shows only the node's own groups (and the configured ones).
+CONF_HIDE_FOREIGN_GROUPS: Final = "hide_foreign_groups"
+DEFAULT_HIDE_FOREIGN_GROUPS: Final = True

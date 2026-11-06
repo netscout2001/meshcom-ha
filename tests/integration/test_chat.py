@@ -511,3 +511,76 @@ async def test_subscribers_told_on_unload(
     # Unsubscribing afterwards is harmless.
     result = await _call(client, type="unsubscribe_events", subscription=sub_id)
     assert result["success"]
+
+
+# --- foreign groups ------------------------------------------------------------
+
+
+async def test_foreign_groups_hidden(
+    hass: HomeAssistant, init_integration: MockConfigEntry, hass_ws_client: WebSocketGenerator
+) -> None:
+    """Groups the node does not listen to stay out of the chat (default)."""
+    client = await hass_ws_client(hass)
+    result = await _call(client, type="meshcom/chat/subscribe", entry_id=init_integration.entry_id)
+    sub_id = result["id"]
+    inject(init_integration, message("26299", "40000301", text="fremd"))
+    inject(init_integration, message("262", "40000302", text="eigen"))
+    event = await client.receive_json()
+    assert event["id"] == sub_id
+    assert event["event"]["message"]["conversation"] == "group:262"
+    history = await _call(client, type="meshcom/chat/history", entry_id=init_integration.entry_id)
+    assert [m["text"] for m in history["result"]["messages"]] == ["eigen"]
+    # Events still carry everything.
+    assert init_integration.runtime_data.node.messages_received == 2
+
+
+async def test_foreign_groups_shown_when_disabled(
+    hass: HomeAssistant, init_integration: MockConfigEntry, hass_ws_client: WebSocketGenerator
+) -> None:
+    hass.config_entries.async_update_entry(init_integration, options={"hide_foreign_groups": False})
+    await hass.async_block_till_done()
+    inject(init_integration, message("26299", "40000311", text="fremd"))
+    client = await hass_ws_client(hass)
+    history = await _call(client, type="meshcom/chat/history", entry_id=init_integration.entry_id)
+    assert [m["conversation"] for m in history["result"]["messages"]] == ["group:26299"]
+
+
+async def test_configured_group_counts_as_own(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    hass.config_entries.async_update_entry(init_integration, options={CONF_GROUPS: ["26299"]})
+    await hass.async_block_till_done()
+    inject(init_integration, message("26299", "40000321"))
+    assert [m.conversation for m in init_integration.runtime_data.chat.messages] == ["group:26299"]
+
+
+async def test_no_known_groups_shows_all(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """Without the node's groups nothing is hidden."""
+    web_client.groups = []
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    inject(mock_config_entry, message("26299", "40000331"))
+    assert len(mock_config_entry.runtime_data.chat.messages) == 1
+
+
+async def test_stored_foreign_groups_hidden_later(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    web_client: FakeWebClient,
+    hass_ws_client: WebSocketGenerator,
+) -> None:
+    """Messages stored while the groups were unknown are hidden once they are known."""
+    web_client.groups = []
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    inject(mock_config_entry, message("26299", "40000341"))
+    web_client.groups = ["262"]
+    await mock_config_entry.runtime_data.web.async_refresh()
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    history = await _call(client, type="meshcom/chat/history", entry_id=mock_config_entry.entry_id)
+    assert history["result"]["messages"] == []

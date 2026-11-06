@@ -20,15 +20,17 @@ from homeassistant.helpers.typing import ConfigType
 
 from .aiomeshcom import TextMessagePacket
 from .aiomeshcom.webapi import AUTH_HMAC, AUTH_LEGACY, MeshComWebClient, WebApiError
-from .chat import ChatHistory
+from .chat import ChatHistory, conversation_of, is_foreign_group, own_groups
 from .const import (
     ACCESS_KISS,
     ACCESS_UDP,
     CONF_ACCESS,
     CONF_CALLSIGN,
+    CONF_HIDE_FOREIGN_GROUPS,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
     CONF_WEB_AUTH,
+    DEFAULT_HIDE_FOREIGN_GROUPS,
     DOMAIN,
     ISSUE_WEB_LEGACY_LOGIN,
     ISSUE_WEB_PASSWORD_MISSING,
@@ -141,6 +143,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
 
     @callback
     def _message(packet: TextMessagePacket, own: bool, when: datetime) -> None:
+        # Foreign groups stay out of the history (they would also push own
+        # messages out of the size-limited store).
+        if (
+            not own
+            and entry.options.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS)
+            and is_foreign_group(
+                conversation_of(packet, own=own), own_groups(node.node_groups, entry.options)
+            )
+        ):
+            return
         chat.async_add_packet(packet, own=own, now=when)
 
     node.message_listener = _message

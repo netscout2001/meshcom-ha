@@ -67,6 +67,7 @@ from .const import (
     CONF_ACCESS,
     CONF_CALLSIGN,
     CONF_GROUPS,
+    CONF_HIDE_FOREIGN_GROUPS,
     CONF_KISS_PASSWORD,
     CONF_KISS_PORT,
     CONF_LISTEN_PORT,
@@ -76,6 +77,7 @@ from .const import (
     CONF_STATION_MODE,
     CONF_STATION_STALE_DAYS,
     CONF_WEB_AUTH,
+    DEFAULT_HIDE_FOREIGN_GROUPS,
     DEFAULT_LISTEN_PORT,
     DEFAULT_STATION_MAX,
     DEFAULT_STATION_STALE_DAYS,
@@ -490,6 +492,9 @@ class MeshComOptionsFlow(OptionsFlow):
                         CONF_STATION_MODE: user_input[CONF_STATION_MODE],
                         CONF_STATION_MAX: int(user_input[CONF_STATION_MAX]),
                         CONF_STATION_STALE_DAYS: int(user_input[CONF_STATION_STALE_DAYS]),
+                        CONF_HIDE_FOREIGN_GROUPS: bool(
+                            user_input.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS)
+                        ),
                     }
                 )
         # Administrators may always transmit; only other users are offered.
@@ -507,6 +512,10 @@ class MeshComOptionsFlow(OptionsFlow):
                 ): SelectSelector(
                     SelectSelectorConfig(options=users, multiple=True, mode=SelectSelectorMode.LIST)
                 ),
+                vol.Required(
+                    CONF_HIDE_FOREIGN_GROUPS,
+                    default=options.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS),
+                ): bool,
                 vol.Required(
                     CONF_STATION_MODE, default=station_mode(self.config_entry)
                 ): SelectSelector(
