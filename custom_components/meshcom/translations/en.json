@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a MeshCom node",
+        "description": "Enter the IP address of your node. On the node, set 'ext. UDP IP' to the address of Home Assistant and enable 'ext UDP'. Only enable the external UDP interface on nodes that stay in your home network.",
+        "data": {
+          "host": "Node IP address",
+          "listen_port": "UDP port in Home Assistant"
+        },
+        "data_description": {
+          "host": "Private IPv4 address of the node, for example 192.168.1.50.",
+          "listen_port": "The node always sends to port 1799. Only change this if a forwarder sends to another port."
+        }
+      },
+      "no_packet": {
+        "title": "No packet from the node",
+        "description": "Nothing arrived from {host} on UDP port {port}. Check that 'ext UDP' is enabled on the node and that 'ext. UDP IP' points to Home Assistant, then click 'Send Position' on the node's web page and submit to try again."
+      }
+    },
+    "progress": {
+      "wait_for_node": "Waiting for a packet from the node at {host} (UDP port {port}). Click 'Send Position' on the node's web page to send one right away."
+    },
+    "error": {
+      "invalid_host": "Enter a private IPv4 address, for example 192.168.1.50."
+    },
+    "abort": {
+      "already_configured": "This node is already configured.",
+      "port_unavailable": "UDP port {port} could not be opened. Another program may be using it.",
+      "unknown": "Unexpected error."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "altitude": {
+        "name": "Altitude"
+      },
+      "last_message": {
+        "name": "Last message"
+      },
+      "last_sender": {
+        "name": "Last sender"
+      },
+      "last_message_time": {
+        "name": "Last message received"
+      },
+      "messages_received": {
+        "name": "Messages received"
+      },
+      "messages_sent": {
+        "name": "Messages sent"
+      },
+      "stations_heard": {
+        "name": "Stations heard (24 h)"
+      },
+      "last_rssi": {
+        "name": "Last RSSI"
+      },
+      "last_snr": {
+        "name": "Last SNR"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "temperature_1": {
+        "name": "Temperature 1"
+      },
+      "temperature_2": {
+        "name": "Temperature 2"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "pressure_qfe": {
+        "name": "Pressure (QFE)"
+      },
+      "pressure_qnh": {
+        "name": "Pressure (QNH)"
+      },
+      "co2": {
+        "name": "CO2"
+      }
+    },
+    "binary_sensor": {
+      "active": {
+        "name": "Active"
+      }
+    },
+    "device_tracker": {
+      "position": {
+        "name": "Position"
+      }
+    }
+  },
+  "exceptions": {
+    "port_unavailable": {
+      "message": "UDP port {port} could not be opened. Another program may be using it."
+    }
+  }
+}

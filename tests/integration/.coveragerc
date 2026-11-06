@@ -1,0 +1,9 @@
+# Coverage settings for the Home Assistant integration tests. The protocol
+# library (aiomeshcom) has its own test suite with 100 % coverage.
+[run]
+source = custom_components/meshcom
+omit = custom_components/meshcom/aiomeshcom/*
+
+[report]
+fail_under = 95
+show_missing = true
