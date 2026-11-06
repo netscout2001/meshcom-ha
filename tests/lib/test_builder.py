@@ -40,6 +40,8 @@ def test_umlauts_count_as_two_bytes() -> None:
         ("*", "line\nbreak", "text_control_characters"),
         ("*", "rl\u202eo", "text_control_characters"),
         ("*", "{CET}2026-01-01 00:00:00", "text_reserved_prefix"),
+        ("OWN1-9", "RM1 1 reboot " + "0" * 16, "text_reserved_prefix"),
+        ("TEST", "hi", "destination"),
         ("OWN1-9", "OWN1-12  :ack724", "text_reserved_suffix"),
         ("OWN1-9", "fake :REJ1", "text_reserved_suffix"),
         ("OWN1-9", "Hallo{123", "text_reserved_suffix"),
