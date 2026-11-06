@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -18,7 +18,9 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType
 
+from .aiomeshcom import TextMessagePacket
 from .aiomeshcom.webapi import AUTH_HMAC, AUTH_LEGACY, MeshComWebClient, WebApiError
+from .chat import ChatHistory
 from .const import (
     CONF_CALLSIGN,
     CONF_LISTEN_PORT,
@@ -32,8 +34,10 @@ from .const import (
 from .coordinator import MeshComWebCoordinator
 from .hub import UdpHub, async_acquire_hub, async_release_hub
 from .node import MeshComNode
+from .panel import async_register_panel, async_unregister_panel
 from .services import async_setup_services
 from .stations import StationDevices, StationStore
+from .websocket import async_register_websocket
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -58,6 +62,7 @@ class MeshComRuntime:
     web: MeshComWebCoordinator
     stations: StationDevices
     store: StationStore
+    chat: ChatHistory
     options: dict[str, Any]
 
     def send_datagram(self, data: bytes) -> None:
@@ -71,6 +76,7 @@ type MeshComConfigEntry = ConfigEntry[MeshComRuntime]
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the services (once, independent of config entries)."""
     async_setup_services(hass)
+    async_register_websocket(hass)
     return True
 
 
@@ -117,6 +123,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     node.station_listener = _station_heard
     stations.async_start()
 
+    # Chat history for the panel.
+    chat = ChatHistory(hass, entry.entry_id)
+    await chat.async_load()
+
+    @callback
+    def _message(packet: TextMessagePacket, own: bool, when: datetime) -> None:
+        chat.async_add_packet(packet, own=own, now=when)
+
+    node.message_listener = _message
+    node.delivery_listener = chat.async_set_status
+
     entry.runtime_data = MeshComRuntime(
         node=node,
         hub=hub,
@@ -124,6 +141,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         web=web,
         stations=stations,
         store=store,
+        chat=chat,
         options=dict(entry.options),
     )
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
@@ -149,6 +167,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     entry.async_on_unload(async_track_time_interval(hass, _refresh, timedelta(minutes=1)))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_register_panel(hass)
     return True
 
 
@@ -219,12 +238,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> 
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         await entry.runtime_data.store.async_save_now(entry.runtime_data.node)
+        await entry.runtime_data.chat.async_save_now()
+        entry.runtime_data.chat.async_close()
+        others = [
+            other
+            for other in hass.config_entries.async_entries(DOMAIN)
+            if other.entry_id != entry.entry_id and other.state is ConfigEntryState.LOADED
+        ]
+        if not others:
+            async_unregister_panel(hass)
     return unloaded
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> None:
     """Delete the stored station list together with the entry."""
     await StationStore(hass, entry.entry_id).async_remove()
+    await ChatHistory(hass, entry.entry_id).async_remove()
 
 
 async def async_remove_config_entry_device(

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.0
+
+### Features
+- Chat panel "MeshCom" in the sidebar: conversations for all, groups, direct messages and other addressees, live updates and delivery status of own direct messages
+- Chat history (last 500 messages per node) is stored and survives a restart
+- Reading is limited to administrators and users released for sending; sending uses the same checks as `meshcom.send_message`
+
+### Security
+- The panel renders message text as plain text only; a test checks the panel for HTML sinks
+
 ## v0.2.0
 
 ### Features

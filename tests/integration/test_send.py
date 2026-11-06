@@ -134,6 +134,7 @@ async def test_service_released_user(
     hass.config_entries.async_update_entry(
         init_integration, options={CONF_SEND_USERS: [hass_read_only_user.id], CONF_GROUPS: []}
     )
+    await hass.async_block_till_done()  # options changes reload the node
     await _send(hass, init_integration, "*", "x", context=Context(user_id=hass_read_only_user.id))
     assert len(mock_send.call_args_list) == 1
 
@@ -284,6 +285,7 @@ async def test_compose_group(
     hass.config_entries.async_update_entry(
         init_integration, options={CONF_GROUPS: ["262", "26298"], CONF_SEND_USERS: []}
     )
+    await hass.async_block_till_done()  # options changes reload the node
     await hass.services.async_call(
         SELECT_DOMAIN,
         SERVICE_SELECT_OPTION,
