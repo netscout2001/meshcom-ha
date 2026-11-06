@@ -107,3 +107,16 @@ def signal_station(entry_id: str, callsign: str) -> str:
 def signal_new_station(entry_id: str) -> str:
     """Dispatcher signal: entities for a station should be added."""
     return f"{DOMAIN}_new_station_{entry_id}"
+
+
+# --- access path --------------------------------------------------------------
+
+#: How Home Assistant talks to the node: external UDP or KISS over TCP.
+CONF_ACCESS: Final = "access"
+ACCESS_UDP: Final = "udp"
+ACCESS_KISS: Final = "kiss"
+CONF_KISS_PORT: Final = "kiss_port"
+CONF_KISS_PASSWORD: Final = "kiss_password"  # noqa: S105  # config key, not a secret
+ISSUE_KISS_AUTH_OFF: Final = "kiss_auth_off"
+#: Waits between reconnect attempts (seconds); the last one repeats.
+KISS_RECONNECT_DELAYS: Final = (5, 10, 30, 60)

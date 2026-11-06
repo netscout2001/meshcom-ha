@@ -22,6 +22,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
 
 from .aiomeshcom import InvalidOutgoingError, build_text_message
+from .aiomeshcom.builder import validate_text_message
 from .const import (
     CONF_SEND_USERS,
     DOMAIN,
@@ -99,7 +100,11 @@ async def async_send_text(
         hass, entry.entry_id, allowed_users(dict(entry.options)), context
     )
     try:
-        data = build_text_message(destination, text)
+        if runtime.kiss is not None:
+            validate_text_message(destination, text)
+            data = b""
+        else:
+            data = build_text_message(destination, text)
     except InvalidOutgoingError as err:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
@@ -112,10 +117,16 @@ async def async_send_text(
             translation_key="rate_limited",
             translation_placeholders={"seconds": str(int(SEND_INTERVAL.total_seconds()))},
         )
-    try:
-        runtime.send_datagram(data)
-    except OSError as err:
-        raise HomeAssistantError(translation_domain=DOMAIN, translation_key="send_failed") from err
+    if runtime.kiss is not None:
+        # Raises HomeAssistantError with a translated reason.
+        await runtime.kiss.async_send_text(destination, text)
+    else:
+        try:
+            runtime.send_datagram(data)
+        except OSError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="send_failed"
+            ) from err
     # Logged without the text: message content is not written to the log.
     _LOGGER.info("%s: message sent to %s", node.callsign, destination)
     hass.bus.async_fire(

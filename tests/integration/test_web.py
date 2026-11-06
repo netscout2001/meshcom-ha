@@ -353,6 +353,9 @@ async def _flow_at_web_step(hass: HomeAssistant) -> str:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "udp"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: NODE_HOST, "listen_port": 1799}
     )
     for _ in range(50):

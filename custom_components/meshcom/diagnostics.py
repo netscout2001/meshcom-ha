@@ -14,9 +14,10 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 
 from . import MeshComConfigEntry
+from .const import CONF_KISS_PASSWORD
 from .stations import station_mode
 
-TO_REDACT = {CONF_HOST, CONF_PASSWORD}
+TO_REDACT = {CONF_HOST, CONF_PASSWORD, CONF_KISS_PASSWORD}
 
 
 async def async_get_config_entry_diagnostics(
@@ -27,7 +28,8 @@ async def async_get_config_entry_diagnostics(
     node = runtime.node
     return {
         "entry": async_redact_data(dict(entry.data), TO_REDACT),
-        "hub": runtime.hub.diagnostics(),
+        "hub": runtime.hub.diagnostics() if runtime.hub else None,
+        "kiss": runtime.kiss.diagnostics() if runtime.kiss else None,
         "web": {
             "password_configured": bool(entry.data.get(CONF_PASSWORD)),
             "last_update_success": runtime.web.last_update_success,

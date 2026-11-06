@@ -47,6 +47,15 @@ def _encode(payload: dict[str, object]) -> bytes:
 
 def build_text_message(destination: str, text: str) -> bytes:
     """Build a ``msg`` datagram for broadcast (``*``), a group or a callsign."""
+    validate_text_message(destination, text)
+    return _encode({"type": "msg", "dst": destination, "msg": text})
+
+
+def validate_text_message(destination: str, text: str) -> None:
+    """Raise :class:`InvalidOutgoingError` unless the message may be sent.
+
+    Shared by the UDP and the KISS access path.
+    """
     if len(destination) > MAX_DESTINATION_CHARS or not is_destination(destination):
         raise InvalidOutgoingError("destination")
     if not text or text.strip() == "":
@@ -60,7 +69,6 @@ def build_text_message(destination: str, text: str) -> bytes:
         raise InvalidOutgoingError("text_reserved_prefix")
     if _ACK_LIKE_RE.fullmatch(text) or _SEQUENCE_LIKE_RE.fullmatch(text):
         raise InvalidOutgoingError("text_reserved_suffix")
-    return _encode({"type": "msg", "dst": destination, "msg": text})
 
 
 def build_external_telemetry(values: dict[str, float]) -> bytes:

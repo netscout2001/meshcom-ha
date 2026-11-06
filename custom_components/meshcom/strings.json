@@ -1,18 +1,6 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "Add a MeshCom node",
-        "description": "Enter the IP address of your node. On the node, set 'ext. UDP IP' to the address of Home Assistant and enable 'ext UDP'. Only enable the external UDP interface on nodes that stay in your home network.",
-        "data": {
-          "host": "Node IP address",
-          "listen_port": "UDP port in Home Assistant"
-        },
-        "data_description": {
-          "host": "Private IPv4 address of the node, for example 192.168.1.50.",
-          "listen_port": "The node always sends to port 1799. Only change this if a forwarder sends to another port."
-        }
-      },
       "no_packet": {
         "title": "No packet from the node",
         "description": "Nothing arrived from {host} on UDP port {port}. Check that 'ext UDP' is enabled on the node and that 'ext. UDP IP' points to Home Assistant, then click 'Send Position' on the node's web page and submit to try again."
@@ -28,14 +16,50 @@
         "title": "Web password of {node}",
         "description": "The node rejected the stored web password. Enter the current one.",
         "data": {
-          "password": "Web password"
+          "password": "Web password",
+          "kiss_password": "Node password (--passwd)"
         }
       },
       "reconfigure": {
         "title": "Web password of {node}",
         "description": "Enter the node's web password, or leave empty if the node has none.",
         "data": {
-          "password": "Web password"
+          "password": "Web password",
+          "kiss_password": "Node password (--passwd)"
+        }
+      },
+      "udp": {
+        "title": "Add a MeshCom node",
+        "description": "Enter the IP address of your node. On the node, set 'ext. UDP IP' to the address of Home Assistant and enable 'ext UDP'. Only enable the external UDP interface on nodes that stay in your home network.",
+        "data": {
+          "host": "Node IP address",
+          "listen_port": "UDP port in Home Assistant"
+        },
+        "data_description": {
+          "host": "Private IPv4 address of the node, for example 192.168.1.50.",
+          "listen_port": "The node always sends to port 1799. Only change this if a forwarder sends to another port."
+        }
+      },
+      "user": {
+        "title": "Add a MeshCom node",
+        "description": "How should Home Assistant reach the node?",
+        "menu_options": {
+          "udp": "External UDP (node in the home network)",
+          "kiss": "KISS over TCP (e.g. a mobile node)"
+        }
+      },
+      "kiss": {
+        "title": "MeshCom node via KISS",
+        "description": "On the node, enable KISS (--kiss on) and, to send from Home Assistant, KISS TX (--kiss tx on). Protect the interface with authentication (--kiss auth on) and the node password (--passwd, up to 14 characters): without it, every device in the network can connect and transmit under your callsign. The node serves only one KISS client at a time; Home Assistant keeps the connection open.",
+        "data": {
+          "host": "Node IP address",
+          "kiss_port": "KISS port",
+          "callsign": "Callsign of the node",
+          "kiss_password": "Node password (--passwd)"
+        },
+        "data_description": {
+          "callsign": "The node's own callsign with SSID, e.g. DO8RE-9. Only messages from this callsign count as sent by the node.",
+          "kiss_password": "Leave empty only if KISS authentication is off on the node."
         }
       }
     },
@@ -47,7 +71,12 @@
       "invalid_auth": "The node rejected the password.",
       "throttled": "The node blocks logins for a minute after five failed attempts. Wait a minute and try again.",
       "cannot_connect": "The node's web interface cannot be reached.",
-      "downgrade": "The node offered the secure login before and now only the unencrypted one of firmware 4.40a. Check the node's firmware and address."
+      "downgrade": "The node offered the secure login before and now only the unencrypted one of firmware 4.40a. Check the node's firmware and address.",
+      "invalid_callsign": "Not a valid callsign.",
+      "invalid_kiss_password": "The node password has 1 to 14 ASCII characters.",
+      "kiss_auth_required": "The node asks for its password (--passwd).",
+      "invalid_kiss_auth": "The node rejected the password.",
+      "kiss_cannot_connect": "The KISS interface cannot be reached. Check --kiss on, the address and that no other KISS client is connected."
     },
     "abort": {
       "already_configured": "This node is already configured.",
@@ -129,6 +158,9 @@
     "binary_sensor": {
       "active": {
         "name": "Active"
+      },
+      "kiss_connected": {
+        "name": "KISS connected"
       }
     },
     "device_tracker": {
@@ -213,6 +245,18 @@
     },
     "web_downgrade": {
       "message": "The node no longer offers the secure web login."
+    },
+    "kiss_offline": {
+      "message": "The KISS connection to the node is down."
+    },
+    "kiss_tx_off": {
+      "message": "The node does not allow sending via KISS (--kiss tx off)."
+    },
+    "kiss_bad_call": {
+      "message": "The node rejected the sender callsign."
+    },
+    "rate_limited_node": {
+      "message": "The node limits sending; try again in a moment."
     }
   },
   "services": {
@@ -271,6 +315,10 @@
     "web_downgrade": {
       "title": "MeshCom node {node} no longer offers the secure web login",
       "description": "The node used the secure web login before and now only offers the unencrypted login of firmware 4.40a. That happens after a firmware downgrade, or if another device answers at the node's address. Home Assistant does not send the password unencrypted. Check the node; after a deliberate downgrade, remove and add the node again."
+    },
+    "kiss_auth_off": {
+      "title": "KISS interface of {node} without authentication",
+      "description": "The node did not ask for a password when Home Assistant connected to its KISS interface. Every device in the network can then connect instead and, with KISS TX on, transmit under your callsign. Set a node password (--passwd) and enable KISS authentication (--kiss auth on), then enter the password in Home Assistant via the integration's Reconfigure option."
     }
   },
   "selector": {

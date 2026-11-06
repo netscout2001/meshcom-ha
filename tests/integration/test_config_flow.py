@@ -32,8 +32,11 @@ async def test_full_flow(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "udp"}
+    )
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "user"
+    assert result["step_id"] == "udp"
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: NODE_HOST, CONF_LISTEN_PORT: 1799}
@@ -71,6 +74,9 @@ async def test_invalid_host(hass: HomeAssistant, host: str) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "udp"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: host, CONF_LISTEN_PORT: 1799}
     )
     assert result["type"] is FlowResultType.FORM
@@ -84,6 +90,9 @@ async def test_timeout_and_retry(hass: HomeAssistant) -> None:
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
         result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"next_step_id": "udp"}
+        )
+        result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_HOST: NODE_HOST, CONF_LISTEN_PORT: 1799}
         )
         await hass.async_block_till_done()
@@ -93,7 +102,7 @@ async def test_timeout_and_retry(hass: HomeAssistant) -> None:
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "user"
+    assert result["step_id"] == "udp"
 
 
 async def test_port_unavailable(hass: HomeAssistant) -> None:
@@ -101,6 +110,9 @@ async def test_port_unavailable(hass: HomeAssistant) -> None:
     with patch.object(UdpHub, "async_start", side_effect=OSError):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"next_step_id": "udp"}
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_HOST: NODE_HOST, CONF_LISTEN_PORT: 1799}
@@ -121,6 +133,9 @@ async def test_already_configured_host(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "udp"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: NODE_HOST, CONF_LISTEN_PORT: 1799}
     )
     assert result["type"] is FlowResultType.ABORT
@@ -134,6 +149,9 @@ async def test_already_configured_node_new_address(
     mock_config_entry.add_to_hass(hass)
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "udp"}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: "192.168.1.20", CONF_LISTEN_PORT: 1799}

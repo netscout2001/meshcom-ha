@@ -31,7 +31,32 @@ Planned features:
   node's groups. The node is read every 5 minutes with one login.
 - Diagnostics without addresses, positions, message text or passwords
 
-KISS/TCP and (optionally) the NET console follow.
+The NET console may follow as an option.
+
+### Access path: external UDP or KISS over TCP
+
+When adding a node you choose how Home Assistant reaches it:
+
+- **External UDP** for nodes in the home network: the node sends every
+  packet to Home Assistant (`--extudpip`, `--extudp on`).
+- **KISS over TCP** (port 8001), e.g. for a mobile node whose external UDP
+  should stay off: enable `--kiss on`, for sending `--kiss tx on`, and
+  protect it with `--kiss auth on` and the node password `--passwd` (up to
+  14 characters). Without authentication anyone in the network can connect
+  and transmit under your callsign; Home Assistant shows a repair warning.
+
+Notes on KISS:
+
+- The node serves one KISS client at a time. Home Assistant keeps the
+  connection open and reconnects on its own (a mobile node out of reach is
+  normal); the binary sensor **KISS connected** shows the state.
+- KISS frames carry no MeshCom message id and no firmware version, so the
+  "Firmware" sensor stays empty and the node id is derived from the
+  callsign.
+- RSSI/SNR need `--kiss meta on`; stations with an SSID above 15 are shown
+  with their full callsign.
+- A rejected node password starts reauthentication; Home Assistant does
+  not retry with a wrong password.
 
 ### Chat panel
 

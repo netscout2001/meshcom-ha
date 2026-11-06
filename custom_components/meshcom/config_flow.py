@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
+import zlib
 from collections.abc import Mapping
 from typing import Any
 
@@ -37,7 +38,21 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .aiomeshcom import Packet, PositionPacket, SourceType, TextMessagePacket, is_group
+from .aiomeshcom import (
+    Packet,
+    PositionPacket,
+    SourceType,
+    TextMessagePacket,
+    is_callsign,
+    is_group,
+)
+from .aiomeshcom.kiss import KISS_TCP_PORT, MAX_KISS_PASSWORD
+from .aiomeshcom.kiss_client import (
+    KissAuthError,
+    KissAuthRequiredError,
+    KissConnection,
+    KissConnectionError,
+)
 from .aiomeshcom.webapi import (
     AUTH_HMAC,
     MeshComWebClient,
@@ -47,8 +62,13 @@ from .aiomeshcom.webapi import (
     WebThrottledError,
 )
 from .const import (
+    ACCESS_KISS,
+    ACCESS_UDP,
+    CONF_ACCESS,
     CONF_CALLSIGN,
     CONF_GROUPS,
+    CONF_KISS_PASSWORD,
+    CONF_KISS_PORT,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
     CONF_SEND_USERS,
@@ -106,8 +126,60 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         self._port = DEFAULT_LISTEN_PORT
         self._wait_task: asyncio.Task[tuple[str, int]] | None = None
         self._found: tuple[str, int] | None = None
+        #: Extra entry data of the KISS access path.
+        self._kiss: dict[str, Any] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Choose the access path."""
+        return self.async_show_menu(step_id="user", menu_options=[ACCESS_UDP, ACCESS_KISS])
+
+    async def async_step_kiss(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """KISS over TCP: address, port, own callsign and the node's --passwd."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            host = user_input[CONF_HOST].strip()
+            callsign = user_input[CONF_CALLSIGN].strip().upper()
+            password = user_input.get(CONF_KISS_PASSWORD) or None
+            if not _valid_host(host):
+                errors[CONF_HOST] = "invalid_host"
+            elif not is_callsign(callsign):
+                errors[CONF_CALLSIGN] = "invalid_callsign"
+            elif password is not None and not _valid_kiss_password(password):
+                errors[CONF_KISS_PASSWORD] = "invalid_kiss_password"
+            else:
+                self._async_abort_entries_match({CONF_HOST: host})
+                self._async_abort_entries_match({CONF_CALLSIGN: callsign})
+                errors = await _async_validate_kiss(
+                    host, user_input[CONF_KISS_PORT], callsign, password
+                )
+                if not errors:
+                    await self.async_set_unique_id(f"kiss_{callsign}")
+                    self._abort_if_unique_id_configured()
+                    self._host = host
+                    self._found = (callsign, kiss_node_id(callsign))
+                    self._kiss = {
+                        CONF_ACCESS: ACCESS_KISS,
+                        CONF_KISS_PORT: user_input[CONF_KISS_PORT],
+                    }
+                    if password:
+                        self._kiss[CONF_KISS_PASSWORD] = password
+                    return await self.async_step_web()
+        defaults = user_input or {}
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
+                vol.Required(
+                    CONF_KISS_PORT, default=defaults.get(CONF_KISS_PORT, KISS_TCP_PORT)
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                vol.Required(CONF_CALLSIGN, default=defaults.get(CONF_CALLSIGN, "")): str,
+                vol.Optional(CONF_KISS_PASSWORD): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                ),
+            }
+        )
+        return self.async_show_form(step_id="kiss", data_schema=schema, errors=errors)
+
+    async def async_step_udp(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask for the node address and the listening port."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -128,7 +200,7 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
                 ),
             }
         )
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+        return self.async_show_form(step_id="udp", data_schema=schema, errors=errors)
 
     async def _async_wait_for_node(self) -> tuple[str, int]:
         """Wait for an own packet of the node. Returns (callsign, node id)."""
@@ -185,7 +257,7 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         """Nothing arrived in time; offer to try again."""
         if user_input is not None:
             self._wait_task = None
-            return await self.async_step_user()
+            return await self.async_step_udp()
         return self.async_show_form(
             step_id="no_packet",
             description_placeholders={"host": self._host, "port": str(self._port)},
@@ -195,9 +267,11 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         """Node identified; continue with the web password."""
         if self._found is None:
             return self.async_abort(reason="unknown")
-        _, node_id = self._found
+        callsign, node_id = self._found
         await self.async_set_unique_id(f"{node_id:06x}")
         self._abort_if_unique_id_configured(updates={CONF_HOST: self._host})
+        # The same node may already be set up through KISS.
+        self._async_abort_entries_match({CONF_CALLSIGN: callsign})
         return await self.async_step_web()
 
     async def async_step_web(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -210,9 +284,9 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
                 callsign, node_id = self._found
                 data: dict[str, Any] = {
                     CONF_HOST: self._host,
-                    CONF_LISTEN_PORT: self._port,
                     CONF_CALLSIGN: callsign,
                     CONF_NODE_ID: node_id,
+                    **(self._kiss or {CONF_LISTEN_PORT: self._port}),
                 }
                 if password:
                     data[CONF_PASSWORD] = password
@@ -239,13 +313,14 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
                 password,
                 allow_legacy=entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC,
             )
+            data = _with_password(entry.data, password, method)
+            if not errors and _is_kiss(entry):
+                errors, data = await _async_check_kiss_password(entry, user_input, data)
             if not errors:
-                return self.async_update_reload_and_abort(
-                    entry, data=_with_password(entry.data, password, method)
-                )
+                return self.async_update_reload_and_abort(entry, data=data)
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=_PASSWORD_SCHEMA,
+            data_schema=_password_schema(entry),
             errors=errors,
             description_placeholders={"node": entry.title},
         )
@@ -264,13 +339,14 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
                 password,
                 allow_legacy=entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC,
             )
+            data = _with_password(entry.data, password, method)
+            if not errors and _is_kiss(entry):
+                errors, data = await _async_check_kiss_password(entry, user_input, data)
             if not errors:
-                return self.async_update_reload_and_abort(
-                    entry, data=_with_password(entry.data, password, method)
-                )
+                return self.async_update_reload_and_abort(entry, data=data)
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_PASSWORD_SCHEMA,
+            data_schema=_password_schema(entry),
             errors=errors,
             description_placeholders={"node": entry.title},
         )
@@ -279,6 +355,79 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
 _PASSWORD_SCHEMA = vol.Schema(
     {vol.Optional(CONF_PASSWORD): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))}
 )
+
+
+def _password_schema(entry: ConfigEntry) -> vol.Schema:
+    """Web password, plus the KISS password for nodes reached through KISS."""
+    if not _is_kiss(entry):
+        return _PASSWORD_SCHEMA
+    return _PASSWORD_SCHEMA.extend(
+        {
+            vol.Optional(CONF_KISS_PASSWORD): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )
+        }
+    )
+
+
+def _is_kiss(entry: ConfigEntry) -> bool:
+    return entry.data.get(CONF_ACCESS) == ACCESS_KISS
+
+
+def kiss_node_id(callsign: str) -> int:
+    """A stable 22-bit id for a node reached through KISS.
+
+    KISS frames carry no MeshCom message id, so the node id cannot be learnt
+    from the node's own packets; it is derived from the callsign instead.
+    """
+    return zlib.crc32(callsign.encode()) & 0x3FFFFF
+
+
+def _valid_kiss_password(password: str) -> bool:
+    return 0 < len(password.rstrip(" ")) <= MAX_KISS_PASSWORD and password.isascii()
+
+
+async def _async_validate_kiss(
+    host: str, port: int, callsign: str, password: str | None
+) -> dict[str, str]:
+    """One login on the KISS interface (no retries)."""
+    connection = KissConnection(host, callsign, password, lambda _packet: None, port=port)
+    try:
+        await connection.connect()
+    except KissAuthRequiredError:
+        return {"base": "kiss_auth_required"}
+    except KissAuthError:
+        return {"base": "invalid_kiss_auth"}
+    except KissConnectionError:
+        return {"base": "kiss_cannot_connect"}
+    finally:
+        await connection.close()
+    return {}
+
+
+async def _async_check_kiss_password(
+    entry: ConfigEntry, user_input: dict[str, Any], data: dict[str, Any]
+) -> tuple[dict[str, str], dict[str, Any]]:
+    """Validate the KISS password of a reauth/reconfigure form."""
+    password = user_input.get(CONF_KISS_PASSWORD) or None
+    if password is not None and not _valid_kiss_password(password):
+        return {CONF_KISS_PASSWORD: "invalid_kiss_password"}, data
+    # The flow holds no connection while the entry is loaded: free the
+    # node's single client slot first.
+    runtime = getattr(entry, "runtime_data", None)
+    if runtime is not None and runtime.kiss is not None:
+        await runtime.kiss.async_stop()
+    errors = await _async_validate_kiss(
+        entry.data[CONF_HOST], entry.data[CONF_KISS_PORT], entry.data[CONF_CALLSIGN], password
+    )
+    if errors:
+        if runtime is not None and runtime.kiss is not None:
+            runtime.kiss.async_start()
+        return errors, data
+    new = {key: value for key, value in data.items() if key != CONF_KISS_PASSWORD}
+    if password:
+        new[CONF_KISS_PASSWORD] = password
+    return {}, new
 
 
 def _with_password(
