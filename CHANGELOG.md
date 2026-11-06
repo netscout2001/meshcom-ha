@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.6
+
+### Maintenance
+- HACS validation runs without any ignored checks (brands, topics), as required for the HACS default repositories
+
 ## v0.4.5
 
 ### Fixes
