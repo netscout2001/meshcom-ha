@@ -48,6 +48,8 @@ const TEXT = {
     message: "Message",
     osm: "OpenStreetMap",
     ownNode: "own node",
+    dm: "DM",
+    showOnMap: "Show on the map",
     legend: { own: "Own node", fresh: "< 1 h", recent: "< 24 h", old: "older" },
     noStations: "No stations heard yet.",
     search: "Search callsign",
@@ -104,6 +106,8 @@ const TEXT = {
     message: "Nachricht",
     osm: "OpenStreetMap",
     ownNode: "eigener Node",
+    dm: "DM",
+    showOnMap: "Auf der Karte zeigen",
     legend: { own: "Eigener Node", fresh: "< 1 h", recent: "< 24 h", old: "\u00e4lter" },
     noStations: "Noch keine Stationen geh\u00f6rt.",
     search: "Rufzeichen suchen",
@@ -264,7 +268,8 @@ const STYLE = `
   border-radius: var(--ha-card-border-radius, 12px); background: #aad3df; touch-action: none; cursor: grab; user-select: none; }
 .map[hidden] { display: none; }
 .map-tiles, .map-markers { position: absolute; inset: 0; }
-.map-tile { position: absolute; left: 0; top: 0; width: 256px; height: 256px; pointer-events: none; }
+.map-tile { position: absolute; left: 0; top: 0; width: 257px; height: 257px; pointer-events: none; }
+.map.dark { background: #1c1f22; }
 .map.dark .map-tile { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
 .map-marker { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .map-marker .dot { width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff;
@@ -300,6 +305,7 @@ table { width: 100%; border-collapse: collapse; background: var(--card-backgroun
 th, td { padding: 6px 10px; border-bottom: 1px solid var(--divider-color); text-align: left; white-space: nowrap; }
 th { cursor: pointer; user-select: none; font-weight: 500; }
 td.num, th.num { text-align: right; }
+.linkbutton.dm { font-size: 12px; opacity: .8; }
 .linkbutton { background: none; border: none; color: var(--primary-color, #03a9f4); font: inherit; padding: 0; cursor: pointer; }
 button { font: inherit; cursor: pointer; }
 @media (max-width: 700px) {
@@ -392,7 +398,8 @@ class TileMap {
 
   _origin() {
     const c = project(this.center.lat, this.center.lon, this.zoom);
-    return { x: c.x - this.width / 2, y: c.y - this.height / 2 };
+    // Whole pixels: tiles placed on half pixels leave visible seams.
+    return { x: Math.round(c.x - this.width / 2), y: Math.round(c.y - this.height / 2) };
   }
 
   _unproject(x, y, zoom) {
@@ -432,7 +439,7 @@ class TileMap {
   focus(id) {
     const marker = this.markers.find((m) => m.id === id);
     if (!marker) return;
-    this.zoom = Math.max(this.zoom, 11);
+    this.zoom = Math.max(this.zoom, 12);
     this.center = { lat: marker.lat, lon: marker.lon };
     this.selected = id;
     this.render();
@@ -540,7 +547,7 @@ class TileMap {
       const top = p.y - origin.y;
       if (left < -50 || top < -20 || left > width + 50 || top > height + 20) continue;
       const item = el("div", `map-marker ${marker.kind}`);
-      item.style.transform = `translate(${left}px, ${top}px)`;
+      item.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
       item.append(el("span", "dot"), el("span", "label", marker.label));
       item.addEventListener("click", (ev) => {
         ev.stopPropagation();
@@ -1358,9 +1365,20 @@ class MeshComChatPanel extends HTMLElement {
     for (const station of rows) {
       const tr = el("tr");
       const callTd = el("td");
-      const call = el("button", "linkbutton", station.callsign);
-      call.addEventListener("click", () => this._openDirect(station.callsign));
-      callTd.append(call);
+      const located = Number.isFinite(station.latitude) && Number.isFinite(station.longitude);
+      if (located) {
+        // Callsign: show it on the map above; "(DM)": open the direct message.
+        const call = el("button", "linkbutton", station.callsign);
+        call.title = t.showOnMap;
+        call.addEventListener("click", () => this._focusStation(station.callsign));
+        callTd.append(call);
+      } else {
+        callTd.append(el("span", null, station.callsign));
+      }
+      const dm = el("button", "linkbutton dm", `(${t.dm})`);
+      dm.title = t.message;
+      dm.addEventListener("click", () => this._openDirect(station.callsign));
+      callTd.append(" ", dm);
       const heard = new Date(station.last_heard).getTime();
       const minutes = Number.isNaN(heard) ? null : Math.max(0, Math.floor((now - heard) / 60000));
       const heardTd = el("td", null, minutes === null ? "" : t.ago(minutes));
@@ -1376,18 +1394,19 @@ class MeshComChatPanel extends HTMLElement {
       const posTd = el("td");
       if (Number.isFinite(station.latitude) && Number.isFinite(station.longitude)) {
         const map = el("button", "linkbutton", t.map);
-        map.addEventListener("click", () => {
-          if (this._map) {
-            this._map.focus(station.callsign);
-            this._mapBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }
-        });
+        map.addEventListener("click", () => this._focusStation(station.callsign));
         posTd.append(map);
       }
       tr.append(posTd);
       table.append(tr);
     }
     this._stationsBody.replaceChildren(table);
+  }
+
+  _focusStation(callsign) {
+    if (!this._map) return;
+    this._map.focus(callsign);
+    this._mapBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   _ownPositions() {
