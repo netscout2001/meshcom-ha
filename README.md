@@ -1,5 +1,13 @@
 # MeshCom for Home Assistant
 
+> [!WARNING]
+> **For licensed radio amateurs only.** A MeshCom node is an amateur radio
+> transmitter: it sends beacons, acknowledgements and your messages under
+> its callsign. Operate it, and send from Home Assistant, only with a valid
+> amateur radio licence and your own callsign, within the rules of your
+> country. Only release Home Assistant users for sending who hold a licence
+> themselves.
+
 > **Status: beta.** Feedback and bug reports are welcome in the
 > [issue tracker](https://github.com/netscout2001/meshcom-ha/issues).
 
@@ -9,9 +17,6 @@ the stations they hear, lets you read and send messages (broadcast, groups,
 direct messages with delivery status) from the MeshCom panel (chat, nodes,
 stations), dashboards and automations, and switches node settings such as
 **No MSG All**.
-
-Everything sent goes out on amateur radio under your node's callsign. Use it
-only with a valid licence and the node's callsign.
 
 ![MeshCom panel: chat with groups, direct messages and unread counters](docs/images/panel-chat.png)
 
@@ -62,14 +67,15 @@ station.
 
 ### HACS (recommended)
 
-1. In HACS search for **MeshCom**, install it and restart Home Assistant.
-2. If HACS does not find it (the listing in the HACS default repositories is
-   still under review), add it as a custom repository first: HACS menu
-   (three dots) → **Custom repositories**, add
-   `https://github.com/netscout2001/meshcom-ha` with type **Integration**,
-   then search again.
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=netscout2001&repository=meshcom-ha&category=integration)
 
-HACS installs the latest release and reports new ones as updates.
+1. In HACS search for **MeshCom**, open it and click **Download**.
+2. Restart Home Assistant.
+
+**Updates:** HACS checks for new releases on its own and shows them under
+**Settings → Updates** (and in HACS). Click **Update**, then restart Home
+Assistant. The release notes are shown before you update; they are the same
+as in [CHANGELOG.md](CHANGELOG.md).
 
 ### Manual
 
