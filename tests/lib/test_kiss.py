@@ -149,7 +149,7 @@ def test_parse_ax25_not_ui_or_too_many() -> None:
 
 
 def test_position_with_tags_and_meta() -> None:
-    info = "!4756.04N/01201.24E>Test Node#TST1-12/B=096/A=001713/N4/R=262;20;"
+    info = "!5003.00N/00851.00E>Test Node#TST1-12/B=096/A=001713/N4/R=262;20;"
     packets = decode(data("TST1-12", info, ("RLY1-12",)), meta(-83, 11))
     assert len(packets) == 1
     position = packets[0]
@@ -157,8 +157,8 @@ def test_position_with_tags_and_meta() -> None:
     assert position.source_type is SourceType.LORA
     assert position.path.originator == "TST1-12"
     assert position.path.relays == ("RLY1-12",)
-    assert position.latitude == pytest.approx(47.934, abs=1e-4)
-    assert position.longitude == pytest.approx(12.0207, abs=1e-4)
+    assert position.latitude == pytest.approx(50.05, abs=1e-4)
+    assert position.longitude == pytest.approx(8.85, abs=1e-4)
     assert position.altitude_m == pytest.approx(522.1, abs=0.1)
     assert position.battery == 96
     assert position.symbol == ">"
@@ -190,7 +190,7 @@ def test_position_variants() -> None:
 
 
 def test_own_position_with_telemetry() -> None:
-    info = "!4756.04N/01201.24E>Mobile#TST9-9/B=100/A=001680/P=964.6/H=29.0/T=17.7/O=x/F=413"
+    info = "!5003.00N/00851.00E>Mobile#TST9-9/B=100/A=001680/P=964.6/H=29.0/T=17.7/O=x/F=413"
     packets = decode(data(OWN, info), meta(99, 0))
     position, telemetry = packets
     assert isinstance(position, PositionPacket)
@@ -204,8 +204,23 @@ def test_own_position_with_telemetry() -> None:
     assert telemetry.battery == 100
 
 
+def test_other_station_position_with_weather() -> None:
+    """Weather tags of other stations become telemetry too (station weather)."""
+    info = "!5003.00N/00851.00E#WX/B=080/T=4.5/H=92.0/Q=1021.4"
+    packets = decode(data("TST3-12", info), meta(-112, -6))
+    position, telemetry = packets
+    assert isinstance(position, PositionPacket)
+    assert position.source_type is SourceType.LORA
+    assert isinstance(telemetry, TelemetryPacket)
+    assert telemetry.source_type is SourceType.LORA
+    assert telemetry.path.originator == "TST3-12"
+    assert telemetry.temperature_1 == pytest.approx(4.5)
+    assert telemetry.humidity == pytest.approx(92.0)
+    assert telemetry.pressure_qnh == pytest.approx(1021.4)
+
+
 def test_own_position_without_sensors_has_no_telemetry() -> None:
-    packets = decode(data(OWN, "!4756.04N/01201.24E>Mobile/B=100"))
+    packets = decode(data(OWN, "!5003.00N/00851.00E>Mobile/B=100"))
     assert len(packets) == 1
 
 
@@ -276,8 +291,8 @@ def test_full_callsign_from_port_2() -> None:
         (kiss_frame(PORT_DATA, ax25("TST1-1", b":short")), "kiss_message"),
         (kiss_frame(PORT_DATA, ax25("TST1-1", b">status text")), "kiss_payload_type"),
         (kiss_frame(PORT_DATA, ax25("TST1-1", b"!garbage")), "kiss_position"),
-        (kiss_frame(PORT_DATA, ax25("TST1-1", b"!9156.04N/01201.24E>")), "kiss_position"),
-        (kiss_frame(PORT_DATA, ax25("TST1-1", b"!4756.04N/18101.24E>")), "kiss_position"),
+        (kiss_frame(PORT_DATA, ax25("TST1-1", b"!9103.00N/00851.00E>")), "kiss_position"),
+        (kiss_frame(PORT_DATA, ax25("TST1-1", b"!5003.00N/18101.00E>")), "kiss_position"),
         (kiss_frame(PORT_DATA, ax25("TST1-1", b":         :\xff\xfe")), "encoding"),
         (kiss_frame(PORT_DATA, ax25("TST1-1", b":<script> :x")), "field_dst"),
         (kiss_frame(PORT_DATA, b"\x01\x02"), "ax25_address"),
@@ -648,7 +663,7 @@ async def test_connection_lost_while_sending(server: asyncio.Server, fake: FakeK
 
 def test_own_callsign_over_the_air_is_not_own() -> None:
     """Our callsign with a measured RSSI is another station, not the node."""
-    packets = decode(data(OWN, "!4756.04N/01201.24E>fake/B=100"), meta(-95, 3))
+    packets = decode(data(OWN, "!5003.00N/00851.00E>fake/B=100"), meta(-95, 3))
     position = packets[0]
     assert isinstance(position, PositionPacket)
     assert position.source_type is SourceType.LORA

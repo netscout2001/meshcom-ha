@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant, callback
@@ -29,12 +29,14 @@ from .const import (
     DEDUP_WINDOW,
     EVENT_DELIVERY,
     EVENT_MESSAGE,
+    MAX_PATH,
     MAX_PENDING_ACKS,
     MAX_STATIONS,
     NODE_ACTIVE_TIMEOUT,
     PENDING_ACK_TIMEOUT,
     STATIONS_WINDOW,
     signal_station,
+    signal_station_weather,
     signal_update,
 )
 
@@ -52,6 +54,15 @@ class StationInfo:
     latitude: float | None = None
     longitude: float | None = None
     firmware: str | None = None
+    #: Weather values from the station's telemetry (None if it sends none).
+    temperature: float | None = None
+    humidity: float | None = None
+    #: Air pressure: QNH (sea level) and QFE (at the station).
+    pressure_qnh: float | None = None
+    pressure_qfe: float | None = None
+    weather_time: datetime | None = None
+    #: Relays of the station's last packet, in order (empty: heard directly).
+    path: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -69,12 +80,22 @@ class ReceivedMessage:
 class MeshComNode:
     """Collects the state of one node from its packets."""
 
-    def __init__(self, hass: HomeAssistant, entry_id: str, callsign: str, node_id: int) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry_id: str,
+        callsign: str,
+        node_id: int,
+        *,
+        active_timeout: timedelta = NODE_ACTIVE_TIMEOUT,
+    ) -> None:
         self.hass = hass
         self.entry_id = entry_id
         self.callsign = callsign
         self.node_id = node_id
         self.last_packet: datetime | None = None
+        #: "Active" turns off after this time without packets (option).
+        self.active_timeout = active_timeout
         self.position: PositionPacket | None = None
         self.telemetry: TelemetryPacket | None = None
         self.firmware: Firmware | None = None
@@ -119,7 +140,7 @@ class MeshComNode:
         """True if the node sent anything recently."""
         return (
             self.last_packet is not None
-            and dt_util.utcnow() - self.last_packet < NODE_ACTIVE_TIMEOUT
+            and dt_util.utcnow() - self.last_packet < self.active_timeout
         )
 
     def restore_stations(self, stations: list[StationInfo]) -> None:
@@ -193,6 +214,7 @@ class MeshComNode:
             return
         station = self._station(packet.path.originator, now)
         station.hops = packet.path.hops
+        station.path = list(packet.path.relays[:MAX_PATH])
         station.battery = packet.battery
         station.latitude = packet.latitude
         station.longitude = packet.longitude
@@ -209,12 +231,26 @@ class MeshComNode:
                 for listener in list(self._telemetry_listeners):
                     listener()
             return
-        self._station(packet.path.originator, now)
+        station = self._station(packet.path.originator, now)
+        station.path = list(packet.path.relays[:MAX_PATH])
+        if not packet.has_sensor_data:
+            return
+        first = station.weather_time is None
+        station.temperature = packet.temperature_1
+        station.humidity = packet.humidity
+        station.pressure_qnh = packet.pressure_qnh
+        station.pressure_qfe = packet.pressure_qfe
+        station.weather_time = now
+        if first:
+            async_dispatcher_send(
+                self.hass, signal_station_weather(self.entry_id), station.callsign
+            )
 
     def _heard_message(self, packet: TextMessagePacket, now: datetime) -> None:
         """A message also tells hops and signal of its sender."""
         station = self._station(packet.path.originator, now)
         station.hops = packet.path.hops
+        station.path = list(packet.path.relays[:MAX_PATH])
         if packet.source_type is SourceType.LORA and packet.radio.rssi is not None:
             station.rssi = packet.radio.rssi
             station.snr = packet.radio.snr

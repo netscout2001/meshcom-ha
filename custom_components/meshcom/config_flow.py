@@ -67,6 +67,7 @@ from .const import (
     CONF_CALLSIGN,
     CONF_GROUPS,
     CONF_HIDE_FOREIGN_GROUPS,
+    CONF_INACTIVE_MINUTES,
     CONF_KISS_PASSWORD,
     CONF_KISS_PORT,
     CONF_LISTEN_PORT,
@@ -77,10 +78,12 @@ from .const import (
     CONF_STATION_STALE_DAYS,
     CONF_WEB_AUTH,
     DEFAULT_HIDE_FOREIGN_GROUPS,
+    DEFAULT_INACTIVE_MINUTES,
     DEFAULT_LISTEN_PORT,
     DEFAULT_STATION_MAX,
     DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
+    INACTIVE_MINUTES_RANGE,
     SETUP_WAIT_TIMEOUT,
     STATION_MAX_LIMIT,
     STATION_MODES,
@@ -489,6 +492,9 @@ class MeshComOptionsFlow(OptionsFlow):
                         CONF_STATION_MODE: user_input[CONF_STATION_MODE],
                         CONF_STATION_MAX: int(user_input[CONF_STATION_MAX]),
                         CONF_STATION_STALE_DAYS: int(user_input[CONF_STATION_STALE_DAYS]),
+                        CONF_INACTIVE_MINUTES: int(
+                            user_input.get(CONF_INACTIVE_MINUTES, DEFAULT_INACTIVE_MINUTES)
+                        ),
                         CONF_HIDE_FOREIGN_GROUPS: bool(
                             user_input.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS)
                         ),
@@ -536,6 +542,18 @@ class MeshComOptionsFlow(OptionsFlow):
                 ): NumberSelector(
                     NumberSelectorConfig(
                         min=1, max=STATION_STALE_DAYS_LIMIT, step=1, mode=NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Required(
+                    CONF_INACTIVE_MINUTES,
+                    default=options.get(CONF_INACTIVE_MINUTES, DEFAULT_INACTIVE_MINUTES),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=INACTIVE_MINUTES_RANGE[0],
+                        max=INACTIVE_MINUTES_RANGE[1],
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="min",
                     )
                 ),
             }

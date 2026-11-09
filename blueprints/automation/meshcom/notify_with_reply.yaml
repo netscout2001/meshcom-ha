@@ -1,0 +1,126 @@
+blueprint:
+  name: MeshCom – notify with reply
+  description: >-
+    Sends a push notification to a phone with the Home Assistant Companion
+    app when a MeshCom message arrives: direct messages to the node and,
+    optionally, messages to chosen groups and to all. The notification has
+    a "Reply" button; the answer is sent back with the `meshcom.send_message`
+    action into the same conversation.
+
+
+    Everything sent goes out on amateur radio under the node's callsign.
+    Only choose a phone whose owner holds an amateur radio licence: the reply
+    is sent by this automation, not checked against the users released in
+    the MeshCom options.
+  domain: automation
+  source_url: https://github.com/netscout2001/meshcom-ha/blob/main/blueprints/automation/meshcom/notify_with_reply.yaml
+  input:
+    node:
+      name: MeshCom node
+      description: The node whose messages are reported and that sends the reply.
+      selector:
+        config_entry:
+          integration: meshcom
+    notify_device:
+      name: Phone
+      description: Device with the Home Assistant Companion app.
+      selector:
+        device:
+          filter:
+            - integration: mobile_app
+    direct_messages:
+      name: Direct messages
+      description: Notify about direct messages to the node.
+      default: true
+      selector:
+        boolean:
+    groups:
+      name: Groups
+      description: >-
+        Group numbers to notify about, separated by commas (e.g. 262, 20).
+        Leave empty for none.
+      default: ""
+      selector:
+        text:
+    broadcast:
+      name: Messages to all
+      description: Notify about messages to all ("*").
+      default: false
+      selector:
+        boolean:
+    reply_timeout:
+      name: Reply possible for
+      description: How long the "Reply" button of a notification stays usable.
+      default:
+        hours: 1
+      selector:
+        duration:
+
+mode: parallel
+max: 10
+
+trigger_variables:
+  node_entry: !input node
+
+triggers:
+  - trigger: event
+    event_type: meshcom_message
+    event_data:
+      entry_id: "{{ node_entry }}"
+
+variables:
+  direct_messages: !input direct_messages
+  broadcast: !input broadcast
+  groups_input: !input groups
+  group_list: >-
+    {{ (groups_input | string).split(',') | map('trim') | reject('eq', '') | list }}
+  msg: "{{ trigger.event.data }}"
+  kind: "{{ msg.destination_kind }}"
+  # Where the answer goes: back to the sender, or into the same group.
+  reply_to: >-
+    {% if kind == 'direct' %}{{ msg.sender }}{% elif kind == 'broadcast' %}*{% else %}{{ msg.destination }}{% endif %}
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ not msg.is_own and (
+           (direct_messages and kind == 'direct' and msg.to_me)
+           or (kind == 'group' and msg.destination in group_list)
+           or (broadcast and kind == 'broadcast')
+         ) }}
+
+actions:
+  # Unique per run: a button press answers exactly this notification.
+  - variables:
+      reply_action: "MESHCOM_REPLY_{{ context.id }}"
+  - domain: mobile_app
+    type: notify
+    device_id: !input notify_device
+    title: >-
+      {% if kind == 'direct' %}MeshCom: {{ msg.sender }}{% elif kind == 'broadcast' %}MeshCom: {{ msg.sender }} → all{% else %}MeshCom: {{ msg.sender }} → {{ msg.destination }}{% endif %}
+    message: "{{ msg.text }}"
+    data:
+      tag: "meshcom-{{ reply_to }}"
+      group: meshcom
+      actions:
+        - action: "{{ reply_action }}"
+          title: Reply
+          behavior: textInput
+          textInputButtonTitle: Send
+          textInputPlaceholder: "Max. 150 bytes"
+  - wait_for_trigger:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "{{ reply_action }}"
+    timeout: !input reply_timeout
+    continue_on_timeout: false
+  - variables:
+      reply_text: "{{ (wait.trigger.event.data.reply_text | default('')) | string | trim }}"
+  - condition: template
+    value_template: "{{ reply_text != '' }}"
+  - action: meshcom.send_message
+    data:
+      config_entry_id: !input node
+      destination: "{{ reply_to }}"
+      message: "{{ reply_text }}"

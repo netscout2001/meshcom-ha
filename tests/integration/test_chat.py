@@ -82,8 +82,8 @@ async def test_history_conversations(
     """Messages are grouped into conversations; foreign DMs stay out."""
     inject(init_integration, INCOMING_MESSAGE)  # group 262
     inject(init_integration, message("*", "40000201", text="an alle"))
-    inject(init_integration, message("QX1YZ-12", "40000202", src="DB0AAA-1", text="an mich"))
-    inject(init_integration, message("DB0BBB-1", "40000203", src="DB0AAA-1", text="fremd"))
+    inject(init_integration, message("QX1YZ-12", "40000202", src="QB0AAA-1", text="an mich"))
+    inject(init_integration, message("QB0BBB-1", "40000203", src="QB0AAA-1", text="fremd"))
     inject(init_integration, message("TEST", "40000204", text="anderer"))
     inject(init_integration, OWN_MESSAGE)
     await hass.async_block_till_done()
@@ -95,7 +95,7 @@ async def test_history_conversations(
     assert [m["conversation"] for m in messages] == [
         "group:262",
         "all",
-        "dm:DB0AAA-1",
+        "dm:QB0AAA-1",
         "other:TEST",
         "dm:QX1YZ-9",
     ]
@@ -412,7 +412,7 @@ async def test_stored_history_validated(
         {**good, "destination": ""},
         "nope",
     ]
-    odd = {**good, "conversation": "dm:DB0AAA-1", "rssi": True, "snr": "x", "status": "boom"}
+    odd = {**good, "conversation": "dm:QB0AAA-1", "rssi": True, "snr": "x", "status": "boom"}
     other = {**good, "conversation": "other:TEST", "own": True, "status": "delivered"}
     key = f"{DOMAIN}.chat.{mock_config_entry.entry_id}"
     hass_storage[key] = {
@@ -425,7 +425,7 @@ async def test_stored_history_validated(
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
     messages = list(mock_config_entry.runtime_data.chat.messages)
-    assert [m.conversation for m in messages] == ["group:262", "dm:DB0AAA-1", "other:TEST", "all"]
+    assert [m.conversation for m in messages] == ["group:262", "dm:QB0AAA-1", "other:TEST", "all"]
     assert messages[1].rssi is None
     assert messages[1].snr is None
     assert messages[1].status is None

@@ -25,11 +25,17 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import MeshComConfigEntry
-from .const import STATION_ATTRIBUTE_LIMIT, STATION_MODE_DATA, signal_new_station
+from .const import (
+    STATION_ATTRIBUTE_LIMIT,
+    STATION_MODE_DATA,
+    signal_new_station,
+    signal_station_weather,
+    signal_update,
+)
 from .entity import MeshComEntity, MeshComStationEntity
 from .node import MeshComNode, StationInfo
 from .stations import station_mode
@@ -51,11 +57,21 @@ class MeshComSensorDescription(SensorEntityDescription):
     message_bound: bool = False
     #: Counter attribute of the node that continues from the restored value.
     counter: str | None = None
+    #: Hands a restored value back to the node (e.g. the time of its last packet).
+    seed_fn: Callable[[MeshComNode, StateValue], bool] | None = None
 
 
 def _last_message_value(node: MeshComNode) -> str | None:
     # A state is limited to 255 characters; MeshCom texts are shorter (150 B).
     return node.last_message.text[:255] if node.last_message else None
+
+
+def _seed_last_packet(node: MeshComNode, value: StateValue) -> bool:
+    """Restore the time of the node's last packet, so "Active" survives a restart."""
+    if node.last_packet is None and isinstance(value, datetime):
+        node.last_packet = value
+        return True
+    return False
 
 
 NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
@@ -140,6 +156,14 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
         # Packets carry it on UDP; for KISS it comes from the web page.
         value_fn=lambda node: str(node.firmware) if node.firmware else node.web_firmware,
         restore=True,
+    ),
+    MeshComSensorDescription(
+        key="last_packet",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda node: node.last_packet,
+        restore=True,
+        seed_fn=_seed_last_packet,
     ),
     MeshComSensorDescription(
         key="battery_voltage",
@@ -243,6 +267,31 @@ TELEMETRY_SENSORS: tuple[MeshComSensorDescription, ...] = (
 )
 
 
+STATION_WEATHER_SENSORS: tuple[MeshComStationSensorDescription, ...] = (
+    MeshComStationSensorDescription(
+        key="station_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda station: station.temperature,
+    ),
+    MeshComStationSensorDescription(
+        key="station_humidity",
+        device_class=SensorDeviceClass.HUMIDITY,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda station: station.humidity,
+    ),
+    MeshComStationSensorDescription(
+        key="station_pressure",
+        device_class=SensorDeviceClass.ATMOSPHERIC_PRESSURE,
+        native_unit_of_measurement=UnitOfPressure.HPA,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda station: station.pressure_qnh,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: MeshComConfigEntry,
@@ -260,14 +309,30 @@ async def async_setup_entry(
 
     @callback
     def _add_station(callsign: str) -> None:
+        station = node.stations.get(callsign)
+        # Weather sensors only for stations that send weather values.
+        weather = STATION_WEATHER_SENSORS if station and station.weather_time else ()
         async_add_entities(
-            MeshComStationSensor(node, callsign, description) for description in STATION_SENSORS
+            MeshComStationSensor(node, callsign, description)
+            for description in (*STATION_SENSORS, *weather)
         )
+
+    @callback
+    def _add_weather(callsign: str) -> None:
+        # Only stations with a device get sensors; others get them with their device.
+        if callsign in entry.runtime_data.stations.tracked:
+            async_add_entities(
+                MeshComStationSensor(node, callsign, description)
+                for description in STATION_WEATHER_SENSORS
+            )
 
     for callsign in sorted(entry.runtime_data.stations.tracked):
         _add_station(callsign)
     entry.async_on_unload(
         async_dispatcher_connect(hass, signal_new_station(entry.entry_id), _add_station)
+    )
+    entry.async_on_unload(
+        async_dispatcher_connect(hass, signal_station_weather(entry.entry_id), _add_weather)
     )
 
     # Sensor entities only for nodes that actually report sensor values.
@@ -318,6 +383,9 @@ class MeshComSensor(MeshComEntity, RestoreSensor, SensorEntity):
                 setattr(self.node, description.counter, current + int(value))
             return
         self._restored = data.native_value  # type: ignore[assignment]
+        if description.seed_fn is not None and description.seed_fn(self.node, self._restored):
+            # Other entities (e.g. "Active") depend on the restored value.
+            async_dispatcher_send(self.hass, signal_update(self.node.entry_id))
 
     @property
     def native_value(self) -> StateValue:

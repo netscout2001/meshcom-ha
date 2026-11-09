@@ -28,10 +28,12 @@ from .const import (
     CONF_ACCESS,
     CONF_CALLSIGN,
     CONF_HIDE_FOREIGN_GROUPS,
+    CONF_INACTIVE_MINUTES,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
     CONF_WEB_AUTH,
     DEFAULT_HIDE_FOREIGN_GROUPS,
+    DEFAULT_INACTIVE_MINUTES,
     DOMAIN,
     ISSUE_WEB_LEGACY_LOGIN,
     ISSUE_WEB_PASSWORD_MISSING,
@@ -100,7 +102,15 @@ async def async_migrate_entry(hass: HomeAssistant, entry: MeshComConfigEntry) ->
 
 async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
     """Set up a MeshCom node from a config entry."""
-    node = MeshComNode(hass, entry.entry_id, entry.data[CONF_CALLSIGN], entry.data[CONF_NODE_ID])
+    node = MeshComNode(
+        hass,
+        entry.entry_id,
+        entry.data[CONF_CALLSIGN],
+        entry.data[CONF_NODE_ID],
+        active_timeout=timedelta(
+            minutes=int(entry.options.get(CONF_INACTIVE_MINUTES, DEFAULT_INACTIVE_MINUTES))
+        ),
+    )
     hub: UdpHub | None = None
     kiss: KissLink | None = None
     if entry.data.get(CONF_ACCESS, ACCESS_UDP) == ACCESS_KISS:
