@@ -6,8 +6,9 @@
 A Home Assistant integration for the [MeshCom](https://icssw.org/en/meshcom/)
 LoRa mesh network (433 MHz amateur radio). It shows your own MeshCom nodes and
 the stations they hear, lets you read and send messages (broadcast, groups,
-direct messages with delivery status) from a chat panel, dashboards and
-automations, and switches node settings such as **No MSG All**.
+direct messages with delivery status) from the MeshCom panel (chat, nodes,
+stations), dashboards and automations, and switches node settings such as
+**No MSG All**.
 
 Everything sent goes out on amateur radio under your node's callsign. Use it
 only with a valid licence and the node's callsign.
@@ -97,7 +98,7 @@ under **Reconfigure**; if the node rejects one, Home Assistant asks for it
 | Option | Meaning |
 | --- | --- |
 | Groups | Group numbers for the group select, in addition to the node's own groups |
-| Other users who may send | Non-admin users released for sending and for the chat panel |
+| Other users who may send | Non-admin users released for sending and for the MeshCom panel |
 | Chat: only own groups | On by default: messages to groups the node does not listen to stay out of the chat (events still fire) |
 | Stations | Off / Data only (default) / One device per station |
 | Maximum station devices | Default 50 |
@@ -141,7 +142,7 @@ The sidebar entry **MeshCom** opens a panel with three tabs.
 
 **Chat**: a conversation for messages to all, for every group and every
 direct-message partner, plus read-only conversations for other addressees
-(e.g. `TEST`). Filters: All, Unread, DMs, Groups, Other. Each message shows
+(e.g. `TEST`). Filters: All, Unread, DMs, Groups (including the broadcast channel "All"), Other. Each message shows
 time, path (`via DJ6PT-2 > DB0HOB-12`) and RSSI/SNR. Conversations with new
 messages show a badge with their number (read state is kept per browser);
 when you open one, it starts at a "New messages" line, and a button jumps to
@@ -272,7 +273,7 @@ presence of a mobile node ("Active"), a map of heard stations, switching
 | "KISS interface cannot be reached" | `--kiss on`, port 8001, no other KISS client connected |
 | Warning "KISS interface without authentication" | Set `--passwd` and `--kiss auth on`, then Reconfigure |
 | Sending fails with "does not allow sending via KISS" | `--kiss tx on` |
-| Chat panel is empty | User is neither administrator nor released in the options |
+| MeshCom panel is empty | User is neither administrator nor released in the options |
 | No icon | Home Assistant 2026.3 or newer needed |
 
 Debug logging:
@@ -319,7 +320,7 @@ Recommended node settings:
 | --- | --- |
 | `custom_components/meshcom/` | The Home Assistant integration |
 | `custom_components/meshcom/aiomeshcom/` | Protocol library (asyncio, no Home Assistant dependency) |
-| `custom_components/meshcom/frontend/` | Chat panel (plain web component) |
+| `custom_components/meshcom/frontend/` | MeshCom panel: chat, nodes, stations (plain web component) |
 | `tests/lib/` | Library tests, including anonymised real-world packets |
 | `tests/integration/` | Home Assistant integration tests |
 | `tools/` | Capture anonymiser, brand icon source |
