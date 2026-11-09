@@ -47,7 +47,7 @@ station.
 | ![Chat](docs/images/panel-chat.png) | ![Nodes](docs/images/panel-nodes.png) |
 | **Chat**: conversations for all, groups and direct messages; path and signal of every message, unread counters, "New messages" line | **Nodes**: one card per own node with its sensors and switches |
 | ![Stations](docs/images/panel-stations.png) | ![Station on the map](docs/images/panel-stations-popup.png) |
-| **Stations**: map of the own node and the heard stations (colour by last heard), sortable table below | **Map**: a click on a station shows its values, with buttons for a direct message and OpenStreetMap |
+| **Stations**: map of the own node and the heard stations (colour by last heard), sortable table below | **Map**: a click on a station shows its values and distance, with buttons for a direct message and OpenStreetMap |
 | ![Add a node](docs/images/ha-add-node.png) | ![Integration page](docs/images/ha-integration.png) |
 | **Setup**: choose external UDP or KISS over TCP | **Integration page**: one entry per node |
 | ![UDP setup](docs/images/ha-add-udp.png) | ![KISS setup](docs/images/ha-add-kiss.png) |
@@ -205,7 +205,8 @@ can change them.
 (green: heard within the last hour, orange: within 24 hours, grey: older;
 a legend on the map explains the colours),
 and below it the heard stations as a sortable table. A click on a station on
-the map shows its values (signal, battery, weather) and the relays of its
+the map shows its values (signal, battery, weather), its distance from your
+node (straight line, when both positions are known) and the relays of its
 last packet, draws that path as a line to your node (dashed where a relay
 has no known position) and has buttons for a direct message and for
 OpenStreetMap. The table also lists temperature, humidity and air pressure

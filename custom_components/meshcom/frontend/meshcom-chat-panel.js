@@ -67,6 +67,7 @@ const TEXT = {
       position: "Position",
     },
     direct: "heard directly",
+    distance: "Distance",
     showPath: "Show the path on the map",
     ago: (min) => (min < 1 ? "just now" : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.floor(min / 60)} h ago` : `${Math.floor(min / 1440)} d ago`),
     on: "On",
@@ -130,6 +131,7 @@ const TEXT = {
       position: "Position",
     },
     direct: "direkt geh\u00f6rt",
+    distance: "Entfernung",
     showPath: "Pfad auf der Karte zeigen",
     ago: (min) => (min < 1 ? "gerade eben" : min < 60 ? `vor ${min} min` : min < 1440 ? `vor ${Math.floor(min / 60)} h` : `vor ${Math.floor(min / 1440)} d`),
     on: "An",
@@ -343,6 +345,28 @@ const TILE = 256;
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 18;
 const MAX_LAT = 85.0511;
+
+// Great-circle distance in kilometres (haversine, mean earth radius).
+function distanceKm(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// "850 m", "4,2 km", "37 km" - or miles/feet with the imperial unit system.
+function formatDistance(km, imperial, language) {
+  const fmt = (value, digits) =>
+    value.toLocaleString(language || undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  if (imperial) {
+    const miles = km / 1.609344;
+    if (miles < 0.1) return `${fmt(Math.round(miles * 5280 / 10) * 10, 0)} ft`;
+    return `${fmt(miles, miles < 100 ? 1 : 0)} mi`;
+  }
+  if (km < 1) return `${fmt(Math.round(km * 100) * 10, 0)} m`;
+  return `${fmt(km, km < 100 ? 1 : 0)} km`;
+}
 
 function project(lat, lon, zoom) {
   const size = TILE * 2 ** zoom;
@@ -1622,6 +1646,16 @@ class MeshComChatPanel extends HTMLElement {
     this._setTab("stations");
   }
 
+  // Distance from the own node, only if both positions are known.
+  _distanceText(station) {
+    const own = this._ownPositions()[0];
+    const target = { lat: Number(station.latitude), lon: Number(station.longitude) };
+    if (!own || !validPosition(own.lat, own.lon) || !validPosition(target.lat, target.lon)) return "";
+    const hass = this._hass;
+    const imperial = Boolean(hass && hass.config && hass.config.unit_system && hass.config.unit_system.length === "mi");
+    return formatDistance(distanceKm(own, target), imperial, hass && hass.language);
+  }
+
   _mapPopup(id) {
     const t = this._t;
     const node = this._node;
@@ -1642,6 +1676,8 @@ class MeshComChatPanel extends HTMLElement {
     if (values.length) parts.push(el("div", null, values.join(" \u00b7 ")));
     const weather = this._weatherText(station);
     if (weather) parts.push(el("div", null, weather));
+    const distance = this._distanceText(station);
+    if (distance) parts.push(el("div", null, `${t.distance} ${distance}`));
     const path = Array.isArray(station.path) ? station.path : [];
     parts.push(el("div", "path", path.length ? `${t.via} ${path.join(" > ")}` : t.direct));
     const buttons = el("div", "buttons");
