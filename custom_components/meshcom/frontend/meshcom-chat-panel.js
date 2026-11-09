@@ -45,6 +45,8 @@ const TEXT = {
     access: { udp: "External UDP", kiss: "KISS over TCP" },
     map: "Map",
     stationsOff: "Stations are switched off in the options of this node.",
+    mapHintData: "For a real map in Home Assistant: with the station mode \"One device per station\" (node options) the stations appear on the normal Home Assistant map, without any third-party server.",
+    mapHintEntities: "The stations also appear on the normal Home Assistant map.",
     noStations: "No stations heard yet.",
     search: "Search callsign",
     refresh: "Refresh",
@@ -97,6 +99,8 @@ const TEXT = {
     access: { udp: "Externes UDP", kiss: "KISS \u00fcber TCP" },
     map: "Karte",
     stationsOff: "Stationen sind in den Optionen dieses Nodes ausgeschaltet.",
+    mapHintData: "F\u00fcr eine echte Karte in Home Assistant: Mit dem Stationsmodus \u201eEin Ger\u00e4t pro Station\u201c (Optionen des Nodes) erscheinen die Stationen auf der normalen Home-Assistant-Karte, ohne fremden Server.",
+    mapHintEntities: "Die Stationen erscheinen auch auf der normalen Home-Assistant-Karte.",
     noStations: "Noch keine Stationen geh\u00f6rt.",
     search: "Rufzeichen suchen",
     refresh: "Aktualisieren",
@@ -252,6 +256,8 @@ const STYLE = `
 .toggle { font: inherit; border-radius: 14px; padding: 2px 12px; border: 1px solid var(--divider-color);
   background: none; color: inherit; }
 .toggle.on { background: var(--primary-color, #03a9f4); color: var(--text-primary-color, #fff); border-color: var(--primary-color, #03a9f4); }
+.hint { font-size: 13px; opacity: .8; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px;
+  border-left: 3px solid var(--primary-color, #03a9f4); background: var(--secondary-background-color); }
 .stationbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .stationbar input { flex: 1; max-width: 260px; font: inherit; padding: 6px; }
 table { width: 100%; border-collapse: collapse; background: var(--card-background-color); font-size: 14px; }
@@ -279,6 +285,7 @@ class MeshComChatPanel extends HTMLElement {
     this._active = "all";
     this._tab = "chat";
     this._filter = "all";
+    this._pinned = null;
     // Last read message time per conversation, kept per browser.
     this._read = {};
     // Read time of the open conversation when it was opened: the divider.
@@ -457,8 +464,10 @@ class MeshComChatPanel extends HTMLElement {
     const refresh = el("button", "toggle", t.refresh);
     refresh.addEventListener("click", () => this._loadStations());
     bar.append(this._stationSearch, refresh);
+    this._mapHint = el("div", "hint");
+    this._mapHint.hidden = true;
     this._stationsBody = el("div");
-    body.append(bar, this._stationsBody);
+    body.append(this._mapHint, bar, this._stationsBody);
     this._stationsView.append(body);
     return this._stationsView;
   }
@@ -647,6 +656,8 @@ class MeshComChatPanel extends HTMLElement {
 
   _openConversation(id) {
     this._active = id;
+    // Stays in the list while it is open, e.g. under "Unread" after reading.
+    this._pinned = id;
     // Where the new messages start; kept while the conversation stays open.
     this._dividerSince = this._unreadCount(id) ? this._read[id] || "" : null;
     this._markRead(id);
@@ -701,6 +712,7 @@ class MeshComChatPanel extends HTMLElement {
         if (unread && key !== "all") chip.append(el("span", "badge", unread > 99 ? "99+" : unread));
         chip.addEventListener("click", () => {
           this._filter = key;
+          this._pinned = null;
           this._render();
         });
         return chip;
@@ -708,7 +720,7 @@ class MeshComChatPanel extends HTMLElement {
     );
 
     const visible = conversations.filter(
-      (id) => id === this._active || this._inFilter(id, this._filter)
+      (id) => id === this._pinned || this._inFilter(id, this._filter)
     );
     if (!visible.length) {
       this._convList.replaceChildren(el("div", "empty", t.noConversations));
@@ -1010,6 +1022,9 @@ class MeshComChatPanel extends HTMLElement {
   _renderStations() {
     if (!this._stationsBody) return;
     const t = this._t;
+    const hint = this._stationsMode === "data" ? t.mapHintData : this._stationsMode === "entities" ? t.mapHintEntities : "";
+    this._mapHint.textContent = hint;
+    this._mapHint.hidden = !hint;
     if (this._stationsMode === "off") {
       this._stationsBody.replaceChildren(el("div", "empty", t.stationsOff));
       return;
