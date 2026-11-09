@@ -50,7 +50,7 @@ const TEXT = {
     ownNode: "own node",
     dm: "DM",
     showOnMap: "Show on the map",
-    legend: { own: "Own node", fresh: "< 1 h", recent: "< 24 h", old: "older" },
+    legend: { own: "Own node", direct: "Direct neighbour", fresh: "< 1 h", recent: "< 24 h", old: "older" },
     noStations: "No stations heard yet.",
     search: "Search callsign",
     refresh: "Refresh",
@@ -64,10 +64,21 @@ const TEXT = {
       temperature: "Temp.",
       humidity: "Hum.",
       pressure: "Pressure",
+      hardware: "Hardware",
+      hears_me_snr: "Hears me",
+      relay_role: "Relay role",
       position: "Position",
     },
     direct: "heard directly",
     distance: "Distance",
+    directOnly: "Direct neighbours only",
+    noDirect: "No direct neighbours. They come from the node's MHeard page (web API).",
+    roles: { super: "Super node", needed: "Needed", redundant: "Redundant" },
+    hearsMe: (snr) => (snr === null || snr === undefined ? "not reported" : `yes, ${snr} dB`),
+    itHears: (all, only) => `Hears ${all} stations, ${only} only it`,
+    reports: (n) => `reports ${n} neighbours`,
+    altitude: "Altitude",
+    gateway: "Gateway",
     showPath: "Show the path on the map",
     ago: (min) => (min < 1 ? "just now" : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.floor(min / 60)} h ago` : `${Math.floor(min / 1440)} d ago`),
     on: "On",
@@ -114,7 +125,7 @@ const TEXT = {
     ownNode: "eigener Node",
     dm: "DM",
     showOnMap: "Auf der Karte zeigen",
-    legend: { own: "Eigener Node", fresh: "< 1 h", recent: "< 24 h", old: "\u00e4lter" },
+    legend: { own: "Eigener Node", direct: "Direkter Nachbar", fresh: "< 1 h", recent: "< 24 h", old: "\u00e4lter" },
     noStations: "Noch keine Stationen geh\u00f6rt.",
     search: "Rufzeichen suchen",
     refresh: "Aktualisieren",
@@ -128,10 +139,21 @@ const TEXT = {
       temperature: "Temp.",
       humidity: "Feuchte",
       pressure: "Luftdruck",
+      hardware: "Hardware",
+      hears_me_snr: "H\u00f6rt mich",
+      relay_role: "Relay-Rolle",
       position: "Position",
     },
     direct: "direkt geh\u00f6rt",
     distance: "Entfernung",
+    directOnly: "Nur direkte Nachbarn",
+    noDirect: "Keine direkten Nachbarn. Sie kommen von der MHeard-Seite des Nodes (Web-API).",
+    roles: { super: "Supernode", needed: "Ben\u00f6tigt", redundant: "Redundant" },
+    hearsMe: (snr) => (snr === null || snr === undefined ? "nicht gemeldet" : `ja, ${snr} dB`),
+    itHears: (all, only) => `H\u00f6rt ${all} Stationen, davon ${only} nur sie`,
+    reports: (n) => `meldet ${n} Nachbarn`,
+    altitude: "H\u00f6he",
+    gateway: "Gateway",
     showPath: "Pfad auf der Karte zeigen",
     ago: (min) => (min < 1 ? "gerade eben" : min < 60 ? `vor ${min} min` : min < 1440 ? `vor ${Math.floor(min / 60)} h` : `vor ${Math.floor(min / 1440)} d`),
     on: "An",
@@ -293,10 +315,15 @@ const STYLE = `
 .map-marker.fresh .dot { background: var(--success-color, #43a047); }
 .map-marker.recent .dot { background: var(--warning-color, #ff9800); }
 .map-marker.old .dot { background: #9e9e9e; }
+.map-marker.direct .dot { background: #8e24aa; }
+.direct-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #8e24aa; margin-right: 6px; }
+.map-popup .direct { font-weight: bold; color: #8e24aa; }
+.map-popup .direct .hears { font-weight: normal; color: var(--primary-text-color); }
 .map-marker.own .dot { background: var(--primary-color, #03a9f4); width: 16px; height: 16px; margin: -8px 0 0 -8px; }
 .map-marker.selected { z-index: 2; }
 .map-marker.selected .dot { transform: scale(1.4); }
-.map-popup { position: absolute; left: 0; top: 0; z-index: 3; margin: 12px 0 0 -90px; width: 180px; padding: 8px 10px;
+.map-popup { position: absolute; left: 0; top: 0; z-index: 5; margin: 12px 0 0 -115px; width: 230px;
+  max-height: calc(100% - 20px); overflow-y: auto; box-sizing: border-box; padding: 8px 10px;
   background: var(--card-background-color, #fff); color: var(--primary-text-color); border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,.35); font-size: 12px; cursor: default; }
 .map-popup[hidden] { display: none; }
@@ -318,8 +345,8 @@ const STYLE = `
 .map-legend .map-marker.own .dot { margin: 0; width: 12px; height: 12px; }
 .map-attribution { position: absolute; right: 0; bottom: 0; z-index: 4; font-size: 10px; padding: 1px 5px;
   background: rgba(255,255,255,.75); color: #333; }
-.stationbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
-.stationbar input { flex: 1; max-width: 260px; font: inherit; padding: 6px; }
+.stationbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.stationbar input { flex: 1 1 160px; max-width: 260px; font: inherit; padding: 6px; }
 table { width: 100%; border-collapse: collapse; background: var(--card-background-color); font-size: 14px; }
 th, td { padding: 6px 10px; border-bottom: 1px solid var(--divider-color); text-align: left; white-space: nowrap; }
 th { cursor: pointer; user-select: none; font-weight: 500; }
@@ -414,7 +441,7 @@ class TileMap {
     controls.append(plus, minus, fit);
     const attribution = el("div", "map-attribution", "\u00a9 OpenStreetMap contributors");
     const key = el("div", "map-legend");
-    for (const kind of ["own", "fresh", "recent", "old"]) {
+    for (const kind of ["own", "direct", "fresh", "recent", "old"]) {
       const entry = el("span", `map-marker ${kind}`);
       entry.append(el("span", "dot"), el("span", null, legend[kind]));
       key.append(entry);
@@ -640,10 +667,15 @@ class TileMap {
     if (chosen) {
       const p = project(chosen.lat, chosen.lon, this.zoom);
       this.popup.replaceChildren(...this.popupFor(chosen.id));
-      // Keep the box (180 px wide, centred under the marker) inside the map.
-      const x = Math.min(Math.max(p.x - origin.x, 98), width - 98);
-      this.popup.style.transform = `translate(${Math.round(x)}px, ${Math.round(p.y - origin.y)}px)`;
+      // Keep the box (230 px wide, centred under the marker) inside the map;
+      // near the bottom edge it opens above the marker, and if it fits on
+      // neither side it is moved up until it is fully visible.
+      const x = Math.min(Math.max(p.x - origin.x, 123), width - 123);
       this.popup.hidden = false;
+      const box = this.popup.offsetHeight;
+      let y = p.y - origin.y;
+      if (y + 12 + box > height) y = y - box - 24 >= 0 ? y - box - 24 : Math.max(-4, height - 16 - box);
+      this.popup.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     } else {
       this.popup.hidden = true;
     }
@@ -704,6 +736,7 @@ class MeshComChatPanel extends HTMLElement {
     this._stationsMode = "data";
     this._stationSort = { key: "last_heard", desc: true };
     this._stationFilter = "";
+    this._directOnly = false;
     this._nodesSignature = "";
     this._loaded = false;
     this.attachShadow({ mode: "open" });
@@ -764,6 +797,8 @@ class MeshComChatPanel extends HTMLElement {
     this._renderNodeSelect();
     if (this._nodes.length) {
       const remembered = this._loadView();
+      this._directOnly = remembered.directOnly;
+      if (this._directButton) this._directButton.className = this._directOnly ? "toggle on" : "toggle";
       const node = this._nodes.find((n) => n.entry_id === remembered.node) || this._nodes[0];
       if (remembered.tab && remembered.tab !== this._tab) this._setTab(remembered.tab);
       await this._selectNode(node.entry_id);
@@ -871,9 +906,17 @@ class MeshComChatPanel extends HTMLElement {
       this._stationFilter = this._stationSearch.value.trim().toUpperCase();
       this._renderStations();
     });
+    // Only the stations the node heard directly (its MHeard list).
+    this._directButton = el("button", this._directOnly ? "toggle on" : "toggle", t.directOnly);
+    this._directButton.addEventListener("click", () => {
+      this._directOnly = !this._directOnly;
+      this._directButton.className = this._directOnly ? "toggle on" : "toggle";
+      this._saveView();
+      this._renderStations();
+    });
     const refresh = el("button", "toggle", t.refresh);
     refresh.addEventListener("click", () => this._loadStations());
-    bar.append(this._stationSearch, refresh);
+    bar.append(this._stationSearch, this._directButton, refresh);
     this._mapBox = el("div", "map");
     this._map = null;
     this._stationsBody = el("div");
@@ -1023,16 +1066,20 @@ class MeshComChatPanel extends HTMLElement {
       return {
         node: typeof data.node === "string" ? data.node : null,
         tab: TABS.includes(data.tab) ? data.tab : null,
+        directOnly: data.directOnly === true,
       };
     } catch (err) {
-      return { node: null, tab: null };
+      return { node: null, tab: null, directOnly: false };
     }
   }
 
   _saveView() {
     if (!this._loaded) return;
     try {
-      window.localStorage.setItem(VIEW_KEY, JSON.stringify({ node: this._entryId, tab: this._tab }));
+      window.localStorage.setItem(
+        VIEW_KEY,
+        JSON.stringify({ node: this._entryId, tab: this._tab, directOnly: this._directOnly })
+      );
     } catch (err) {
       // not stored: the panel opens with the first node next time
     }
@@ -1477,11 +1524,11 @@ class MeshComChatPanel extends HTMLElement {
       return;
     }
     if (this._stations === null) return;
-    const rows = this._stations.filter(
+    const rows = this._visibleStations().filter(
       (s) => !this._stationFilter || s.callsign.includes(this._stationFilter)
     );
     if (!rows.length) {
-      this._stationsBody.replaceChildren(el("div", "empty", t.noStations));
+      this._stationsBody.replaceChildren(el("div", "empty", this._directOnly ? t.noDirect : t.noStations));
       return;
     }
     const { key, desc } = this._stationSort;
@@ -1496,8 +1543,11 @@ class MeshComChatPanel extends HTMLElement {
     });
     const table = el("table");
     const head = el("tr");
-    const numeric = new Set(["rssi", "snr", "hops", "battery", "temperature", "humidity", "pressure"]);
-    const columns = ["callsign", "last_heard", "rssi", "snr", "hops", "battery", "temperature", "humidity", "pressure", "position"];
+    const numeric = new Set(["rssi", "snr", "hops", "battery", "temperature", "humidity", "pressure", "hears_me_snr"]);
+    const columns = [
+      "callsign", "last_heard", "rssi", "snr", "hops", "battery", "temperature", "humidity", "pressure",
+      "hears_me_snr", "relay_role", "hardware", "position",
+    ];
     for (const column of columns) {
       const marker = column === key ? (desc ? " \u25bc" : " \u25b2") : "";
       const th = el("th", numeric.has(column) ? "num" : null, `${t.columns[column]}${marker}`);
@@ -1514,6 +1564,11 @@ class MeshComChatPanel extends HTMLElement {
     for (const station of rows) {
       const tr = el("tr");
       const callTd = el("td");
+      if (station.direct === true) {
+        const dot = el("span", "direct-dot");
+        dot.title = t.legend.direct;
+        callTd.append(dot);
+      }
       const located = Number.isFinite(station.latitude) && Number.isFinite(station.longitude);
       if (located) {
         // Callsign: show it on the map above; "(DM)": open the direct message.
@@ -1541,7 +1596,10 @@ class MeshComChatPanel extends HTMLElement {
         el("td", "num", station.battery === null || station.battery === undefined ? "" : `${station.battery} %`),
         el("td", "num", Number.isFinite(station.temperature) ? `${station.temperature.toFixed(1)} \u00b0C` : ""),
         el("td", "num", Number.isFinite(station.humidity) ? `${Math.round(station.humidity)} %` : ""),
-        el("td", "num", Number.isFinite(station.pressure) ? `${Math.round(station.pressure)} hPa` : "")
+        el("td", "num", Number.isFinite(station.pressure) ? `${Math.round(station.pressure)} hPa` : ""),
+        el("td", "num", station.direct === true ? t.hearsMe(station.hears_me_snr) : ""),
+        el("td", null, t.roles[station.relay_role] || ""),
+        el("td", null, station.hardware || "")
       );
       const posTd = el("td");
       if (Number.isFinite(station.latitude) && Number.isFinite(station.longitude)) {
@@ -1553,6 +1611,12 @@ class MeshComChatPanel extends HTMLElement {
       table.append(tr);
     }
     this._stationsBody.replaceChildren(table);
+  }
+
+  // The stations shown in table and map ("direct neighbours only" applied).
+  _visibleStations() {
+    const stations = this._stations || [];
+    return this._directOnly ? stations.filter((s) => s.direct === true) : stations;
   }
 
   _weatherText(station) {
@@ -1597,7 +1661,7 @@ class MeshComChatPanel extends HTMLElement {
     const dark = Boolean(this._hass && this._hass.themes && this._hass.themes.darkMode);
     this._mapBox.classList.toggle("dark", dark);
     const now = Date.now();
-    const markers = this._stations.map((station) => {
+    const markers = this._visibleStations().map((station) => {
       const heard = new Date(station.last_heard).getTime();
       const minutes = Number.isNaN(heard) ? Infinity : (now - heard) / 60000;
       return {
@@ -1605,7 +1669,7 @@ class MeshComChatPanel extends HTMLElement {
         lat: Number(station.latitude),
         lon: Number(station.longitude),
         label: station.callsign,
-        kind: minutes < 60 ? "fresh" : minutes < 1440 ? "recent" : "old",
+        kind: station.direct === true ? "direct" : minutes < 60 ? "fresh" : minutes < 1440 ? "recent" : "old",
       };
     });
     this._map.setMarkers([...this._ownPositions(), ...markers]);
@@ -1646,6 +1710,30 @@ class MeshComChatPanel extends HTMLElement {
     this._setTab("stations");
   }
 
+  // Values from the node's MHeard list: neighbour values only while direct.
+  _neighbourLines(station) {
+    const t = this._t;
+    const lines = [];
+    if (station.direct === true) {
+      const head = el("div", "direct", t.legend.direct);
+      head.append(el("span", "hears", ` \u00b7 ${t.columns.hears_me_snr}: ${t.hearsMe(station.hears_me_snr)}`));
+      lines.push(head);
+      const relay = [];
+      if (t.roles[station.relay_role]) relay.push(`${t.columns.relay_role}: ${t.roles[station.relay_role]}`);
+      if (Number.isInteger(station.it_hears) && Number.isInteger(station.only_it_hears)) {
+        relay.push(t.itHears(station.it_hears, station.only_it_hears));
+      }
+      if (Number.isInteger(station.neighbours)) relay.push(t.reports(station.neighbours));
+      if (relay.length) lines.push(el("div", null, relay.join(" \u00b7 ")));
+    }
+    const device = [];
+    if (station.hardware) device.push(station.hardware);
+    if (Number.isInteger(station.altitude)) device.push(`${t.altitude} ${station.altitude} m`);
+    if (station.direct === true && station.gateway === true) device.push(t.gateway);
+    if (device.length) lines.push(el("div", null, device.join(" \u00b7 ")));
+    return lines;
+  }
+
   // Distance from the own node, only if both positions are known.
   _distanceText(station) {
     const own = this._ownPositions()[0];
@@ -1678,6 +1766,7 @@ class MeshComChatPanel extends HTMLElement {
     if (weather) parts.push(el("div", null, weather));
     const distance = this._distanceText(station);
     if (distance) parts.push(el("div", null, `${t.distance} ${distance}`));
+    parts.push(...this._neighbourLines(station));
     const path = Array.isArray(station.path) ? station.path : [];
     parts.push(el("div", "path", path.length ? `${t.via} ${path.join(" > ")}` : t.direct));
     const buttons = el("div", "buttons");

@@ -26,6 +26,7 @@ import asyncio
 import contextlib
 import hashlib
 import hmac
+import html
 import json
 import re
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ from urllib.parse import quote
 import aiohttp
 from yarl import URL
 
+from .callsign import is_callsign
 from .const import SECRET_WEB_PARAMETERS
 from .errors import MeshComError
 
@@ -48,6 +50,21 @@ _MAX_RESPONSE_BYTES: Final = 4096
 INFO_PAGE: Final = "/?page=info"
 _INFO_FIRMWARE_RE: Final = re.compile(r"<td>Firmware</td><td>Meshcom (\d\.\d{2}) *([a-z]{0,2})<br>")
 _INFO_BATTERY_RE: Final = re.compile(r"<td>Battery</td><td>(\d{1,2}\.\d{3})V \(\d{1,3}%\)")
+#: HTML page of the stations the node heard directly in the last 3 hours
+#: (firmware 4.40a). One card of about 1.5 kB per station; the node lists up
+#: to 128. A longer page is cut; the cut card is ignored.
+MHEARD_PAGE: Final = "/?page=mheard"
+_MHEARD_MAX_BYTES: Final = 256 * 1024
+_MHEARD_TITLE: Final = "MHeard Information"
+_MHEARD_MAX_ENTRIES: Final = 128
+_MHEARD_CARD_RE: Final = re.compile(
+    r'<label class="cardlabel"><a href="https://aprs\.fi/\?call=[^"]{1,40}" target="_blank">'
+    r"([^<]{1,40})</a>"
+)
+_MHEARD_FIELD_RE: Final = re.compile(
+    r'<div><span class="font-bold">([A-Za-z /()]{1,20}):</span><br>'
+    r"<span[^>]{0,120}>([^<]{0,40})</span></div>"
+)
 #: Login method used by the node.
 AUTH_HMAC: Final = "hmac"
 AUTH_LEGACY: Final = "legacy"
@@ -110,12 +127,18 @@ class MeshComWebClient:
     # --- transport -------------------------------------------------------------
 
     async def _get(
-        self, path: str, token: str | None = None, *, truncate: bool = False
+        self,
+        path: str,
+        token: str | None = None,
+        *,
+        truncate: bool = False,
+        limit: int = _MAX_RESPONSE_BYTES,
     ) -> tuple[int, str, str | None]:
         """GET ``path``; returns status, body and the session token if one was set.
 
         ``path`` must already be percent-encoded. With ``truncate`` an
-        oversized body (an HTML page) is cut instead of rejected.
+        oversized body (an HTML page) is cut instead of rejected. ``limit`` is
+        the largest body read.
         """
         headers = dict(_HEADERS)
         if token is not None:
@@ -127,11 +150,11 @@ class MeshComWebClient:
                 timeout=self._timeout,
                 allow_redirects=False,
             ) as response:
-                body = await response.content.read(_MAX_RESPONSE_BYTES + 1)
-                if len(body) > _MAX_RESPONSE_BYTES:
+                body = await _read_body(response.content, limit + 1)
+                if len(body) > limit:
                     if not truncate:
                         raise WebConnectionError("response too large")
-                    body = body[:_MAX_RESPONSE_BYTES]
+                    body = body[:limit]
                 new_token = None
                 for cookie in response.headers.getall("Set-Cookie", []):
                     match = _TOKEN_RE.match(cookie)
@@ -204,16 +227,27 @@ class MeshComWebClient:
         }
 
     async def _fetch(
-        self, paths: list[str], *, pages: frozenset[str] = frozenset()
+        self,
+        paths: list[str],
+        *,
+        pages: frozenset[str] = frozenset(),
+        limits: dict[str, int] | None = None,
     ) -> list[tuple[int, str]]:
-        """GET several paths in one login session; ``pages`` are HTML pages (cut, not rejected)."""
+        """GET several paths in one login session.
+
+        ``pages`` are HTML pages (cut, not rejected); ``limits`` raise the
+        size limit for single paths.
+        """
         answers: list[tuple[int, str]] = []
         async with self._lock:
             session = await self._login()
             token = session.token if session is not None else None
             try:
                 for path in paths:
-                    status, body, _ = await self._get(path, token, truncate=path in pages)
+                    limit = (limits or {}).get(path, _MAX_RESPONSE_BYTES)
+                    status, body, _ = await self._get(
+                        path, token, truncate=path in pages, limit=limit
+                    )
                     answers.append((status, body))
             finally:
                 await self._logout(session)
@@ -232,20 +266,24 @@ class MeshComWebClient:
         return status.no_msg_all, status.groups
 
     async def get_overview(self) -> NodeStatus:
-        """Settings plus firmware and battery voltage, with a single login.
+        """Settings, firmware, battery voltage and MHeard list, with a single login.
 
-        Firmware and voltage are only on the node's info page (HTML). They
-        are taken from it with fixed patterns; if the page looks different,
-        they stay unknown and the settings are still returned.
+        Firmware, voltage and the MHeard list are only on HTML pages. They
+        are taken from them with fixed patterns; if a page looks different,
+        its values stay unknown and the settings are still returned.
         """
         answers = await self._fetch(
-            ["/getparam/?nomsgall", "/getparam/?setgrc", INFO_PAGE], pages=frozenset({INFO_PAGE})
+            ["/getparam/?nomsgall", "/getparam/?setgrc", INFO_PAGE, MHEARD_PAGE],
+            pages=frozenset({INFO_PAGE, MHEARD_PAGE}),
+            limits={MHEARD_PAGE: _MHEARD_MAX_BYTES},
         )
         no_msg_all = _value("nomsgall", *answers[0])
         groups = parse_groups(_value("setgrc", *answers[1]))
         info_status, info_body = answers[2]
         firmware, voltage = parse_info_page(info_body) if info_status == 200 else (None, None)
-        return NodeStatus(no_msg_all == "on", groups, firmware, voltage)
+        mheard_status, mheard_body = answers[3]
+        mheard = parse_mheard_page(mheard_body) if mheard_status == 200 else None
+        return NodeStatus(no_msg_all == "on", groups, firmware, voltage, mheard)
 
     # --- public API ------------------------------------------------------------
 
@@ -283,6 +321,38 @@ class NodeStatus:
     firmware: str | None = None
     #: Battery voltage in volts; None without battery or if unknown.
     battery_voltage: float | None = None
+    #: Stations heard directly (MHeard page); None if the page was unreadable.
+    mheard: list[MHeardEntry] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MHeardEntry:
+    """One station of the node's MHeard page (heard directly, last 3 hours)."""
+
+    callsign: str
+    #: Minutes since the node last received the station directly.
+    age_minutes: int
+    #: "text", "position", "heartbeat" or None.
+    last_frame: str | None = None
+    hardware: str | None = None
+    #: e.g. "4.40a".
+    firmware: str | None = None
+    rssi: int | None = None
+    snr: int | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    altitude: int | None = None
+    #: SNR at which the station reports to hear the node; None: not reported.
+    hears_me_snr: int | None = None
+    #: "super", "needed", "redundant" or None.
+    relay_role: str | None = None
+    #: Stations only it hears (of the node's direct neighbours).
+    only_it_hears: int | None = None
+    #: Stations it hears, as far as the node knows.
+    it_hears: int | None = None
+    #: Neighbour count the station announces itself.
+    neighbours: int | None = None
+    gateway: bool | None = None
 
 
 def parse_info_page(body: str) -> tuple[str | None, float | None]:
@@ -303,12 +373,116 @@ def parse_info_page(body: str) -> tuple[str | None, float | None]:
     return firmware, voltage
 
 
+_FRAMES: Final = {"Text message": "text", "Position": "position", "Heartbeat (HEY)": "heartbeat"}
+_ROLES: Final = {"Super node": "super", "Needed": "needed", "Redundant": "redundant"}
+_HARDWARE_RE: Final = re.compile(r"[A-Za-z0-9_+]{1,24}")
+_FIRMWARE_RE: Final = re.compile(r"v(4\.\d{2}[a-z]?)")
+_COORD_RE: Final = re.compile(r"([NSEW])(\d{1,3}\.\d{3})")
+
+
+def _int(value: str | None, pattern: str, low: int, high: int) -> int | None:
+    """An integer from ``value`` if it has the shape ``pattern`` (one group)."""
+    if value is None or (match := re.fullmatch(pattern, value)) is None:
+        return None
+    number = int(match.group(1))
+    return number if low <= number <= high else None
+
+
+def _coordinate(value: str | None, positive: str, negative: str, limit: float) -> float | None:
+    if value is None or (match := _COORD_RE.fullmatch(value)) is None:
+        return None
+    hemisphere, number = match.group(1), float(match.group(2))
+    if hemisphere not in (positive, negative) or number > limit:
+        return None
+    return -number if hemisphere == negative else number
+
+
+def _mheard_card(callsign: str, fields: dict[str, str]) -> MHeardEntry | None:
+    age = _int(fields.get("Last heard"), r"(\d{1,4}) min ago", 0, 24 * 60)
+    if age is None:
+        return None
+    hardware = fields.get("Hardware")
+    firmware = _FIRMWARE_RE.fullmatch(fields.get("Firmware", ""))
+    latitude = _coordinate(fields.get("Lat"), "N", "S", 90)
+    longitude = _coordinate(fields.get("Lon"), "E", "W", 180)
+    if latitude is None or longitude is None or (latitude == 0 and longitude == 0):
+        latitude = longitude = None
+    gateway = {"yes": True, "no": False}.get(fields.get("Gateway", ""))
+    return MHeardEntry(
+        callsign=callsign,
+        age_minutes=age,
+        last_frame=_FRAMES.get(fields.get("Last frame", "")),
+        hardware=hardware
+        if hardware and hardware != "no info" and _HARDWARE_RE.fullmatch(hardware)
+        else None,
+        firmware=firmware.group(1) if firmware else None,
+        rssi=_int(fields.get("RSSI"), r"(-?\d{1,3}) dBm", -200, 50),
+        snr=_int(fields.get("SNR (avg)"), r"(-?\d{1,2}) dB", -50, 50),
+        latitude=latitude,
+        longitude=longitude,
+        altitude=_int(fields.get("Altitude"), r"(-?\d{1,5}) m", -500, 9999),
+        hears_me_snr=_int(fields.get("Hears me"), r"yes, (-?\d{1,2}) dB", -50, 50),
+        relay_role=_ROLES.get(fields.get("Relay role", "")),
+        only_it_hears=_int(fields.get("Only it hears"), r"(\d{1,3}) stations?", 0, 999),
+        it_hears=_int(fields.get("It hears"), r"(\d{1,3}) stations?", 0, 999),
+        neighbours=_int(fields.get("It reports"), r"(\d{1,3}) neighbours?", 0, 999),
+        gateway=gateway,
+    )
+
+
+def parse_mheard_page(body: str) -> list[MHeardEntry] | None:
+    """Stations from the node's MHeard page (firmware 4.40a).
+
+    Each station is a card: ``<label class="cardlabel"><a href="https://aprs.fi/?call=X"
+    target="_blank">X</a> ...</label>`` followed by ``<div><span class="font-bold">Name:</span>
+    <br><span>value</span></div>`` fields. Only these fixed shapes are read;
+    a card without a valid callsign, without its age or cut off at the end
+    (no "Gateway" field yet) is skipped. None if the page is not the MHeard
+    page at all (e.g. the login page).
+    """
+    if _MHEARD_TITLE not in body:
+        return None
+    entries: list[MHeardEntry] = []
+    seen: set[str] = set()
+    starts = list(_MHEARD_CARD_RE.finditer(body))
+    for index, match in enumerate(starts):
+        end = starts[index + 1].start() if index + 1 < len(starts) else len(body)
+        callsign = html.unescape(match.group(1)).strip().upper()
+        if not is_callsign(callsign) or callsign in seen:
+            continue
+        fields = {
+            name: html.unescape(value).strip()
+            for name, value in _MHEARD_FIELD_RE.findall(body, match.end(), end)
+        }
+        if "Gateway" not in fields:
+            continue
+        if (entry := _mheard_card(callsign, fields)) is not None:
+            seen.add(callsign)
+            entries.append(entry)
+            if len(entries) >= _MHEARD_MAX_ENTRIES:
+                break
+    return entries
+
+
 def parse_groups(raw: str) -> list[str]:
     """``"262;26298;0;0;0;0;"`` -> ``["262", "26298"]``."""
     groups = [part for part in raw.split(";") if part and part != "0"]
     if not all(part.isdigit() and len(part) <= 5 for part in groups):
         raise WebConnectionError("unexpected group list")
     return groups
+
+
+async def _read_body(content: aiohttp.StreamReader, limit: int) -> bytes:
+    """Read at most ``limit`` bytes (``read(n)`` may return fewer)."""
+    chunks: list[bytes] = []
+    size = 0
+    while size < limit:
+        chunk = await content.read(limit - size)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        size += len(chunk)
+    return b"".join(chunks)
 
 
 def _value(name: str, status: int, body: str) -> str:

@@ -24,9 +24,11 @@ from .aiomeshcom import (
     TextMessagePacket,
     TimeBeaconPacket,
 )
+from .aiomeshcom.webapi import MHeardEntry
 from .const import (
     DEDUP_MAX_ENTRIES,
     DEDUP_WINDOW,
+    DIRECT_WINDOW,
     EVENT_DELIVERY,
     EVENT_MESSAGE,
     MAX_PATH,
@@ -63,6 +65,23 @@ class StationInfo:
     weather_time: datetime | None = None
     #: Relays of the station's last packet, in order (empty: heard directly).
     path: list[str] = field(default_factory=list)
+    # From the node's MHeard list (web API): the station is a direct neighbour.
+    #: When the node last received the station directly.
+    direct_heard: datetime | None = None
+    hardware: str | None = None
+    altitude: int | None = None
+    #: SNR at which the station reports to hear the node; None: not reported.
+    hears_me_snr: int | None = None
+    #: "super", "needed" or "redundant".
+    relay_role: str | None = None
+    only_it_hears: int | None = None
+    it_hears: int | None = None
+    neighbours: int | None = None
+    gateway: bool | None = None
+
+    def is_direct(self, now: datetime) -> bool:
+        """True while the node's MHeard list has the station (heard directly)."""
+        return self.direct_heard is not None and now - self.direct_heard < DIRECT_WINDOW
 
 
 @dataclass(slots=True)
@@ -389,6 +408,43 @@ class MeshComNode:
             # The group select offers the node's groups.
             async_dispatcher_send(self.hass, signal_update(self.entry_id))
 
+    def apply_mheard(self, entries: list[MHeardEntry]) -> None:
+        """Take over the stations the node heard directly (its MHeard list).
+
+        Adds stations that send only heartbeats (UDP and KISS do not carry
+        those) and the neighbour values. Values from packets win where both
+        exist: positions are more precise there, signal values belong to the
+        last packet.
+        """
+        now = dt_util.utcnow()
+        changed: list[str] = []
+        for entry in entries:
+            if entry.callsign == self.callsign:
+                continue
+            heard = now - timedelta(minutes=entry.age_minutes)
+            station = self.stations.get(entry.callsign)
+            before = None if station is None else _neighbour_values(station)
+            if station is None:
+                station = StationInfo(entry.callsign, heard)
+                self.stations[entry.callsign] = station
+            elif heard > station.last_heard + timedelta(minutes=1):
+                station.last_heard = heard
+                self.stations.move_to_end(entry.callsign)
+            _take_mheard(station, entry, heard)
+            if _neighbour_values(station) != before:
+                changed.append(entry.callsign)
+        while len(self.stations) > MAX_STATIONS:
+            self.stations.popitem(last=False)
+        if not changed:
+            return
+        async_dispatcher_send(self.hass, signal_update(self.entry_id))
+        for callsign in changed:
+            if callsign not in self.stations:
+                continue
+            async_dispatcher_send(self.hass, signal_station(self.entry_id, callsign))
+            if self.station_listener is not None:
+                self.station_listener(callsign)
+
     def is_filtered(self, packet: TextMessagePacket) -> bool:
         """With "No MSG All" on the node, show only the node's groups and own DMs.
 
@@ -413,3 +469,47 @@ class MeshComNode:
             self._telemetry_listeners.remove(listener)
 
         return _remove
+
+
+def _neighbour_values(station: StationInfo) -> tuple[object, ...]:
+    """Everything apply_mheard may change, to notify only on a change."""
+    return (
+        station.last_heard,
+        station.direct_heard,
+        station.hardware,
+        station.altitude,
+        station.hears_me_snr,
+        station.relay_role,
+        station.only_it_hears,
+        station.it_hears,
+        station.neighbours,
+        station.gateway,
+        station.latitude,
+        station.longitude,
+        station.rssi,
+        station.snr,
+        station.firmware,
+    )
+
+
+def _take_mheard(station: StationInfo, entry: MHeardEntry, heard: datetime) -> None:
+    """Copy one MHeard entry into a station (packet values win where both exist)."""
+    # The age has minute resolution: keep the time unless it moved.
+    if station.direct_heard is None or abs(heard - station.direct_heard) > timedelta(seconds=90):
+        station.direct_heard = heard
+    station.hardware = entry.hardware
+    station.altitude = entry.altitude
+    station.hears_me_snr = entry.hears_me_snr
+    station.relay_role = entry.relay_role
+    station.only_it_hears = entry.only_it_hears
+    station.it_hears = entry.it_hears
+    station.neighbours = entry.neighbours
+    station.gateway = entry.gateway
+    if station.latitude is None and entry.latitude is not None:
+        station.latitude = entry.latitude
+        station.longitude = entry.longitude
+    if station.rssi is None and entry.rssi is not None:
+        station.rssi = entry.rssi
+        station.snr = None if entry.snr is None else float(entry.snr)
+    if station.firmware is None and entry.firmware is not None:
+        station.firmware = entry.firmware

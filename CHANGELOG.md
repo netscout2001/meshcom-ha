@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.8.0
+
+### Added
+- Direct neighbours from the node's MHeard page (web API, firmware 4.40a): stations heard directly in the last 3 hours, including stations that only send heartbeats (UDP and KISS do not pass those on)
+- Per station: hardware, altitude, "hears me" (SNR at which it hears your node), relay role, how many stations it hears and how many only it hears, reported neighbour count, gateway
+- Stations tab: filter "Direct neighbours only" (remembered per browser), violet markers and legend entry for direct neighbours, new table columns "Hears me", "Relay role", "Hardware"
+- Map info box opens above the marker near the bottom edge and stays fully visible on small screens
+
+### Development
+- Parser and fuzz tests for the MHeard page; test pages are rendered like the firmware does, with invented callsigns and positions
+
 ## v0.7.3
 
 ### Added

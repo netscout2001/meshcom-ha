@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .aiomeshcom.webapi import (
     MeshComWebClient,
+    MHeardEntry,
     WebApiError,
     WebAuthError,
     WebDowngradeError,
@@ -41,6 +42,8 @@ class WebData:
     #: From the node's info page; None if unknown.
     firmware: str | None = None
     battery_voltage: float | None = None
+    #: Stations heard directly (MHeard page); None if unreadable.
+    mheard: list[MHeardEntry] | None = None
 
 
 class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
@@ -118,6 +121,7 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             groups=status.groups,
             firmware=status.firmware,
             battery_voltage=status.battery_voltage,
+            mheard=status.mheard,
         )
 
     @property

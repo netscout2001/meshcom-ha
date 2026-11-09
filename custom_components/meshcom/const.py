@@ -24,6 +24,9 @@ NODE_ACTIVE_TIMEOUT: Final = timedelta(minutes=65)
 
 #: Window for "stations heard" sensor.
 STATIONS_WINDOW: Final = timedelta(hours=24)
+#: A station counts as direct neighbour while the node's MHeard list (last
+#: 3 hours) has it.
+DIRECT_WINDOW: Final = timedelta(hours=3)
 
 #: Upper bound of remembered stations per node (LRU, security concept C-09).
 MAX_STATIONS: Final = 500

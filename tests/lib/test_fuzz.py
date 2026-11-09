@@ -47,7 +47,13 @@ from aiomeshcom.kiss import (
     parse_nonce,
 )
 from aiomeshcom.text import clean_text, contains_unwanted
-from aiomeshcom.webapi import WebConnectionError, parse_groups, parse_info_page
+from aiomeshcom.webapi import (
+    WebConnectionError,
+    parse_groups,
+    parse_info_page,
+    parse_mheard_page,
+)
+from tests.lib.mheard_html import Card, page
 
 FIXTURE = Path(__file__).parent / "fixtures" / "capture_2026-11-06.anon.jsonl"
 SAMPLES: list[dict[str, Any]] = [
@@ -225,6 +231,62 @@ def _check_info(body: str) -> None:
     firmware, voltage = parse_info_page(body)
     assert firmware is None or (len(firmware) <= 6 and firmware.isascii())
     assert voltage is None or 0 < voltage < 10
+
+
+def _check_mheard(body: str) -> None:
+    entries = parse_mheard_page(body)
+    if entries is None:
+        return
+    assert len(entries) <= 128
+    assert len({entry.callsign for entry in entries}) == len(entries)
+    for entry in entries:
+        assert is_callsign(entry.callsign)
+        assert 0 <= entry.age_minutes <= 1440
+        assert entry.hardware is None or (entry.hardware.isascii() and "<" not in entry.hardware)
+        assert entry.latitude is None or -90 <= entry.latitude <= 90
+        assert entry.longitude is None or -180 <= entry.longitude <= 180
+        assert entry.rssi is None or -200 <= entry.rssi <= 50
+
+
+@given(st.text(max_size=600))
+@FAST
+def test_mheard_page_text(body: str) -> None:
+    """Any answer (login page, garbage) gives a list or None, never an error."""
+    _check_mheard("MHeard Information" + body)
+
+
+_CALLS = st.text(alphabet="QRABCXYZ0123456789-<>&;\"' ", min_size=0, max_size=14)
+_FIELD = st.text(alphabet="0123456789-. ,abcdefghijklmnopqrstuvwxyzNSEW<>&", max_size=14)
+
+
+@given(
+    st.lists(
+        st.builds(
+            Card,
+            call=_CALLS,
+            age_min=st.integers(-5, 100000),
+            hw=_FIELD,
+            fw=_FIELD,
+            rssi=st.none() | st.integers(-10000, 10000),
+            snr=st.none() | st.integers(-1000, 1000),
+            lat=st.none() | st.floats(-1000, 1000),
+            lon=st.none() | st.floats(-1000, 1000),
+            alt=st.none() | st.integers(-(10**7), 10**7),
+            hm_snr=st.none() | st.integers(-1000, 1000),
+            ex=st.integers(0, 10**5),
+            nb=st.integers(0, 10**5),
+            ncnt=st.integers(0, 10**5),
+        ),
+        max_size=6,
+    ),
+    st.integers(0, 4000),
+)
+@FAST
+def test_mheard_page_cards(cards: list[Card], cut: int) -> None:
+    """Cards with wild values, the page cut anywhere: only valid values come out."""
+    body = page(cards)
+    _check_mheard(body)
+    _check_mheard(body[: len(body) - cut])
 
 
 @given(st.text(max_size=300))

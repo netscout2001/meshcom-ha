@@ -124,7 +124,8 @@ password `--passwd`.
 ### Web password (both access paths)
 
 Next, Home Assistant asks for the node's web password (`--webpwd`), used to
-read and switch node settings and to read firmware and battery voltage.
+read and switch node settings and to read firmware, battery voltage and the
+list of directly heard stations (MHeard).
 Leave it empty if the node has none (not recommended, see
 [Security](#security)). Both passwords can be changed later under
 **Reconfigure**; if the node rejects one, Home Assistant asks for it
@@ -171,12 +172,24 @@ Changing the options reloads the node.
 | Mode | What you get |
 | --- | --- |
 | Off | Only the count and the station select for direct messages |
-| Data only (default) | The attribute `stations` of "Stations heard": the 100 most recently heard stations with last heard, RSSI, SNR, hops, battery and position. Not written to the database. |
+| Data only (default) | The attribute `stations` of "Stations heard": the 100 most recently heard stations with last heard, RSSI, SNR, hops, battery, position and `direct` (direct neighbour). Not written to the database. |
 | One device per station | A device per station (behind the own node) with position, last heard, battery, RSSI, SNR and hops, plus temperature, humidity and air pressure for stations that send weather values. Limited in number; removed after the configured days without a packet and back when heard again; can be deleted by hand. |
 
 For every station the integration also keeps its weather values (temperature,
 humidity, air pressure QNH and QFE, if the station sends them) and the relays
 of its last packet; the panel shows both.
+
+**Direct neighbours** come from the node's MHeard page (`/?page=mheard`),
+read with the other web API values: the stations the node received directly
+in the last 3 hours. This adds stations that only send heartbeats (UDP and
+KISS do not pass those on) and, per station, hardware, altitude, "hears me"
+(the SNR at which the station reports to hear your node), relay role (super
+node, needed, redundant), how many stations it hears and how many of those
+only it hears, the neighbour count it reports, and whether it is a gateway.
+Where a packet already gave position, signal or firmware, those values are
+kept (positions on the MHeard page have only three decimals). A station
+stays a direct neighbour until it has been off the list for 3 hours. This
+needs firmware 4.40a and the web password if the node has one.
 
 The station list is stored and survives a restart.
 
@@ -202,15 +215,19 @@ The switches use the normal Home Assistant services, so only administrators
 can change them.
 
 **Stations**: a map with your node and every station that sent a position
-(green: heard within the last hour, orange: within 24 hours, grey: older;
-a legend on the map explains the colours),
-and below it the heard stations as a sortable table. A click on a station on
+(violet: direct neighbour, green: heard within the last hour, orange: within
+24 hours, grey: older; a legend on the map explains the colours),
+and below it the heard stations as a sortable table. "Direct neighbours
+only" limits map and table to the stations your node hears directly (the
+browser remembers the choice). A click on a station on
 the map shows its values (signal, battery, weather), its distance from your
-node (straight line, when both positions are known) and the relays of its
-last packet, draws that path as a line to your node (dashed where a relay
+node (straight line, when both positions are known), for direct neighbours
+"hears me", relay role and neighbour counts, hardware and altitude, and the
+relays of its last packet, draws that path as a line to your node (dashed where a relay
 has no known position) and has buttons for a direct message and for
 OpenStreetMap. The table also lists temperature, humidity and air pressure
-(QNH). In the table, a click on a callsign zooms the map to that
+(QNH), "hears me", relay role and hardware; a violet dot marks direct
+neighbours. In the table, a click on a callsign zooms the map to that
 station (as does "Map"), and "(DM)" behind the callsign opens a direct
 message.
 
@@ -268,8 +285,8 @@ feed it into templates that are executed, commands or scripts.
 ## Data updates
 
 - **UDP and KISS are push:** every packet updates the entities immediately.
-- **Web API** (No MSG All, groups, firmware, battery voltage): read every
-  5 minutes with one login, and right after a change from Home Assistant.
+- **Web API** (No MSG All, groups, firmware, battery voltage, MHeard list):
+  read every 5 minutes with one login, and right after a change from Home Assistant.
 - "Active" turns off when the node sent nothing for 65 minutes (beacons
   come every 30 minutes by default).
 
@@ -356,6 +373,10 @@ presence of a mobile node ("Active"), a map of heard stations, switching
   callsign. The node serves one KISS client at a time; Home Assistant keeps
   that slot. RSSI/SNR are those of the last hop and need `--kiss meta on`.
 - **Firmware 4.34z–4.40a web login** is plain text (see [Security](#security)).
+- **Battery voltage, firmware (KISS) and direct neighbours** are read from
+  the node's HTML pages with fixed patterns. A firmware that changes these
+  pages makes the values disappear (the rest keeps working) until the
+  integration is adapted.
 - Direct messages between other stations are passed on as events but not
   counted and not shown in the chat.
 - A temperature of exactly 0.0 °C is reported as unknown (the node sends 0

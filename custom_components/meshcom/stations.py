@@ -9,6 +9,7 @@ callsigns are validated again (security concept C-02, C-09).
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import Any
@@ -79,6 +80,15 @@ def _number(value: Any, kind: type, low: float, high: float) -> Any:
     return value if low <= value <= high else None
 
 
+_HARDWARE_RE = re.compile(r"[A-Za-z0-9_+]{1,24}")
+_RELAY_ROLES = frozenset({"super", "needed", "redundant"})
+
+
+def _time(value: Any) -> datetime | None:
+    parsed = dt_util.parse_datetime(value) if isinstance(value, str) else None
+    return parsed if parsed is not None and parsed.tzinfo is not None else None
+
+
 def _parse_station(raw: Any) -> StationInfo | None:
     if not isinstance(raw, Mapping):
         return None
@@ -101,6 +111,9 @@ def _parse_station(raw: Any) -> StationInfo | None:
         and all(isinstance(call, str) and is_callsign(call) for call in path)
     ):
         path = []
+    hardware = raw.get("hardware")
+    relay_role = raw.get("relay_role")
+    gateway = raw.get("gateway")
     return StationInfo(
         callsign=callsign,
         last_heard=last_heard,
@@ -117,6 +130,17 @@ def _parse_station(raw: Any) -> StationInfo | None:
         pressure_qfe=_number(raw.get("pressure_qfe"), float, 300, 1100),
         weather_time=weather_time,
         path=list(path),
+        direct_heard=_time(raw.get("direct_heard")),
+        hardware=hardware
+        if isinstance(hardware, str) and _HARDWARE_RE.fullmatch(hardware)
+        else None,
+        altitude=_number(raw.get("altitude"), int, -500, 9999),
+        hears_me_snr=_number(raw.get("hears_me_snr"), int, -50, 50),
+        relay_role=relay_role if relay_role in _RELAY_ROLES else None,
+        only_it_hears=_number(raw.get("only_it_hears"), int, 0, 999),
+        it_hears=_number(raw.get("it_hears"), int, 0, 999),
+        neighbours=_number(raw.get("neighbours"), int, 0, 999),
+        gateway=gateway if isinstance(gateway, bool) else None,
     )
 
 
@@ -137,6 +161,15 @@ def _dump_station(station: StationInfo) -> dict[str, Any]:
         "pressure_qfe": station.pressure_qfe,
         "weather_time": station.weather_time.isoformat() if station.weather_time else None,
         "path": list(station.path),
+        "direct_heard": station.direct_heard.isoformat() if station.direct_heard else None,
+        "hardware": station.hardware,
+        "altitude": station.altitude,
+        "hears_me_snr": station.hears_me_snr,
+        "relay_role": station.relay_role,
+        "only_it_hears": station.only_it_hears,
+        "it_hears": station.it_hears,
+        "neighbours": station.neighbours,
+        "gateway": station.gateway,
     }
 
 

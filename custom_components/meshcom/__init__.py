@@ -268,6 +268,8 @@ def _async_start_web(
                 firmware=web.data.firmware,
                 battery_voltage=web.data.battery_voltage,
             )
+            if web.data.mheard is not None:
+                node.apply_mheard(web.data.mheard)
         _async_track_login_method(hass, entry, client)
 
     entry.async_on_unload(web.async_add_listener(_apply_web_settings))
