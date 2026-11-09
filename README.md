@@ -159,8 +159,9 @@ can change them.
 a legend on the map explains the colours),
 and below it the heard stations as a sortable table. A click on a station on
 the map shows its values with buttons for a direct message and for
-OpenStreetMap; a click on a callsign in the table opens a direct message,
-"Map" shows the station on the map.
+OpenStreetMap. In the table, a click on a callsign zooms the map to that
+station (as does "Map"), and "(DM)" behind the callsign opens a direct
+message.
 
 The map tiles are loaded from OpenStreetMap (`tile.openstreetmap.org`) only
 while the Stations tab is open, so the OpenStreetMap servers see your IP

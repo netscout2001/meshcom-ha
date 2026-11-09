@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.4
+
+### Changes
+- Stations table: a click on a callsign zooms the map to the station; "(DM)" behind the callsign opens the direct message
+
+### Fixes
+- Stations map: no more thin light lines between the map tiles (tiles on whole pixels with 1 px overlap, dark background in dark mode)
+
 ## v0.5.3
 
 ### Features
