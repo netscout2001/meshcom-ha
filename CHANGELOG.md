@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.8.1
+
+### Added
+- Stations map on phones and tablets: zoom with two fingers (pinch) and with a double tap; the map follows the fingers live and settles on the nearest zoom level
+
 ## v0.8.0
 
 ### Added

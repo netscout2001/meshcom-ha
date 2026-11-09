@@ -448,10 +448,21 @@ class TileMap {
     }
     container.append(this.tileLayer, this.pathLayer, this.markerLayer, this.popup, controls, key, attribution);
 
-    container.addEventListener("pointerdown", (ev) => this._dragStart(ev));
+    // Touch: one finger moves the map, two fingers zoom, a double tap zooms in.
+    this._touches = new Map();
+    this._pinch = null;
+    this._gesture = 0;
+    this._lastTap = null;
+    this._touchZoomed = 0;
+    container.addEventListener("pointerdown", (ev) => this._pointerDown(ev));
+    container.addEventListener("pointermove", (ev) => this._touchMove(ev));
+    container.addEventListener("pointerup", (ev) => this._touchEnd(ev, true));
+    container.addEventListener("pointercancel", (ev) => this._touchEnd(ev, false));
     container.addEventListener("wheel", (ev) => this._wheel(ev), { passive: false });
     container.addEventListener("dblclick", (ev) => {
       if (ev.target.closest && ev.target.closest(".map-popup, .map-controls, .map-legend")) return;
+      // A double tap was already handled by the touch code.
+      if (Date.now() - this._touchZoomed < 600) return;
       this._zoomAround(1, ev);
     });
     this._resize = new ResizeObserver(() => this.render());
@@ -576,23 +587,135 @@ class TileMap {
     this._zoomAround(ev.deltaY < 0 ? 1 : -1, ev);
   }
 
+  _pointerDown(ev) {
+    if (ev.pointerType === "touch") {
+      this._touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (this._touches.size === 2) {
+        this._pinchStart();
+        return;
+      }
+      if (this._touches.size > 2) return;
+    }
+    this._dragStart(ev);
+  }
+
+  // Container coordinates of the first two fingers: distance and midpoint.
+  _fingers() {
+    const rect = this.container.getBoundingClientRect();
+    const [a, b] = [...this._touches.values()];
+    return {
+      dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      x: (a.x + b.x) / 2 - rect.left,
+      y: (a.y + b.y) / 2 - rect.top,
+    };
+  }
+
+  _pinchStart() {
+    this._gesture += 1; // ends a running one-finger drag
+    this._lastTap = null;
+    for (const id of this._touches.keys()) {
+      try {
+        this.container.setPointerCapture(id);
+      } catch (err) {
+        // the pointer is already gone
+      }
+    }
+    const f = this._fingers();
+    this._pinch = { start: f, last: f, zoom: this.zoom, origin: this._origin() };
+    this.popup.hidden = true;
+  }
+
+  // Live preview: the drawn map is scaled around the start midpoint and
+  // moved with the fingers; the tiles are loaded again when the fingers lift.
+  _pinchMove() {
+    const pinch = this._pinch;
+    const f = this._fingers();
+    pinch.last = f;
+    const low = 2 ** (MIN_ZOOM - pinch.zoom);
+    const high = 2 ** (MAX_ZOOM - pinch.zoom);
+    const scale = Math.min(high, Math.max(low, f.dist / pinch.start.dist));
+    const dx = f.x - pinch.start.x;
+    const dy = f.y - pinch.start.y;
+    for (const layer of [this.tileLayer, this.pathLayer, this.markerLayer]) {
+      layer.style.transformOrigin = `${pinch.start.x}px ${pinch.start.y}px`;
+      layer.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+    }
+  }
+
+  // The nearest zoom level; the place under the start midpoint ends up
+  // under the last midpoint.
+  _pinchEnd() {
+    const pinch = this._pinch;
+    this._pinch = null;
+    for (const layer of [this.tileLayer, this.pathLayer, this.markerLayer]) {
+      layer.style.transform = "";
+      layer.style.transformOrigin = "";
+    }
+    const { start, last } = pinch;
+    const steps = Math.round(Math.log2(last.dist / start.dist));
+    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinch.zoom + steps));
+    const factor = 2 ** (zoom - pinch.zoom);
+    const wx = (pinch.origin.x + start.x) * factor;
+    const wy = (pinch.origin.y + start.y) * factor;
+    this.zoom = zoom;
+    this.center = this._unproject(wx - last.x + this.width / 2, wy - last.y + this.height / 2, zoom);
+    this.render();
+  }
+
+  _touchMove(ev) {
+    const touch = this._touches.get(ev.pointerId);
+    if (!touch) return;
+    touch.x = ev.clientX;
+    touch.y = ev.clientY;
+    if (this._pinch && this._touches.size >= 2) this._pinchMove();
+  }
+
+  _touchEnd(ev, lifted) {
+    if (!this._touches.has(ev.pointerId)) return;
+    this._touches.delete(ev.pointerId);
+    if (this._pinch) {
+      if (this._touches.size < 2) this._pinchEnd();
+      return;
+    }
+    if (!lifted || this._touches.size) return;
+    // Double tap: two short taps close together zoom in around them.
+    if (ev.target.closest && ev.target.closest(".map-popup, .map-controls, .map-legend, .map-marker")) return;
+    const now = Date.now();
+    const tap = { time: now, x: ev.clientX, y: ev.clientY, gesture: this._gesture };
+    const last = this._lastTap;
+    if (last && now - last.time < 350 && Math.hypot(last.x - tap.x, last.y - tap.y) < 30 && last.gesture === tap.gesture) {
+      this._lastTap = null;
+      this._touchZoomed = now;
+      this._zoomAround(1, ev);
+      return;
+    }
+    this._lastTap = tap;
+  }
+
   _dragStart(ev) {
     if (ev.button !== 0) return;
     if (ev.target.closest && ev.target.closest(".map-popup, .map-controls, .map-marker")) return;
     const start = { x: ev.clientX, y: ev.clientY, center: project(this.center.lat, this.center.lon, this.zoom) };
+    const gesture = this._gesture;
     let moved = false;
     this.container.setPointerCapture(ev.pointerId);
     const move = (e) => {
+      if (e.pointerId !== ev.pointerId) return;
+      // A second finger turned the drag into a pinch.
+      if (this._gesture !== gesture) return;
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
       this.center = this._unproject(start.center.x - dx, start.center.y - dy, this.zoom);
       this.render();
     };
-    const up = () => {
+    const up = (e) => {
+      if (e.pointerId !== ev.pointerId) return;
       this.container.removeEventListener("pointermove", move);
       this.container.removeEventListener("pointerup", up);
       this.container.removeEventListener("pointercancel", up);
+      if (this._gesture !== gesture) return;
+      if (moved) this._lastTap = null;
       if (!moved && (this.selected !== null || this.route !== null)) {
         this.selected = null;
         this.route = null;

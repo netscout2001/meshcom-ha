@@ -219,7 +219,9 @@ can change them.
 24 hours, grey: older; a legend on the map explains the colours),
 and below it the heard stations as a sortable table. "Direct neighbours
 only" limits map and table to the stations your node hears directly (the
-browser remembers the choice). A click on a station on
+browser remembers the choice). The map moves with the mouse or one finger and zooms
+with the mouse wheel, a double click or double tap, two fingers (pinch) or
+the +/- buttons. A click on a station on
 the map shows its values (signal, battery, weather), its distance from your
 node (straight line, when both positions are known), for direct neighbours
 "hears me", relay role and neighbour counts, hardware and altitude, and the
