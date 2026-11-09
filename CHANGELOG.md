@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.0
+
+### Features
+- MeshCom panel with the tabs Chat, Nodes and Stations
+- Chat: filters All / Unread / DMs / Groups / Other and a coloured symbol per conversation
+- Chat: the path of a message is shown in its header ("via DJ6PT-2 > DB0HOB-12")
+- Chat: a "New messages" line marks the first unread message; opening a conversation starts there, a button jumps to the newest message
+- Chat: only the messages scroll; the conversation list stays in place
+- Nodes: one card per own node with status, sensors and the switches "Allow sending" and "No MSG All"
+- Stations: sortable table of heard stations; a click opens a direct message, "Map" opens the position on OpenStreetMap
+- Signal values and hops of a station are also updated from its messages, not only from positions
+
 ## v0.4.6
 
 ### Maintenance

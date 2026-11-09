@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from collections import deque
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -34,6 +34,9 @@ CHAT_STORE_VERSION = 1
 CHAT_SAVE_DELAY = 30
 #: Longest text accepted from the stored file (the node limits to 150 bytes).
 _MAX_STORED_TEXT = 300
+
+#: Most hops kept for the "via" line.
+_MAX_PATH = 12
 
 #: Delivery states shown in the panel.
 STATUS_SENT = "sent"
@@ -66,6 +69,8 @@ class ChatMessage:
     rssi: int | None = None
     snr: float | None = None
     status: str | None = None
+    #: Originator and relays, as the node reported them ("via A > B > C").
+    path: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         """JSON-serialisable form."""
@@ -149,6 +154,14 @@ def _parse(raw: Any) -> ChatMessage | None:
     rssi = raw.get("rssi")
     snr = raw.get("snr")
     status = raw.get("status")
+    raw_path = raw.get("path")
+    path = (
+        list(raw_path)
+        if isinstance(raw_path, list)
+        and len(raw_path) <= _MAX_PATH
+        and all(isinstance(hop, str) and is_callsign(hop) for hop in raw_path)
+        else []
+    )
     return ChatMessage(
         id=msg_id,
         conversation=raw["conversation"],
@@ -161,6 +174,7 @@ def _parse(raw: Any) -> ChatMessage | None:
         rssi=rssi if isinstance(rssi, int) and not isinstance(rssi, bool) else None,
         snr=snr if isinstance(snr, (int, float)) and not isinstance(snr, bool) else None,
         status=status if status in _STATUSES else None,
+        path=path,
     )
 
 
@@ -236,6 +250,7 @@ class ChatHistory:
             rssi=None if own else packet.radio.rssi,
             snr=None if own else packet.radio.snr,
             status=STATUS_SENT if own else None,
+            path=[packet.path.originator, *packet.path.relays][:_MAX_PATH],
         )
         self.messages.append(message)
         self._store.async_delay_save(self._data, CHAT_SAVE_DELAY)
