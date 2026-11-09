@@ -1,0 +1,11 @@
+/* Home Assistant default dark theme, the variables the panel uses */
+:root {
+  --primary-background-color: #111111; --secondary-background-color: #282828;
+  --card-background-color: #1c1c1c; --primary-text-color: #e1e1e1; --secondary-text-color: #9b9b9b;
+  --divider-color: rgba(225, 225, 225, .12); --primary-color: #03a9f4; --accent-color: #ff9800;
+  --text-primary-color: #ffffff; --app-header-background-color: #101e24; --app-header-text-color: #e1e1e1;
+  --success-color: #43a047; --warning-color: #ffa600; --error-color: #db4437; --disabled-text-color: #6f6f6f;
+  --ha-card-border-radius: 12px; --ha-card-box-shadow: none;
+}
+html, body { margin: 0; background: #111111; font-family: Roboto, "Noto Sans", "DejaVu Sans", sans-serif; }
+input, button, select { color: inherit; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; }

@@ -44,6 +44,10 @@ READABLE_PARAMETERS: Final = frozenset({"nomsgall", "setgrc", "setcall"})
 WRITABLE_PARAMETERS: Final = {"nomsgall": frozenset({"on", "off"})}
 
 _MAX_RESPONSE_BYTES: Final = 4096
+#: HTML page with firmware and battery; both rows are in its first kilobyte.
+INFO_PAGE: Final = "/?page=info"
+_INFO_FIRMWARE_RE: Final = re.compile(r"<td>Firmware</td><td>Meshcom (\d\.\d{2}) *([a-z]{0,2})<br>")
+_INFO_BATTERY_RE: Final = re.compile(r"<td>Battery</td><td>(\d{1,2}\.\d{3})V \(\d{1,3}%\)")
 #: Login method used by the node.
 AUTH_HMAC: Final = "hmac"
 AUTH_LEGACY: Final = "legacy"
@@ -192,18 +196,28 @@ class MeshComWebClient:
         return (await self._requests([(path, name)]))[name]
 
     async def _requests(self, requests: list[tuple[str, str]]) -> dict[str, str]:
-        """Several requests in one login session."""
-        answers: list[tuple[str, int, str]] = []
+        """Several parameter requests in one login session."""
+        answers = await self._fetch([path for path, _ in requests])
+        return {
+            name: _value(name, status, body)
+            for (_, name), (status, body) in zip(requests, answers, strict=True)
+        }
+
+    async def _fetch(
+        self, paths: list[str], *, pages: frozenset[str] = frozenset()
+    ) -> list[tuple[int, str]]:
+        """GET several paths in one login session; ``pages`` are HTML pages (cut, not rejected)."""
+        answers: list[tuple[int, str]] = []
         async with self._lock:
             session = await self._login()
             token = session.token if session is not None else None
             try:
-                for path, name in requests:
-                    status, body, _ = await self._get(path, token)
-                    answers.append((name, status, body))
+                for path in paths:
+                    status, body, _ = await self._get(path, token, truncate=path in pages)
+                    answers.append((status, body))
             finally:
                 await self._logout(session)
-        return {name: _value(name, status, body) for name, status, body in answers}
+        return answers
 
     async def get_params(self, names: list[str]) -> dict[str, str]:
         """Read several allowlisted parameters with a single login."""
@@ -214,8 +228,24 @@ class MeshComWebClient:
 
     async def get_status(self) -> tuple[bool, list[str]]:
         """``No MSG All`` switch and listening groups, with a single login."""
-        values = await self.get_params(["nomsgall", "setgrc"])
-        return values["nomsgall"] == "on", parse_groups(values["setgrc"])
+        status = await self.get_overview()
+        return status.no_msg_all, status.groups
+
+    async def get_overview(self) -> NodeStatus:
+        """Settings plus firmware and battery voltage, with a single login.
+
+        Firmware and voltage are only on the node's info page (HTML). They
+        are taken from it with fixed patterns; if the page looks different,
+        they stay unknown and the settings are still returned.
+        """
+        answers = await self._fetch(
+            ["/getparam/?nomsgall", "/getparam/?setgrc", INFO_PAGE], pages=frozenset({INFO_PAGE})
+        )
+        no_msg_all = _value("nomsgall", *answers[0])
+        groups = parse_groups(_value("setgrc", *answers[1]))
+        info_status, info_body = answers[2]
+        firmware, voltage = parse_info_page(info_body) if info_status == 200 else (None, None)
+        return NodeStatus(no_msg_all == "on", groups, firmware, voltage)
 
     # --- public API ------------------------------------------------------------
 
@@ -241,6 +271,36 @@ class MeshComWebClient:
         async with self._lock:
             status, _, _ = await self._get("/getparam/?nomsgall")
         return status == 200
+
+
+@dataclass(frozen=True, slots=True)
+class NodeStatus:
+    """What one poll of the web API returns."""
+
+    no_msg_all: bool
+    groups: list[str]
+    #: e.g. "4.40a"; None if the info page could not be read.
+    firmware: str | None = None
+    #: Battery voltage in volts; None without battery or if unknown.
+    battery_voltage: float | None = None
+
+
+def parse_info_page(body: str) -> tuple[str | None, float | None]:
+    """Firmware version and battery voltage from the node's info page.
+
+    Firmware 4.40a prints ``<td>Firmware</td><td>Meshcom 4.40a<br>`` and
+    ``<td>Battery</td><td>4.012V (96%)`` (``USB (no battery)`` without one).
+    Only these fixed shapes are accepted; anything else gives None.
+    """
+    firmware = None
+    if (match := _INFO_FIRMWARE_RE.search(body)) is not None:
+        firmware = match.group(1) + match.group(2)
+    voltage = None
+    if (match := _INFO_BATTERY_RE.search(body)) is not None:
+        value = float(match.group(1))
+        if 0 < value < 10:
+            voltage = value
+    return firmware, voltage
 
 
 def parse_groups(raw: str) -> list[str]:

@@ -493,6 +493,8 @@ async def test_diagnostics_hide_password(
         "last_update_success": True,
         "no_msg_all": False,
         "groups": 2,
+        "firmware_read": True,
+        "battery_voltage_read": True,
     }
 
 

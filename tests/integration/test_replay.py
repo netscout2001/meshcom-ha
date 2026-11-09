@@ -35,6 +35,7 @@ CAPTURE_HOST = "192.0.2.15"
 
 def _capture_entry() -> MockConfigEntry:
     return MockConfigEntry(
+        minor_version=2,
         domain=DOMAIN,
         title="OWN1-12",
         unique_id="100000",

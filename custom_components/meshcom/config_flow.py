@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
-import zlib
 from collections.abc import Mapping
 from typing import Any
 
@@ -88,6 +87,7 @@ from .const import (
     STATION_STALE_DAYS_LIMIT,
 )
 from .hub import async_acquire_hub, async_release_hub
+from .migration import callsign_node_id
 from .stations import station_mode
 
 _LOGGER = logging.getLogger(__name__)
@@ -115,7 +115,8 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MeshCom."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    #: 1.2: node id derived from the callsign for both access paths.
+    MINOR_VERSION = 2
 
     @staticmethod
     @callback
@@ -155,10 +156,11 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
                     host, user_input[CONF_KISS_PORT], callsign, password
                 )
                 if not errors:
-                    await self.async_set_unique_id(f"kiss_{callsign}")
+                    node_id = callsign_node_id(callsign)
+                    await self.async_set_unique_id(f"{node_id:06x}")
                     self._abort_if_unique_id_configured()
                     self._host = host
-                    self._found = (callsign, kiss_node_id(callsign))
+                    self._found = (callsign, node_id)
                     self._kiss = {
                         CONF_ACCESS: ACCESS_KISS,
                         CONF_KISS_PORT: user_input[CONF_KISS_PORT],
@@ -269,7 +271,11 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
         """Node identified; continue with the web password."""
         if self._found is None:
             return self.async_abort(reason="unknown")
-        callsign, node_id = self._found
+        callsign, _ = self._found
+        # Same id for UDP and KISS: switching the access path keeps the
+        # device and its entities.
+        node_id = callsign_node_id(callsign)
+        self._found = (callsign, node_id)
         await self.async_set_unique_id(f"{node_id:06x}")
         self._abort_if_unique_id_configured(updates={CONF_HOST: self._host})
         # The same node may already be set up through KISS.
@@ -374,15 +380,6 @@ def _password_schema(entry: ConfigEntry) -> vol.Schema:
 
 def _is_kiss(entry: ConfigEntry) -> bool:
     return entry.data.get(CONF_ACCESS) == ACCESS_KISS
-
-
-def kiss_node_id(callsign: str) -> int:
-    """A stable 22-bit id for a node reached through KISS.
-
-    KISS frames carry no MeshCom message id, so the node id cannot be learnt
-    from the node's own packets; it is derived from the callsign instead.
-    """
-    return zlib.crc32(callsign.encode()) & 0x3FFFFF
 
 
 def _valid_kiss_password(password: str) -> bool:

@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.6.0
+
+### Migration
+- Node id: derived from the callsign for both access paths (before: the hardware id for UDP, the callsign for KISS). Existing entries are migrated automatically; entity ids, history and entity settings stay. A node moved from KISS to UDP or back keeps its device and entities.
+
+### Features
+- Battery voltage sensor, read from the node's info page via the web API (unknown on USB power)
+- Firmware for KISS nodes, read from the node's info page (KISS frames carry no version)
+- "Last message", "Last sender" and "Last message received" keep their value over a restart; "Messages received/sent" continue counting instead of starting at 0
+- README: screenshots (made from invented data)
+
+### Changes
+- "Last RSSI" and "Last SNR" now belong to the last message (unknown if it came via the server); before, they followed every packet, also beacons of other stations
+- README: installation via HACS search first, custom repository as the fallback
+
+### Security
+- Diagnostics no longer contain the node's callsign or node id: a callsign identifies the licence holder in public registries (HACS review)
+
 ## v0.5.5
 
 ### Fixes

@@ -485,6 +485,7 @@ async def test_panel_kept_while_other_node_loaded(
     hass: HomeAssistant, init_integration: MockConfigEntry
 ) -> None:
     second = MockConfigEntry(
+        minor_version=2,
         domain=DOMAIN,
         title="DO8RE-9",
         unique_id="abcdef",
@@ -607,6 +608,7 @@ async def test_two_nodes_set_up_together(
 ) -> None:
     """Two nodes starting at the same time register the panel once, without errors."""
     second = MockConfigEntry(
+        minor_version=2,
         domain=DOMAIN,
         title="DO8RE-9",
         unique_id="abcdef",
