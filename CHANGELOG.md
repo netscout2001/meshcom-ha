@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.7.3
+
+### Added
+- Stations map: the info box of a station shows its distance from your node (straight line), when both positions are known. Kilometres or miles follow the Home Assistant unit system.
+
 ## v0.7.2
 
 Result of an independent security review of the code and of permanent fuzz
