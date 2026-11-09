@@ -17,11 +17,13 @@ from aiomeshcom.webapi import (
     AUTH_HMAC,
     AUTH_LEGACY,
     MeshComWebClient,
+    NodeStatus,
     WebApiError,
     WebAuthError,
     WebConnectionError,
     WebDowngradeError,
     WebThrottledError,
+    parse_info_page,
 )
 
 PASSWORD = "Secret-Web-19chars"
@@ -54,6 +56,18 @@ class FakeNode:
     legacy: bool = False
     ip_trusted: bool = False
     plaintext_seen: list[str] = field(default_factory=list)
+    #: Battery cell of the info page, as the firmware prints it.
+    battery: str = "4.012V (96%) max 4.240V"
+
+    def info_page(self) -> str:
+        """``/?page=info`` (sub_page_info in web_functions.cpp), padded past 4 KiB."""
+        return (
+            '<div id="content_title"><h1 class="font-bold">Node Information</h1></div>'
+            '<table class="table mw-600"><tr><td>Firmware</td><td>Meshcom 4.40a<br>'
+            "(build: Nov  1 2026 / 10:00:00)<br>(flash-version 1)</td></tr>\n"
+            "<tr><td>Call</td><td>DO8RE-12</td></tr>\n"
+            f"<tr><td>Battery</td><td>{self.battery}</td></tr>\n" + "z" * 6000
+        )
 
     def authorised(self, request: web.Request) -> bool:
         if self.password is None:
@@ -107,6 +121,18 @@ class FakeNode:
             return web.Response(text="")
         return web.Response(status=404)
 
+    async def dispatch(self, request: web.Request) -> web.Response:
+        """``/`` serves the info page next to the login endpoints."""
+        if request.query_string == "page=info":
+            self.requests.append(request.path_qs)
+            return self.page_info(request)
+        return await self.root(request)
+
+    def page_info(self, request: web.Request) -> web.Response:
+        if not self.authorised(request):
+            return web.Response(status=401, text="Unauthorized")
+        return web.Response(text=self.info_page())
+
     def root_legacy(self, request: web.Request) -> web.Response:
         """4.40a: 200 with a big HTML page for the login, 401 for unknown paths."""
         raw = request.raw_path.partition("?")[2]
@@ -156,7 +182,7 @@ def node() -> FakeNode:
 @pytest.fixture
 async def server(node: FakeNode) -> AsyncGenerator[TestServer]:
     app = web.Application()
-    app.router.add_get("/", node.root)
+    app.router.add_get("/", node.dispatch)
     app.router.add_get("/getparam/", node.getparam)
     app.router.add_get("/setparam/", node.setparam)
     test_server = TestServer(app)
@@ -428,3 +454,60 @@ async def test_legacy_open_node(
     assert await web_client.is_open() is True
     assert await web_client.get_param("nomsgall") == "off"
     assert not any("nodepassword" in r or "login" in r for r in node.requests)
+
+
+# --- info page: firmware and battery voltage --------------------------------------
+
+
+async def test_overview_reads_info_page(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """Settings, firmware and voltage come from one login session."""
+    assert await client(session, server).get_overview() == NodeStatus(
+        False, ["262", "26298"], "4.40a", 4.012
+    )
+    assert sum(r.startswith("/?login=") for r in node.requests) == 1
+    assert "/?page=info" in node.requests
+
+
+async def test_overview_legacy_and_usb(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """4.40a login; a node on USB has no battery voltage."""
+    node.legacy = True
+    node.battery = "USB (no battery)"
+    status = await client(session, server).get_overview()
+    assert (status.firmware, status.battery_voltage) == ("4.40a", None)
+    assert node.ip_trusted is False
+
+
+async def test_overview_without_info_page(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """If the page is missing, the settings are still read."""
+    original = node.info_page
+    node.info_page = lambda: "<html>other firmware</html>"  # type: ignore[method-assign]
+    status = await client(session, server).get_overview()
+    assert status == NodeStatus(False, ["262", "26298"], None, None)
+    node.info_page = original  # type: ignore[method-assign]
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            "<tr><td>Firmware</td><td>Meshcom 4.40a<br>(build)</td></tr>"
+            "<tr><td>Battery</td><td>3.912V (80%) max 4.2V</td></tr>",
+            ("4.40a", 3.912),
+        ),
+        ("<td>Firmware</td><td>Meshcom 4.34 <br>", ("4.34", None)),
+        ("<td>Battery</td><td>USB (no battery)</td>", (None, None)),
+        ("<td>Battery</td><td>0.000V (0%)</td>", (None, None)),
+        ("<td>Firmware</td><td>Meshcom <script>alert(1)</script><br>", (None, None)),
+        ("<td>Battery</td><td>4.2V (90%)</td>", (None, None)),
+        ("", (None, None)),
+    ],
+)
+def test_parse_info_page(body: str, expected: tuple[str | None, float | None]) -> None:
+    """Only the fixed shapes of the firmware are accepted."""
+    assert parse_info_page(body) == expected

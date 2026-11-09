@@ -78,6 +78,10 @@ class MeshComNode:
         self.position: PositionPacket | None = None
         self.telemetry: TelemetryPacket | None = None
         self.firmware: Firmware | None = None
+        #: Read from the node's web page: firmware (KISS frames carry none)
+        #: and battery voltage (packets carry only the percentage).
+        self.web_firmware: str | None = None
+        self.battery_voltage: float | None = None
         self.last_message: ReceivedMessage | None = None
         self.last_radio: tuple[int | None, float | None] = (None, None)
         self.messages_received = 0
@@ -187,8 +191,6 @@ class MeshComNode:
             if packet.firmware.minor is not None:
                 self.firmware = packet.firmware
             return
-        if packet.radio.rssi is not None:
-            self.last_radio = (packet.radio.rssi, packet.radio.snr)
         station = self._station(packet.path.originator, now)
         station.hops = packet.path.hops
         station.battery = packet.battery
@@ -247,8 +249,8 @@ class MeshComNode:
                 received=now,
                 via_server=packet.source_type is SourceType.UDP,
             )
-            if packet.radio.rssi is not None:
-                self.last_radio = (packet.radio.rssi, packet.radio.snr)
+            # Signal of this message; unknown if it came via the server.
+            self.last_radio = (packet.radio.rssi, packet.radio.snr)
             self._heard_message(packet, now)
         if (is_own or to_me) and self.message_listener is not None:
             self.message_listener(packet, is_own, now)
@@ -328,11 +330,25 @@ class MeshComNode:
             self.delivery_listener(str(data["msg_id"]), str(data["status"]))
 
     @callback
-    def apply_web_settings(self, *, no_msg_all: bool, groups: list[str]) -> None:
+    def apply_web_settings(
+        self,
+        *,
+        no_msg_all: bool,
+        groups: list[str],
+        firmware: str | None = None,
+        battery_voltage: float | None = None,
+    ) -> None:
         """Take over the node's settings read via the web API."""
-        changed = no_msg_all != self.filter_active or groups != self.node_groups
+        changed = (
+            no_msg_all != self.filter_active
+            or groups != self.node_groups
+            or firmware != self.web_firmware
+            or battery_voltage != self.battery_voltage
+        )
         self.filter_active = no_msg_all
         self.node_groups = list(groups)
+        self.web_firmware = firmware
+        self.battery_voltage = battery_voltage
         if changed:
             # The group select offers the node's groups.
             async_dispatcher_send(self.hass, signal_update(self.entry_id))

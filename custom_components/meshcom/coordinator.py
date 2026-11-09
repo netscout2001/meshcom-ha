@@ -37,6 +37,9 @@ class WebData:
 
     no_msg_all: bool
     groups: list[str]
+    #: From the node's info page; None if unknown.
+    firmware: str | None = None
+    battery_voltage: float | None = None
 
 
 class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
@@ -58,7 +61,7 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
 
     async def _async_update_data(self) -> WebData:
         try:
-            no_msg_all, groups = await self.client.get_status()
+            status = await self.client.get_overview()
         except WebAuthError as err:
             # Starts the reauthentication flow. No retry loop: five failed
             # logins would block the node's login for everyone (F-06).
@@ -85,7 +88,12 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
                 translation_domain=DOMAIN, translation_key="web_unavailable"
             ) from err
         ir.async_delete_issue(self.hass, DOMAIN, self._downgrade_issue_id)
-        return WebData(no_msg_all=no_msg_all, groups=groups)
+        return WebData(
+            no_msg_all=status.no_msg_all,
+            groups=status.groups,
+            firmware=status.firmware,
+            battery_voltage=status.battery_voltage,
+        )
 
     @property
     def _downgrade_issue_id(self) -> str:

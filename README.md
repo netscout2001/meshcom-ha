@@ -13,8 +13,11 @@ stations), dashboards and automations, and switches node settings such as
 Everything sent goes out on amateur radio under your node's callsign. Use it
 only with a valid licence and the node's callsign.
 
+![MeshCom panel: chat with groups, direct messages and unread counters](docs/images/panel-chat.png)
+
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Supported devices](#supported-devices)
 - [Installation](#installation)
 - [Configuration](#configuration)
@@ -28,6 +31,23 @@ only with a valid licence and the node's callsign.
 - [Security](#security)
 - [Development](#development)
 
+## Screenshots
+
+All screenshots use invented data: the callsigns start with `Q`, a prefix
+that is not assigned to any country, so none of them belongs to a real
+station.
+
+| | |
+| --- | --- |
+| ![Chat](docs/images/panel-chat.png) | ![Nodes](docs/images/panel-nodes.png) |
+| **Chat**: conversations for all, groups and direct messages; path and signal of every message, unread counters, "New messages" line | **Nodes**: one card per own node with its sensors and switches |
+| ![Add a node](docs/images/ha-add-node.png) | ![Integration page](docs/images/ha-integration.png) |
+| **Setup**: choose external UDP or KISS over TCP | **Integration page**: one entry per node |
+| ![UDP setup](docs/images/ha-add-udp.png) | ![KISS setup](docs/images/ha-add-kiss.png) |
+| **External UDP** setup | **KISS over TCP** setup |
+| ![Options](docs/images/ha-options.png) | ![Station options](docs/images/ha-options-stations.png) |
+| **Options**: groups, users who may send, own groups only | **Options**: how heard stations appear |
+
 ## Supported devices
 
 - MeshCom nodes with firmware **4.40a** (tested). Firmware 4.34z to 4.40a
@@ -40,9 +60,12 @@ only with a valid licence and the node's callsign.
 
 ### HACS (recommended)
 
-1. In HACS open the menu (three dots) → **Custom repositories**, add
-   `https://github.com/netscout2001/meshcom-ha` with type **Integration**.
-2. Search for **MeshCom**, install it and restart Home Assistant.
+1. In HACS search for **MeshCom**, install it and restart Home Assistant.
+2. If HACS does not find it (the listing in the HACS default repositories is
+   still under review), add it as a custom repository first: HACS menu
+   (three dots) → **Custom repositories**, add
+   `https://github.com/netscout2001/meshcom-ha` with type **Integration**,
+   then search again.
 
 HACS installs the latest release and reports new ones as updates.
 
@@ -70,7 +93,12 @@ On the node set **ext. UDP IP** to the address of Home Assistant and enable
 | UDP port in Home Assistant | 1799; the node always sends to this port |
 
 While Home Assistant waits, click **Send Position** on the node's web page.
-The node is identified by its own beacon (callsign and node id).
+The node is identified by the callsign in its own beacon.
+
+A node is identified by its callsign for both access paths. If you move a
+node from KISS to UDP or back (delete the entry and add it again with the
+other access path), its device and entities come back with the same entity
+ids and history.
 
 ### KISS over TCP (e.g. a mobile node)
 
@@ -88,9 +116,10 @@ password `--passwd`.
 ### Web password (both access paths)
 
 Next, Home Assistant asks for the node's web password (`--webpwd`), used to
-read and switch node settings. Leave it empty if the node has none (not
-recommended, see [Security](#security)). Both passwords can be changed later
-under **Reconfigure**; if the node rejects one, Home Assistant asks for it
+read and switch node settings and to read firmware and battery voltage.
+Leave it empty if the node has none (not recommended, see
+[Security](#security)). Both passwords can be changed later under
+**Reconfigure**; if the node rejects one, Home Assistant asks for it
 (reauthentication).
 
 ### Options
@@ -113,11 +142,12 @@ Changing the options reloads the node.
 | Entity | Notes |
 | --- | --- |
 | Battery, Altitude | From the node's beacon; altitude disabled by default |
-| Last message, Last sender, Last message time | Messages to you, your groups and to all |
-| Messages received, Messages sent | Counters |
+| Battery voltage | From the node's info page (web password needed if one is set); unknown on USB power |
+| Last message, Last sender, Last message time | Messages to you, your groups and to all; kept over a restart |
+| Messages received, Messages sent | Counters; continue over a restart |
 | Stations heard (24 h) | In "data only" mode with the list attribute `stations` |
-| Last RSSI, Last SNR | Disabled by default |
-| Firmware | UDP access only |
+| Last RSSI, Last SNR | Signal of the last message (unknown if it came via the server); disabled by default |
+| Firmware | From the node's beacon (UDP) or its info page (KISS) |
 | Temperature, humidity, pressure, CO2 | Only if the node reports sensor values |
 | Active (binary sensor) | On while the node sends packets |
 | KISS connected (binary sensor) | KISS access only |
@@ -216,8 +246,8 @@ feed it into templates that are executed, commands or scripts.
 ## Data updates
 
 - **UDP and KISS are push:** every packet updates the entities immediately.
-- **Web API** (No MSG All, groups): read every 5 minutes with one login,
-  and right after a change from Home Assistant.
+- **Web API** (No MSG All, groups, firmware, battery voltage): read every
+  5 minutes with one login, and right after a change from Home Assistant.
 - "Active" turns off when the node sent nothing for 65 minutes (beacons
   come every 30 minutes by default).
 
@@ -296,7 +326,8 @@ logger:
 ```
 
 Diagnostics (device page → Download diagnostics) contain no addresses,
-positions, message text or passwords and can be attached to an issue.
+callsigns, positions, message text or passwords and can be attached to an
+issue.
 
 ## Removal
 
@@ -335,6 +366,8 @@ Recommended node settings:
 | `tests/lib/` | Library tests, including anonymised real-world packets |
 | `tests/integration/` | Home Assistant integration tests |
 | `tools/` | Capture anonymiser, brand icon source |
+| `tools/screenshots/` | Demo data and script for the panel screenshots in `docs/images/` (invented data only) |
+| `docs/images/` | Screenshots used in this README |
 
 ```bash
 python -m venv .venv && . .venv/bin/activate

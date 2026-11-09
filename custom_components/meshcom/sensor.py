@@ -19,6 +19,7 @@ from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
+    UnitOfElectricPotential,
     UnitOfLength,
     UnitOfPressure,
     UnitOfTemperature,
@@ -46,6 +47,10 @@ class MeshComSensorDescription(SensorEntityDescription):
     value_fn: Callable[[MeshComNode], StateValue]
     #: Keep the last value over a Home Assistant restart (beacons come every 30 min).
     restore: bool = False
+    #: Restored value belongs to the last message: shown until the next one.
+    message_bound: bool = False
+    #: Counter attribute of the node that continues from the restored value.
+    counter: str | None = None
 
 
 def _last_message_value(node: MeshComNode) -> str | None:
@@ -74,25 +79,33 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
     MeshComSensorDescription(
         key="last_message",
         value_fn=_last_message_value,
+        restore=True,
+        message_bound=True,
     ),
     MeshComSensorDescription(
         key="last_sender",
         value_fn=lambda node: node.last_message.sender if node.last_message else None,
+        restore=True,
+        message_bound=True,
     ),
     MeshComSensorDescription(
         key="last_message_time",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda node: node.last_message.received if node.last_message else None,
+        restore=True,
+        message_bound=True,
     ),
     MeshComSensorDescription(
         key="messages_received",
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda node: node.messages_received,
+        counter="messages_received",
     ),
     MeshComSensorDescription(
         key="messages_sent",
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda node: node.messages_sent,
+        counter="messages_sent",
     ),
     MeshComSensorDescription(
         key="stations_heard",
@@ -107,6 +120,8 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda node: node.last_radio[0],
+        restore=True,
+        message_bound=True,
     ),
     MeshComSensorDescription(
         key="last_snr",
@@ -116,11 +131,23 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda node: node.last_radio[1],
+        restore=True,
+        message_bound=True,
     ),
     MeshComSensorDescription(
         key="firmware",
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda node: str(node.firmware) if node.firmware else None,
+        # Packets carry it on UDP; for KISS it comes from the web page.
+        value_fn=lambda node: str(node.firmware) if node.firmware else node.web_firmware,
+        restore=True,
+    ),
+    MeshComSensorDescription(
+        key="battery_voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=lambda node: node.battery_voltage,
         restore=True,
     ),
 )
@@ -274,12 +301,33 @@ class MeshComSensor(MeshComEntity, RestoreSensor, SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Restore the last value where useful."""
         await super().async_added_to_hass()
-        if self.entity_description.restore and (data := await self.async_get_last_sensor_data()):
-            self._restored = data.native_value  # type: ignore[assignment]
+        description = self.entity_description
+        if not (description.restore or description.counter):
+            return
+        if (data := await self.async_get_last_sensor_data()) is None:
+            return
+        if description.counter is not None:
+            # Counters continue over a restart instead of starting at 0.
+            value = data.native_value
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and 0 <= value < 2**31
+            ):
+                current = getattr(self.node, description.counter)
+                setattr(self.node, description.counter, current + int(value))
+            return
+        self._restored = data.native_value  # type: ignore[assignment]
 
     @property
     def native_value(self) -> StateValue:
         """Current value, or the restored one until the first packet."""
+        if self.entity_description.message_bound:
+            # All values of the last message belong together: the restored
+            # ones are shown until the next message, then only new ones.
+            if self.node.last_message is not None:
+                return self.entity_description.value_fn(self.node)
+            return self._restored
         value = self.entity_description.value_fn(self.node)
         return self._restored if value is None else value
 

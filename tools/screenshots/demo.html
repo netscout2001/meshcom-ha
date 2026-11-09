@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>MeshCom panel demo</title>
+<link rel="stylesheet" href="demo-theme.css"></head>
+<body>
+<script src="demo-data.js"></script>
+<script src="../../custom_components/meshcom/frontend/meshcom-chat-panel.js"></script>
+<script>
+  const panel = document.createElement("meshcom-chat-panel");
+  document.body.append(panel);
+  panel.hass = window.demoHass;
+  window.panel = panel;
+</script>
+</body></html>

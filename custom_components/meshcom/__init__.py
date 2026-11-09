@@ -40,6 +40,7 @@ from .const import (
 from .coordinator import MeshComWebCoordinator
 from .hub import UdpHub, async_acquire_hub, async_release_hub
 from .kiss_link import KissLink
+from .migration import async_migrate_entry as _async_migrate_entry
 from .node import MeshComNode
 from .panel import async_register_panel, async_unregister_panel
 from .services import async_setup_services
@@ -90,6 +91,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async_setup_services(hass)
     async_register_websocket(hass)
     return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
+    """Migrate an entry from an older version."""
+    return await _async_migrate_entry(hass, entry)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
@@ -178,7 +184,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     def _apply_web_settings() -> None:
         # The HA filter follows the node's "No MSG All" switch.
         if web.data is not None:
-            node.apply_web_settings(no_msg_all=web.data.no_msg_all, groups=web.data.groups)
+            node.apply_web_settings(
+                no_msg_all=web.data.no_msg_all,
+                groups=web.data.groups,
+                firmware=web.data.firmware,
+                battery_voltage=web.data.battery_voltage,
+            )
         _async_track_login_method(hass, entry, client)
 
     entry.async_on_unload(web.async_add_listener(_apply_web_settings))

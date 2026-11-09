@@ -220,4 +220,8 @@ async def test_diagnostics_redacted(
     assert "Hallo" not in text
     assert "TST1-12" not in text
     assert diagnostics["entry"]["host"] == "**REDACTED**"
+    # The own callsign identifies the licence holder; the node id derives from it.
+    assert "DO8RE" not in text
+    assert diagnostics["entry"]["callsign"] == "**REDACTED**"
+    assert diagnostics["entry"]["node_id"] == "**REDACTED**"
     assert diagnostics["node"]["messages_received"] == 1

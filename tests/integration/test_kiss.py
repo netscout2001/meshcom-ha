@@ -29,7 +29,6 @@ from custom_components.meshcom.aiomeshcom.kiss_client import (
     KissSendError,
 )
 from custom_components.meshcom.aiomeshcom.parser import parse_object
-from custom_components.meshcom.config_flow import kiss_node_id
 from custom_components.meshcom.const import (
     CONF_ACCESS,
     CONF_CALLSIGN,
@@ -40,6 +39,7 @@ from custom_components.meshcom.const import (
     DOMAIN,
     ISSUE_KISS_AUTH_OFF,
 )
+from custom_components.meshcom.migration import callsign_node_id
 from custom_components.meshcom.sender import async_send_text
 
 from .conftest import OWN_POSITION, FakeWebClient
@@ -146,11 +146,12 @@ def kiss_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         title=CALL,
-        unique_id=f"kiss_{CALL}",
+        unique_id=f"{callsign_node_id(CALL):06x}",
+        minor_version=2,
         data={
             CONF_HOST: KISS_HOST,
             CONF_CALLSIGN: CALL,
-            CONF_NODE_ID: kiss_node_id(CALL),
+            CONF_NODE_ID: callsign_node_id(CALL),
             CONF_ACCESS: "kiss",
             CONF_KISS_PORT: 8001,
             CONF_KISS_PASSWORD: "geheim",
@@ -221,11 +222,11 @@ async def test_flow_kiss(hass: HomeAssistant, kiss: FakeKiss, web_client: FakeWe
     result = await hass.config_entries.flow.async_configure(flow_id, {})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == CALL
-    assert result["result"].unique_id == f"kiss_{CALL}"
+    assert result["result"].unique_id == f"{callsign_node_id(CALL):06x}"
     assert result["data"] == {
         CONF_HOST: KISS_HOST,
         CONF_CALLSIGN: CALL,
-        CONF_NODE_ID: kiss_node_id(CALL),
+        CONF_NODE_ID: callsign_node_id(CALL),
         CONF_ACCESS: "kiss",
         CONF_KISS_PORT: 8001,
         CONF_KISS_PASSWORD: "geheim",
@@ -337,7 +338,8 @@ async def test_connects_and_receives(
     assert node.position is not None
     assert node.position.battery == 88
     assert node.firmware is None  # KISS carries no version
-    assert hass.states.get("sensor.meshcom_do8re_9_firmware").state == "unknown"  # type: ignore[union-attr]
+    # KISS carries no version: it comes from the node's web page.
+    assert hass.states.get("sensor.meshcom_do8re_9_firmware").state == "4.40a"  # type: ignore[union-attr]
     issue_id = f"{ISSUE_KISS_AUTH_OFF}_{entry.entry_id}"
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
     assert entry.runtime_data.hub is None

@@ -121,6 +121,9 @@
       "firmware": {
         "name": "Firmware"
       },
+      "battery_voltage": {
+        "name": "Battery voltage"
+      },
       "temperature_1": {
         "name": "Temperature 1"
       },

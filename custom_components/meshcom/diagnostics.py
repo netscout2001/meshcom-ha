@@ -1,8 +1,10 @@
 """Diagnostics for MeshCom.
 
 Diagnostics are often attached to public GitHub issues. They contain counters
-and node state, but no positions, no message text and no callsigns of other
-stations (security concept C-04, C-12).
+and node state, but no positions, no message text and no callsigns, neither
+of other stations nor of the node itself: a callsign leads to the licence
+holder in public registries (security concept C-04, C-12). The node id is
+redacted too, because it is derived from the callsign.
 """
 
 from __future__ import annotations
@@ -14,10 +16,10 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 
 from . import MeshComConfigEntry
-from .const import CONF_KISS_PASSWORD
+from .const import CONF_CALLSIGN, CONF_KISS_PASSWORD, CONF_NODE_ID
 from .stations import station_mode
 
-TO_REDACT = {CONF_HOST, CONF_PASSWORD, CONF_KISS_PASSWORD}
+TO_REDACT = {CONF_HOST, CONF_PASSWORD, CONF_KISS_PASSWORD, CONF_CALLSIGN, CONF_NODE_ID}
 
 
 async def async_get_config_entry_diagnostics(
@@ -35,6 +37,8 @@ async def async_get_config_entry_diagnostics(
             "last_update_success": runtime.web.last_update_success,
             "no_msg_all": runtime.web.data.no_msg_all if runtime.web.data else None,
             "groups": len(runtime.web.data.groups) if runtime.web.data else None,
+            "firmware_read": bool(runtime.web.data and runtime.web.data.firmware),
+            "battery_voltage_read": bool(runtime.web.data and runtime.web.data.battery_voltage),
         },
         "node": {
             "active": node.active,

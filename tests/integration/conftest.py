@@ -12,6 +12,7 @@ from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.meshcom.aiomeshcom.webapi import NodeStatus
 from custom_components.meshcom.const import (
     CONF_CALLSIGN,
     CONF_LISTEN_PORT,
@@ -19,12 +20,14 @@ from custom_components.meshcom.const import (
     DOMAIN,
 )
 from custom_components.meshcom.hub import UdpHub
+from custom_components.meshcom.migration import callsign_node_id
 
 if TYPE_CHECKING:
     from custom_components.meshcom.aiomeshcom.webapi import WebApiError
 
 NODE_HOST = "192.168.1.50"
-NODE_ID = 0x63CF32D3 >> 10
+#: Node id of DO8RE-12 (derived from the callsign since config entry 1.2).
+NODE_ID = callsign_node_id("DO8RE-12")
 
 
 @pytest.fixture(autouse=True)
@@ -45,6 +48,8 @@ class FakeWebClient:
     def __init__(self) -> None:
         self.no_msg_all = False
         self.groups = ["262", "26298"]
+        self.firmware: str | None = "4.40a"
+        self.battery_voltage: float | None = 4.012
         self.open = False
         self.error: WebApiError | None = None
         self.calls: list[tuple[str, ...]] = []
@@ -82,6 +87,12 @@ class FakeWebClient:
         self.calls.append(("get_status",))
         self._raise()
         return self.no_msg_all, list(self.groups)
+
+    async def get_overview(self) -> NodeStatus:
+        """Settings, firmware and voltage in one session."""
+        self.calls.append(("get_status",))
+        self._raise()
+        return NodeStatus(self.no_msg_all, list(self.groups), self.firmware, self.battery_voltage)
 
     async def get_param(self, name: str) -> str:
         """Read one parameter."""
@@ -219,6 +230,7 @@ def mock_config_entry() -> MockConfigEntry:
         domain=DOMAIN,
         title="DO8RE-12",
         unique_id=f"{NODE_ID:06x}",
+        minor_version=2,
         data={
             CONF_HOST: NODE_HOST,
             CONF_LISTEN_PORT: 1799,
