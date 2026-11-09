@@ -9,7 +9,7 @@ from aiomeshcom.text import clean_text, contains_unwanted
 
 
 @pytest.mark.parametrize(
-    "value", ["DO8RE-12", "DO8RE-9", "HB9AAA-4", "OE1AAA-63", "DB0AAA-12", "DK1AA-98", "DL1AA"]
+    "value", ["QX1YZ-12", "QX1YZ-9", "HB9AAA-4", "OE1AAA-63", "DB0AAA-12", "DK1AA-98", "DL1AA"]
 )
 def test_valid_callsigns(value: str) -> None:
     assert is_callsign(value)
@@ -17,7 +17,7 @@ def test_valid_callsigns(value: str) -> None:
 
 @pytest.mark.parametrize(
     "value",
-    ["do8re-12", "DO8RE-123", "DO8RE-", "AB", "ABCDEFGH", "12345", "ABCDE", "D\u041e8RE-12", ""],
+    ["qx1yz-12", "QX1YZ-123", "QX1YZ-", "AB", "ABCDEFGH", "12345", "ABCDE", "Q\u04251YZ-12", ""],
 )
 def test_invalid_callsigns(value: str) -> None:
     assert not is_callsign(value)

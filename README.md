@@ -41,6 +41,8 @@ station.
 | --- | --- |
 | ![Chat](docs/images/panel-chat.png) | ![Nodes](docs/images/panel-nodes.png) |
 | **Chat**: conversations for all, groups and direct messages; path and signal of every message, unread counters, "New messages" line | **Nodes**: one card per own node with its sensors and switches |
+| ![Stations](docs/images/panel-stations.png) | ![Station on the map](docs/images/panel-stations-popup.png) |
+| **Stations**: map of the own node and the heard stations (colour by last heard), sortable table below | **Map**: a click on a station shows its values, with buttons for a direct message and OpenStreetMap |
 | ![Add a node](docs/images/ha-add-node.png) | ![Integration page](docs/images/ha-integration.png) |
 | **Setup**: choose external UDP or KISS over TCP | **Integration page**: one entry per node |
 | ![UDP setup](docs/images/ha-add-udp.png) | ![KISS setup](docs/images/ha-add-kiss.png) |
@@ -110,7 +112,7 @@ password `--passwd`.
 | --- | --- |
 | Node IP address | Private IPv4 address of the node |
 | KISS port | 8001 |
-| Callsign of the node | The node's own callsign with SSID, e.g. `DO8RE-9` |
+| Callsign of the node | The node's own callsign with SSID, e.g. `QX1YZ-9` |
 | Node password | `--passwd` (1 to 14 characters); empty only if KISS authentication is off |
 
 ### Web password (both access paths)
@@ -226,7 +228,7 @@ count as heard stations.
 | Field | Meaning |
 | --- | --- |
 | `config_entry_id` | The node to send through |
-| `destination` | `*` (all), a group number (`262`) or a callsign (`DO8RE-12`) |
+| `destination` | `*` (all), a group number (`262`) or a callsign (`QX1YZ-12`) |
 | `message` | Text, at most 150 bytes, no line breaks or control characters |
 
 Texts that look like protocol control traffic (`{CET}…`, `RM1 …`, endings

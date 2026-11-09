@@ -45,13 +45,13 @@ BUTTON_DOMAIN, SERVICE_PRESS = "button", "press"
 SWITCH_DOMAIN = "switch"
 TEXT_DOMAIN, SERVICE_SET_VALUE = "text", "set_value"
 
-SWITCH = "switch.meshcom_do8re_12_allow_sending"
-TYPE_SELECT = "select.meshcom_do8re_12_recipient_type"
-GROUP_SELECT = "select.meshcom_do8re_12_group"
-STATION_SELECT = "select.meshcom_do8re_12_station"
-TEXT = "text.meshcom_do8re_12_message"
-SEND = "button.meshcom_do8re_12_send"
-CLEAR = "button.meshcom_do8re_12_clear_message"
+SWITCH = "switch.meshcom_qx1yz_12_allow_sending"
+TYPE_SELECT = "select.meshcom_qx1yz_12_recipient_type"
+GROUP_SELECT = "select.meshcom_qx1yz_12_group"
+STATION_SELECT = "select.meshcom_qx1yz_12_station"
+TEXT = "text.meshcom_qx1yz_12_message"
+SEND = "button.meshcom_qx1yz_12_send"
+CLEAR = "button.meshcom_qx1yz_12_clear_message"
 
 
 @pytest.fixture(autouse=True)
@@ -167,8 +167,8 @@ async def test_rate_limit(
         ("TEST", "x"),
         ("*", "line\nbreak"),
         ("*", "{CET}2026-01-01 00:00:00"),
-        ("DO8RE-9", "RM1 1 reboot 0000000000000000"),
-        ("DO8RE-9", "fake{123"),
+        ("QX1YZ-9", "RM1 1 reboot 0000000000000000"),
+        ("QX1YZ-9", "fake{123"),
         ("*", "ä" * 76),
     ],
 )
@@ -376,7 +376,7 @@ async def test_ack_from_wrong_station_is_ignored(
     """Same sequence, but not from the station the message went to (C-13)."""
     events = async_capture_events(hass, EVENT_DELIVERY)
     inject(init_integration, OWN_MESSAGE)
-    forged = ACK_TEXT.replace(b'"src": "DO8RE-9"', b'"src": "TST7-1"')
+    forged = ACK_TEXT.replace(b'"src": "QX1YZ-9"', b'"src": "TST7-1"')
     inject(init_integration, forged)
     await hass.async_block_till_done()
     assert events == []
@@ -385,10 +385,10 @@ async def test_ack_from_wrong_station_is_ignored(
 async def test_pending_acks_expire(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
     """Old pending messages are dropped, so late acknowledgements do not count."""
     node = init_integration.runtime_data.node
-    node._pending[("DO8RE-9", 1)] = ("00000001", dt_util.utcnow() - timedelta(hours=1))
+    node._pending[("QX1YZ-9", 1)] = ("00000001", dt_util.utcnow() - timedelta(hours=1))
     node._own_ids[1] = dt_util.utcnow() - timedelta(hours=1)
     inject(init_integration, OWN_MESSAGE)
-    assert ("DO8RE-9", 1) not in node._pending
+    assert ("QX1YZ-9", 1) not in node._pending
     assert 1 not in node._own_ids
 
 
@@ -431,6 +431,6 @@ async def test_logbook(hass: HomeAssistant, init_integration: MockConfigEntry) -
         descriptions[event_type] = describer
 
     async_describe_events(hass, _describe)
-    event = MagicMock(data={"node": "DO8RE-12", "destination": "262", "text": "secret"})
+    event = MagicMock(data={"node": "QX1YZ-12", "destination": "262", "text": "secret"})
     entry = descriptions[EVENT_MESSAGE_SENT](event)  # type: ignore[operator]
-    assert entry == {"name": "MeshCom DO8RE-12", "message": "sent a message to 262"}
+    assert entry == {"name": "MeshCom QX1YZ-12", "message": "sent a message to 262"}

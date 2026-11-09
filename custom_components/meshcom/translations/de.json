@@ -58,7 +58,7 @@
           "kiss_password": "Node-Passwort (--passwd)"
         },
         "data_description": {
-          "callsign": "Das eigene Rufzeichen des Nodes mit SSID, z. B. DO8RE-9. Nur Nachrichten von diesem Rufzeichen gelten als vom Node gesendet.",
+          "callsign": "Das eigene Rufzeichen des Nodes mit SSID, z. B. QX1YZ-9. Nur Nachrichten von diesem Rufzeichen gelten als vom Node gesendet.",
           "kiss_password": "Nur leer lassen, wenn die KISS-Authentifizierung am Node aus ist."
         }
       }

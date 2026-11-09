@@ -42,7 +42,7 @@ class FakeNode:
         default_factory=lambda: {
             "nomsgall": "off",
             "setgrc": "262;26298;0;0;0;0;",
-            "setcall": "DO8RE-12",
+            "setcall": "QX1YZ-12",
             "setpwd": "wlan-secret",
         }
     )
@@ -65,7 +65,7 @@ class FakeNode:
             '<div id="content_title"><h1 class="font-bold">Node Information</h1></div>'
             '<table class="table mw-600"><tr><td>Firmware</td><td>Meshcom 4.40a<br>'
             "(build: Nov  1 2026 / 10:00:00)<br>(flash-version 1)</td></tr>\n"
-            "<tr><td>Call</td><td>DO8RE-12</td></tr>\n"
+            "<tr><td>Call</td><td>QX1YZ-12</td></tr>\n"
             f"<tr><td>Battery</td><td>{self.battery}</td></tr>\n" + "z" * 6000
         )
 

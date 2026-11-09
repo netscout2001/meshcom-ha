@@ -143,7 +143,7 @@ def test_unknown_scalar_keys_are_ignored() -> None:
         ({"src": "TST1-12," * 20}, "path_length"),
         ({"src": "tst1-12"}, "path_callsign"),
         # Cyrillic "\u041e" instead of Latin "O"
-        ({"src": "D\u041e8RE-12"}, "path_callsign"),
+        ({"src": "Q\u04251YZ-12"}, "path_callsign"),
         ({"src": "TST1-12,<script>"}, "path_callsign"),
         ({"src": "TST1-123"}, "path_callsign"),
         ({"msg_id": "XYZ"}, "field_msg_id"),

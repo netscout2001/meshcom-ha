@@ -82,7 +82,7 @@ async def test_history_conversations(
     """Messages are grouped into conversations; foreign DMs stay out."""
     inject(init_integration, INCOMING_MESSAGE)  # group 262
     inject(init_integration, message("*", "40000201", text="an alle"))
-    inject(init_integration, message("DO8RE-12", "40000202", src="DB0AAA-1", text="an mich"))
+    inject(init_integration, message("QX1YZ-12", "40000202", src="DB0AAA-1", text="an mich"))
     inject(init_integration, message("DB0BBB-1", "40000203", src="DB0AAA-1", text="fremd"))
     inject(init_integration, message("TEST", "40000204", text="anderer"))
     inject(init_integration, OWN_MESSAGE)
@@ -97,7 +97,7 @@ async def test_history_conversations(
         "all",
         "dm:DB0AAA-1",
         "other:TEST",
-        "dm:DO8RE-9",
+        "dm:QX1YZ-9",
     ]
     incoming = messages[0]
     assert incoming["text"] == "Hallo <b>Welt</b>"  # stored as is, rendered as text
@@ -140,7 +140,7 @@ async def test_subscription_messages_and_delivery(
     inject(init_integration, OWN_MESSAGE)
     event = await client.receive_json()
     assert event["id"] == sub_id
-    assert event["event"]["message"]["conversation"] == "dm:DO8RE-9"
+    assert event["event"]["message"]["conversation"] == "dm:QX1YZ-9"
     msg_id = event["event"]["message"]["id"]
 
     inject(init_integration, ACK_TEXT)
@@ -212,7 +212,7 @@ async def test_released_user_reads_and_sends(
     (node,) = nodes["result"]["nodes"]
     assert {key: node[key] for key in ("entry_id", "callsign", "groups", "sending_enabled")} == {
         "entry_id": init_integration.entry_id,
-        "callsign": "DO8RE-12",
+        "callsign": "QX1YZ-12",
         "groups": ["262", "26298", "9"],
         "sending_enabled": True,
     }
@@ -273,7 +273,7 @@ async def test_unknown_entry(
 @pytest.mark.parametrize(
     ("destination", "text", "code"),
     [
-        ("DO8RE-9", "a\nb", "invalid_message"),
+        ("QX1YZ-9", "a\nb", "invalid_message"),
         ("not valid", "x", "invalid_message"),
     ],
 )
@@ -487,7 +487,7 @@ async def test_panel_kept_while_other_node_loaded(
     second = MockConfigEntry(
         minor_version=2,
         domain=DOMAIN,
-        title="DO8RE-9",
+        title="QX1YZ-9",
         unique_id="abcdef",
         data={**init_integration.data, "host": "192.168.1.51", "node_id": 0xABCDEF},
     )
@@ -610,7 +610,7 @@ async def test_two_nodes_set_up_together(
     second = MockConfigEntry(
         minor_version=2,
         domain=DOMAIN,
-        title="DO8RE-9",
+        title="QX1YZ-9",
         unique_id="abcdef",
         data={**mock_config_entry.data, "host": "192.168.1.51", "node_id": 0xABCDEF},
     )

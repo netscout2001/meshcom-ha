@@ -24,7 +24,7 @@ from custom_components.meshcom.migration import async_migrate_entry, callsign_no
 
 from .conftest import INCOMING_MESSAGE, NODE_HOST, NODE_ID, FakeWebClient, datagram, inject
 
-PREFIX = "sensor.meshcom_do8re_12_"
+PREFIX = "sensor.meshcom_qx1yz_12_"
 
 STATION_POSITION = datagram(
     src_type="lora",
@@ -178,13 +178,13 @@ OLD_UDP_ID = 0x63CF32D3 >> 10
 def _old_udp_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        title="DO8RE-12",
+        title="QX1YZ-12",
         unique_id=f"{OLD_UDP_ID:06x}",
         minor_version=1,
         data={
             CONF_HOST: NODE_HOST,
             CONF_LISTEN_PORT: 1799,
-            CONF_CALLSIGN: "DO8RE-12",
+            CONF_CALLSIGN: "QX1YZ-12",
             CONF_NODE_ID: OLD_UDP_ID,
         },
     )
@@ -209,7 +209,7 @@ async def test_migrate_udp_node_id(hass: HomeAssistant) -> None:
         f"{old}_battery",
         config_entry=entry,
         device_id=node_device.id,
-        suggested_object_id="meshcom_do8re_12_battery",
+        suggested_object_id="meshcom_qx1yz_12_battery",
     )
     entities.async_update_entity(battery.entity_id, name="Akku Dachboden")
 
@@ -235,7 +235,7 @@ async def test_migrate_udp_node_id(hass: HomeAssistant) -> None:
 
 async def test_migrate_kiss_unique_id(hass: HomeAssistant) -> None:
     """KISS entries keep their ids; only the entry's unique id changes."""
-    call = "DO8RE-9"
+    call = "QX1YZ-9"
     entry = MockConfigEntry(
         domain=DOMAIN,
         title=call,

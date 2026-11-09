@@ -190,7 +190,7 @@ class TextMessagePacket:
 
 @dataclass(frozen=True, slots=True)
 class AckMessagePacket:
-    """An acknowledgement sent as text, e.g. ``"DO8RE-12 :ack724"``.
+    """An acknowledgement sent as text, e.g. ``"QX1YZ-12 :ack724"``.
 
     Any station can send such a text. It may only be applied to an open own
     message with the same sequence number that was sent to ``path.originator``
