@@ -70,6 +70,18 @@
       battery: rnd() > 0.4 ? Math.round(60 + rnd() * 40) : null,
       latitude: located ? centre.lat + (rnd() - 0.5) * 0.32 : null,
       longitude: located ? centre.lon + (rnd() - 0.5) * 1.3 : null,
+      // Direct neighbours (MHeard list of the node): the first few stations.
+      ...(i < 6 || callsign === mobile ? {
+        direct: true,
+        hardware: ["TBEAM_AXP2101", "HELTEC_V3", "RAK4631", "TBEAM_1W"][i % 4],
+        altitude: Math.round(400 + rnd() * 1200),
+        hears_me_snr: i === 4 ? null : Math.round(8 - rnd() * 20),
+        relay_role: i === 1 ? "super" : i === 3 ? "needed" : "redundant",
+        it_hears: Math.round(3 + rnd() * 30),
+        only_it_hears: i === 1 ? 9 : i === 3 ? 2 : 0,
+        neighbours: Math.round(2 + rnd() * 30),
+        gateway: i === 2,
+      } : { direct: false }),
     };
   });
 

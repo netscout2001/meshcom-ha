@@ -26,6 +26,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from .chat import is_foreign_group, own_groups
 from .const import (
@@ -134,6 +135,7 @@ def ws_stations(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str
     stations = sorted(
         entry.runtime_data.node.stations.values(), key=lambda station: station.last_heard
     )[-STATION_LIST_LIMIT:]
+    now = dt_util.utcnow()
     connection.send_result(
         msg["id"],
         {
@@ -156,6 +158,19 @@ def ws_stations(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str
                         station.weather_time.isoformat() if station.weather_time else None
                     ),
                     "path": list(station.path),
+                    # From the node's MHeard list (web API).
+                    "direct": station.is_direct(now),
+                    "direct_heard": (
+                        station.direct_heard.isoformat() if station.direct_heard else None
+                    ),
+                    "hardware": station.hardware,
+                    "altitude": station.altitude,
+                    "hears_me_snr": station.hears_me_snr,
+                    "relay_role": station.relay_role,
+                    "only_it_hears": station.only_it_hears,
+                    "it_hears": station.it_hears,
+                    "neighbours": station.neighbours,
+                    "gateway": station.gateway,
                 }
                 for station in reversed(stations)
             ],

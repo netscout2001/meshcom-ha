@@ -27,6 +27,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import MeshComConfigEntry
 from .const import (
@@ -418,6 +419,7 @@ class MeshComStationsHeardSensor(MeshComSensor):
         if not self._with_list:
             return None
         stations = list(self.node.stations.values())[-STATION_ATTRIBUTE_LIMIT:]
+        now = dt_util.utcnow()
         return {
             "stations": [
                 {
@@ -429,6 +431,7 @@ class MeshComStationsHeardSensor(MeshComSensor):
                     "battery": station.battery or None,
                     "latitude": station.latitude,
                     "longitude": station.longitude,
+                    "direct": station.is_direct(now),
                 }
                 for station in reversed(stations)
             ]

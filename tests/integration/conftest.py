@@ -13,7 +13,7 @@ from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.meshcom.aiomeshcom.webapi import NodeStatus
+from custom_components.meshcom.aiomeshcom.webapi import MHeardEntry, NodeStatus
 from custom_components.meshcom.const import (
     CONF_CALLSIGN,
     CONF_LISTEN_PORT,
@@ -51,6 +51,8 @@ class FakeWebClient:
         self.groups = ["262", "26298"]
         self.firmware: str | None = "4.40a"
         self.battery_voltage: float | None = 4.012
+        #: MHeard list of the node; None: page unreadable.
+        self.mheard: list[MHeardEntry] | None = None
         self.open = False
         self.error: WebApiError | None = None
         self.calls: list[tuple[str, ...]] = []
@@ -93,7 +95,13 @@ class FakeWebClient:
         """Settings, firmware and voltage in one session."""
         self.calls.append(("get_status",))
         self._raise()
-        return NodeStatus(self.no_msg_all, list(self.groups), self.firmware, self.battery_voltage)
+        return NodeStatus(
+            self.no_msg_all,
+            list(self.groups),
+            self.firmware,
+            self.battery_voltage,
+            None if self.mheard is None else list(self.mheard),
+        )
 
     async def get_param(self, name: str) -> str:
         """Read one parameter."""

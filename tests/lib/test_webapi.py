@@ -17,6 +17,7 @@ from aiomeshcom.webapi import (
     AUTH_HMAC,
     AUTH_LEGACY,
     MeshComWebClient,
+    MHeardEntry,
     NodeStatus,
     WebApiError,
     WebAuthError,
@@ -24,7 +25,9 @@ from aiomeshcom.webapi import (
     WebDowngradeError,
     WebThrottledError,
     parse_info_page,
+    parse_mheard_page,
 )
+from tests.lib.mheard_html import Card, card, page
 
 PASSWORD = "Secret-Web-19chars"
 
@@ -58,6 +61,8 @@ class FakeNode:
     plaintext_seen: list[str] = field(default_factory=list)
     #: Battery cell of the info page, as the firmware prints it.
     battery: str = "4.012V (96%) max 4.240V"
+    #: Stations on the MHeard page.
+    mheard: list[Card] = field(default_factory=lambda: [Card("QR1ABC-12")])
 
     def info_page(self) -> str:
         """``/?page=info`` (sub_page_info in web_functions.cpp), padded past 4 KiB."""
@@ -126,6 +131,12 @@ class FakeNode:
         if request.query_string == "page=info":
             self.requests.append(request.path_qs)
             return self.page_info(request)
+        if request.query_string == "page=mheard":
+            self.requests.append(request.path_qs)
+            if not self.authorised(request):
+                # The firmware answers a page request with its login page.
+                return web.Response(text="<h1>Login</h1><form>password</form>")
+            return web.Response(text=page(self.mheard))
         return await self.root(request)
 
     def page_info(self, request: web.Request) -> web.Response:
@@ -463,11 +474,13 @@ async def test_overview_reads_info_page(
     session: aiohttp.ClientSession, server: TestServer, node: FakeNode
 ) -> None:
     """Settings, firmware and voltage come from one login session."""
-    assert await client(session, server).get_overview() == NodeStatus(
-        False, ["262", "26298"], "4.40a", 4.012
-    )
+    status = await client(session, server).get_overview()
+    assert status == NodeStatus(False, ["262", "26298"], "4.40a", 4.012, status.mheard)
+    assert status.mheard is not None
+    assert [e.callsign for e in status.mheard] == ["QR1ABC-12"]
     assert sum(r.startswith("/?login=") for r in node.requests) == 1
     assert "/?page=info" in node.requests
+    assert "/?page=mheard" in node.requests
 
 
 async def test_overview_legacy_and_usb(
@@ -488,7 +501,7 @@ async def test_overview_without_info_page(
     original = node.info_page
     node.info_page = lambda: "<html>other firmware</html>"  # type: ignore[method-assign]
     status = await client(session, server).get_overview()
-    assert status == NodeStatus(False, ["262", "26298"], None, None)
+    assert status == NodeStatus(False, ["262", "26298"], None, None, status.mheard)
     node.info_page = original  # type: ignore[method-assign]
 
 
@@ -511,3 +524,178 @@ async def test_overview_without_info_page(
 def test_parse_info_page(body: str, expected: tuple[str | None, float | None]) -> None:
     """Only the fixed shapes of the firmware are accepted."""
     assert parse_info_page(body) == expected
+
+
+# --- MHeard page -------------------------------------------------------------------
+
+
+def test_parse_mheard_page() -> None:
+    """Every field of a card, as the firmware prints it."""
+    body = page(
+        [
+            Card(
+                "QR1ABC-12",
+                age_min=0,
+                plt="@",
+                hw="TBEAM_AXP2101",
+                rssi=-116,
+                snr=-8,
+                lat=50.123,
+                lon=8.456,
+                alt=491,
+                hm_snr=-11,
+                role="R",
+                ex=0,
+                nb=7,
+                ncnt=6,
+            ),
+            Card(
+                "QB0RLY-12",
+                age_min=4,
+                plt="!",
+                hw="RAK4631",
+                fw="-",
+                rssi=None,
+                snr=None,
+                dist=None,
+                lat=None,
+                lon=None,
+                alt=None,
+                hm_snr=None,
+                role="S",
+                ex=1,
+                nb=1,
+                ncnt=1,
+                gw=True,
+            ),
+            Card("QS9XYZ-1", age_min=3, plt=":", hw="no info", fw="v4.35", lat=-33.5, lon=-70.25),
+        ]
+    )
+    assert parse_mheard_page(body) == [
+        MHeardEntry(
+            callsign="QR1ABC-12",
+            age_minutes=0,
+            last_frame="heartbeat",
+            hardware="TBEAM_AXP2101",
+            firmware="4.40a",
+            rssi=-116,
+            snr=-8,
+            latitude=50.123,
+            longitude=8.456,
+            altitude=491,
+            hears_me_snr=-11,
+            relay_role="redundant",
+            only_it_hears=0,
+            it_hears=7,
+            neighbours=6,
+            gateway=False,
+        ),
+        MHeardEntry(
+            callsign="QB0RLY-12",
+            age_minutes=4,
+            last_frame="position",
+            hardware="RAK4631",
+            firmware=None,
+            rssi=None,
+            snr=None,
+            latitude=None,
+            longitude=None,
+            altitude=None,
+            hears_me_snr=None,
+            relay_role="super",
+            only_it_hears=1,
+            it_hears=1,
+            neighbours=1,
+            gateway=True,
+        ),
+        MHeardEntry(
+            callsign="QS9XYZ-1",
+            age_minutes=3,
+            last_frame="text",
+            hardware=None,
+            firmware="4.35",
+            rssi=-110,
+            snr=-8,
+            latitude=-33.5,
+            longitude=-70.25,
+            altitude=491,
+            hears_me_snr=-11,
+            relay_role="redundant",
+            only_it_hears=0,
+            it_hears=7,
+            neighbours=6,
+            gateway=False,
+        ),
+    ]
+
+
+def test_parse_mheard_page_empty_and_foreign() -> None:
+    """No stations is an empty list; another page (login) is None."""
+    assert parse_mheard_page(page([])) == []
+    assert parse_mheard_page("<h1>Login</h1>") is None
+    assert parse_mheard_page("") is None
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        Card("<script>alert(1)</script>"),  # not a callsign
+        Card("QR1ABC-12", age_min=99999),  # age out of range
+        Card("Q&lt;b&gt;-1"),  # escaped markup is no callsign either
+    ],
+)
+def test_parse_mheard_page_rejects_cards(bad: Card) -> None:
+    """A card without a valid callsign or age is skipped; the others stay."""
+    entries = parse_mheard_page(page([bad, Card("QB0RLY-12")]))
+    assert entries is not None
+    assert [e.callsign for e in entries] == ["QB0RLY-12"]
+
+
+def test_parse_mheard_page_field_values_checked() -> None:
+    """Odd values become None instead of reaching Home Assistant."""
+    entries = parse_mheard_page(
+        page([Card("QR1ABC-12", hw="<b>x</b>", fw="v9.9", rssi=-999, snr=99, lat=95.0, alt=123456)])
+    )
+    assert entries is not None
+    (entry,) = entries
+    assert (entry.hardware, entry.firmware, entry.rssi, entry.snr) == (None, None, None, None)
+    assert (entry.latitude, entry.longitude, entry.altitude) == (None, None, None)
+
+
+def test_parse_mheard_page_cut_and_duplicate() -> None:
+    """A card cut off at the end is ignored, a repeated callsign counted once."""
+    full = page([Card("QR1ABC-12"), Card("QR1ABC-12", age_min=9), Card("QB0RLY-12")])
+    cut = full[: full.rindex("Gateway")]
+    entries = parse_mheard_page(cut)
+    assert entries is not None
+    assert [(e.callsign, e.age_minutes) for e in entries] == [("QR1ABC-12", 0)]
+
+
+def test_parse_mheard_page_entry_limit() -> None:
+    """At most 128 stations are taken from one page."""
+    cards = [Card(f"QA{i // 26 % 10}{chr(65 + i % 26)}{chr(65 + i // 260)}-1") for i in range(150)]
+    entries = parse_mheard_page(page(cards))
+    assert entries is not None
+    assert len(entries) == 128
+
+
+async def test_overview_large_mheard_page(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """A long list arrives completely (several network reads), the settings still work."""
+    node.mheard = [Card(f"QA{i % 10}{chr(65 + i // 10)}-12") for i in range(100)]
+    status = await client(session, server).get_overview()
+    assert status.mheard is not None
+    assert len(status.mheard) == 100
+    assert len(page(node.mheard)) > 64 * 1024
+
+
+def test_mheard_card_helper_matches_shape() -> None:
+    """The test renderer keeps the firmware's field order (guard for the fixture)."""
+    html = card(Card("QR1ABC-12"))
+    assert (
+        html.index("Last frame")
+        < html.index("Altitude")
+        < html.index("Last heard")
+        < html.index("Gateway")
+    )
