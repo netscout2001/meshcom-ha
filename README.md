@@ -154,11 +154,18 @@ stations, signal values and the switches "Allow sending" and "No MSG All".
 The switches use the normal Home Assistant services, so only administrators
 can change them.
 
-**Stations**: the heard stations as a sortable table. A click on a callsign
-opens a direct message, "Map" opens the position on OpenStreetMap in a new
-tab. The panel embeds no map itself: map tiles from a third party would
-reveal your IP address to that server on every visit. With the station mode
-"One device per station" the stations also appear on the Home Assistant map.
+**Stations**: a map with your node and every station that sent a position
+(green: heard within the last hour, orange: within 24 hours, grey: older),
+and below it the heard stations as a sortable table. A click on a station on
+the map shows its values with buttons for a direct message and for
+OpenStreetMap; a click on a callsign in the table opens a direct message,
+"Map" shows the station on the map.
+
+The map tiles are loaded from OpenStreetMap (`tile.openstreetmap.org`) only
+while the Stations tab is open, so the OpenStreetMap servers see your IP
+address and the map area you look at. The panel itself loads no other code
+from outside. With the station mode "One device per station" the stations
+also appear on the Home Assistant map.
 
 Administrators and the users released in the options may use the panel.
 

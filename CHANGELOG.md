@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.2
+
+### Features
+- Stations tab: map with the own node and all stations that sent a position (OpenStreetMap tiles, colour by last heard, zoom, drag, popup with direct message). "Map" in the table now shows the station on this map. The map is part of the panel; no external script is loaded, the tiles are loaded only while the tab is open.
+
+### Changes
+- Stations tab: the hint about the Home Assistant map is removed
+
 ## v0.5.1
 
 ### Fixes

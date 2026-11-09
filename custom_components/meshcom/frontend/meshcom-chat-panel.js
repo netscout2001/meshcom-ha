@@ -45,8 +45,9 @@ const TEXT = {
     access: { udp: "External UDP", kiss: "KISS over TCP" },
     map: "Map",
     stationsOff: "Stations are switched off in the options of this node.",
-    mapHintData: "For a real map in Home Assistant: with the station mode \"One device per station\" (node options) the stations appear on the normal Home Assistant map, without any third-party server.",
-    mapHintEntities: "The stations also appear on the normal Home Assistant map.",
+    message: "Message",
+    osm: "OpenStreetMap",
+    ownNode: "own node",
     noStations: "No stations heard yet.",
     search: "Search callsign",
     refresh: "Refresh",
@@ -99,8 +100,9 @@ const TEXT = {
     access: { udp: "Externes UDP", kiss: "KISS \u00fcber TCP" },
     map: "Karte",
     stationsOff: "Stationen sind in den Optionen dieses Nodes ausgeschaltet.",
-    mapHintData: "F\u00fcr eine echte Karte in Home Assistant: Mit dem Stationsmodus \u201eEin Ger\u00e4t pro Station\u201c (Optionen des Nodes) erscheinen die Stationen auf der normalen Home-Assistant-Karte, ohne fremden Server.",
-    mapHintEntities: "Die Stationen erscheinen auch auf der normalen Home-Assistant-Karte.",
+    message: "Nachricht",
+    osm: "OpenStreetMap",
+    ownNode: "eigener Node",
     noStations: "Noch keine Stationen geh\u00f6rt.",
     search: "Rufzeichen suchen",
     refresh: "Aktualisieren",
@@ -256,8 +258,34 @@ const STYLE = `
 .toggle { font: inherit; border-radius: 14px; padding: 2px 12px; border: 1px solid var(--divider-color);
   background: none; color: inherit; }
 .toggle.on { background: var(--primary-color, #03a9f4); color: var(--text-primary-color, #fff); border-color: var(--primary-color, #03a9f4); }
-.hint { font-size: 13px; opacity: .8; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px;
-  border-left: 3px solid var(--primary-color, #03a9f4); background: var(--secondary-background-color); }
+.map { position: relative; height: 45vh; min-height: 260px; overflow: hidden; margin-bottom: 12px;
+  border-radius: var(--ha-card-border-radius, 12px); background: #aad3df; touch-action: none; cursor: grab; user-select: none; }
+.map[hidden] { display: none; }
+.map-tiles, .map-markers { position: absolute; inset: 0; }
+.map-tile { position: absolute; left: 0; top: 0; width: 256px; height: 256px; pointer-events: none; }
+.map.dark .map-tile { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+.map-marker { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.map-marker .dot { width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 0 2px rgba(0,0,0,.6); flex-shrink: 0; }
+.map-marker .label { margin-top: -6px; font-size: 11px; font-weight: bold; color: #111; white-space: nowrap;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+.map-marker.fresh .dot { background: var(--success-color, #43a047); }
+.map-marker.recent .dot { background: var(--warning-color, #ff9800); }
+.map-marker.old .dot { background: #9e9e9e; }
+.map-marker.own .dot { background: var(--primary-color, #03a9f4); width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+.map-marker.selected { z-index: 2; }
+.map-marker.selected .dot { transform: scale(1.4); }
+.map-popup { position: absolute; left: 0; top: 0; z-index: 3; margin: 12px 0 0 -90px; width: 180px; padding: 8px 10px;
+  background: var(--card-background-color, #fff); color: var(--primary-text-color); border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35); font-size: 12px; cursor: default; }
+.map-popup[hidden] { display: none; }
+.map-popup .title { font-weight: bold; font-size: 14px; }
+.map-popup .buttons { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.map-controls { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 4; }
+.map-controls button { width: 30px; height: 30px; border: none; border-radius: 6px; font-size: 18px; line-height: 1;
+  background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.map-attribution { position: absolute; right: 0; bottom: 0; z-index: 4; font-size: 10px; padding: 1px 5px;
+  background: rgba(255,255,255,.75); color: #333; }
 .stationbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .stationbar input { flex: 1; max-width: 260px; font: inherit; padding: 6px; }
 table { width: 100%; border-collapse: collapse; background: var(--card-background-color); font-size: 14px; }
@@ -273,6 +301,257 @@ button { font: inherit; cursor: pointer; }
   .toolbar .title { display: none; }
 }
 `;
+
+// --- small tile map --------------------------------------------------------------
+// OpenStreetMap tiles as plain images; markers and labels are elements with
+// textContent. Tile addresses are built from three integers only.
+
+const TILE_URL = "https://tile.openstreetmap.org/";
+const TILE = 256;
+const MIN_ZOOM = 2;
+const MAX_ZOOM = 18;
+const MAX_LAT = 85.0511;
+
+function project(lat, lon, zoom) {
+  const size = TILE * 2 ** zoom;
+  const la = (Math.max(-MAX_LAT, Math.min(MAX_LAT, lat)) * Math.PI) / 180;
+  return {
+    x: ((lon + 180) / 360) * size,
+    y: ((1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2) * size,
+  };
+}
+
+function validPosition(lat, lon) {
+  return (
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && !(lat === 0 && lon === 0)
+  );
+}
+
+class TileMap {
+  constructor(container, popupFor) {
+    this.container = container;
+    this.popupFor = popupFor;
+    this.zoom = 6;
+    this.center = { lat: 48.0, lon: 11.5 };
+    this.markers = [];
+    this.selected = null;
+    this.tiles = new Map();
+    this.fitted = false;
+
+    this.tileLayer = el("div", "map-tiles");
+    this.markerLayer = el("div", "map-markers");
+    this.popup = el("div", "map-popup");
+    this.popup.hidden = true;
+    const controls = el("div", "map-controls");
+    const plus = el("button", null, "+");
+    const minus = el("button", null, "\u2212");
+    const fit = el("button", null, "\u25a2");
+    plus.addEventListener("click", () => this.zoomBy(1));
+    minus.addEventListener("click", () => this.zoomBy(-1));
+    fit.addEventListener("click", () => this.fit());
+    controls.append(plus, minus, fit);
+    const attribution = el("div", "map-attribution", "\u00a9 OpenStreetMap contributors");
+    container.append(this.tileLayer, this.markerLayer, this.popup, controls, attribution);
+
+    container.addEventListener("pointerdown", (ev) => this._dragStart(ev));
+    container.addEventListener("wheel", (ev) => this._wheel(ev), { passive: false });
+    container.addEventListener("dblclick", (ev) => {
+      if (ev.target.closest && ev.target.closest(".map-popup, .map-controls")) return;
+      this._zoomAround(1, ev);
+    });
+    this._resize = new ResizeObserver(() => this.render());
+    this._resize.observe(container);
+  }
+
+  destroy() {
+    this._resize.disconnect();
+  }
+
+  get width() {
+    return this.container.clientWidth;
+  }
+
+  get height() {
+    return this.container.clientHeight;
+  }
+
+  _origin() {
+    const c = project(this.center.lat, this.center.lon, this.zoom);
+    return { x: c.x - this.width / 2, y: c.y - this.height / 2 };
+  }
+
+  _unproject(x, y, zoom) {
+    const size = TILE * 2 ** zoom;
+    const lon = (x / size) * 360 - 180;
+    const n = Math.PI - (2 * Math.PI * y) / size;
+    const lat = (180 / Math.PI) * Math.atan(Math.sinh(n));
+    return { lat: Math.max(-MAX_LAT, Math.min(MAX_LAT, lat)), lon: ((((lon + 180) % 360) + 360) % 360) - 180 };
+  }
+
+  setMarkers(markers) {
+    this.markers = markers.filter((m) => validPosition(m.lat, m.lon));
+    if (!this.fitted && this.markers.length && this.width) this.fit();
+    else this.render();
+  }
+
+  fit() {
+    if (!this.markers.length || !this.width) return;
+    this.fitted = true;
+    const pad = 40;
+    let zoom = 13;
+    for (; zoom > MIN_ZOOM; zoom -= 1) {
+      const points = this.markers.map((m) => project(m.lat, m.lon, zoom));
+      const xs = points.map((p) => p.x);
+      const ys = points.map((p) => p.y);
+      if (Math.max(...xs) - Math.min(...xs) <= this.width - 2 * pad &&
+          Math.max(...ys) - Math.min(...ys) <= this.height - 2 * pad) break;
+    }
+    const points = this.markers.map((m) => project(m.lat, m.lon, zoom));
+    const x = (Math.min(...points.map((p) => p.x)) + Math.max(...points.map((p) => p.x))) / 2;
+    const y = (Math.min(...points.map((p) => p.y)) + Math.max(...points.map((p) => p.y))) / 2;
+    this.zoom = zoom;
+    this.center = this._unproject(x, y, zoom);
+    this.render();
+  }
+
+  focus(id) {
+    const marker = this.markers.find((m) => m.id === id);
+    if (!marker) return;
+    this.zoom = Math.max(this.zoom, 11);
+    this.center = { lat: marker.lat, lon: marker.lon };
+    this.selected = id;
+    this.render();
+  }
+
+  zoomBy(delta) {
+    this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom + delta));
+    this.render();
+  }
+
+  _zoomAround(delta, ev) {
+    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom + delta));
+    if (zoom === this.zoom) return;
+    const rect = this.container.getBoundingClientRect();
+    const origin = this._origin();
+    const px = origin.x + ev.clientX - rect.left;
+    const py = origin.y + ev.clientY - rect.top;
+    const point = this._unproject(px, py, this.zoom);
+    // keep the point under the pointer in place
+    const after = project(point.lat, point.lon, zoom);
+    const cx = after.x - (ev.clientX - rect.left) + this.width / 2;
+    const cy = after.y - (ev.clientY - rect.top) + this.height / 2;
+    this.zoom = zoom;
+    this.center = this._unproject(cx, cy, zoom);
+    this.render();
+  }
+
+  _wheel(ev) {
+    ev.preventDefault();
+    const now = Date.now();
+    if (this._lastWheel && now - this._lastWheel < 150) return;
+    this._lastWheel = now;
+    this._zoomAround(ev.deltaY < 0 ? 1 : -1, ev);
+  }
+
+  _dragStart(ev) {
+    if (ev.button !== 0) return;
+    if (ev.target.closest && ev.target.closest(".map-popup, .map-controls, .map-marker")) return;
+    const start = { x: ev.clientX, y: ev.clientY, center: project(this.center.lat, this.center.lon, this.zoom) };
+    let moved = false;
+    this.container.setPointerCapture(ev.pointerId);
+    const move = (e) => {
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      this.center = this._unproject(start.center.x - dx, start.center.y - dy, this.zoom);
+      this.render();
+    };
+    const up = () => {
+      this.container.removeEventListener("pointermove", move);
+      this.container.removeEventListener("pointerup", up);
+      this.container.removeEventListener("pointercancel", up);
+      if (!moved && this.selected !== null) {
+        this.selected = null;
+        this.render();
+      }
+    };
+    this.container.addEventListener("pointermove", move);
+    this.container.addEventListener("pointerup", up);
+    this.container.addEventListener("pointercancel", up);
+  }
+
+  render() {
+    const width = this.width;
+    const height = this.height;
+    if (!width || !height) return;
+    const origin = this._origin();
+    const count = 2 ** this.zoom;
+    const wanted = new Set();
+    const x0 = Math.floor(origin.x / TILE);
+    const x1 = Math.floor((origin.x + width) / TILE);
+    const y0 = Math.max(0, Math.floor(origin.y / TILE));
+    const y1 = Math.min(count - 1, Math.floor((origin.y + height) / TILE));
+    for (let x = x0; x <= x1; x += 1) {
+      for (let y = y0; y <= y1; y += 1) {
+        const tx = ((x % count) + count) % count;
+        const key = `${this.zoom}/${x}/${y}`;
+        wanted.add(key);
+        let img = this.tiles.get(key);
+        if (!img) {
+          img = document.createElement("img");
+          img.className = "map-tile";
+          img.alt = "";
+          img.draggable = false;
+          img.addEventListener("error", () => { img.style.visibility = "hidden"; });
+          img.referrerPolicy = "strict-origin-when-cross-origin";
+          img.src = `${TILE_URL}${Number(this.zoom)}/${Number(tx)}/${Number(y)}.png`;
+          this.tiles.set(key, img);
+          this.tileLayer.append(img);
+        }
+        img.style.transform = `translate(${x * TILE - origin.x}px, ${y * TILE - origin.y}px)`;
+      }
+    }
+    for (const [key, img] of this.tiles) {
+      if (!wanted.has(key)) {
+        img.remove();
+        this.tiles.delete(key);
+      }
+    }
+
+    const items = [];
+    for (const marker of this.markers) {
+      const p = project(marker.lat, marker.lon, this.zoom);
+      const left = p.x - origin.x;
+      const top = p.y - origin.y;
+      if (left < -50 || top < -20 || left > width + 50 || top > height + 20) continue;
+      const item = el("div", `map-marker ${marker.kind}`);
+      item.style.transform = `translate(${left}px, ${top}px)`;
+      item.append(el("span", "dot"), el("span", "label", marker.label));
+      item.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        this.selected = this.selected === marker.id ? null : marker.id;
+        this.render();
+      });
+      if (marker.id === this.selected) item.classList.add("selected");
+      items.push(item);
+    }
+    this.markerLayer.replaceChildren(...items);
+
+    const chosen = this.markers.find((m) => m.id === this.selected);
+    if (chosen) {
+      const p = project(chosen.lat, chosen.lon, this.zoom);
+      this.popup.replaceChildren(...this.popupFor(chosen.id));
+      this.popup.style.transform = `translate(${p.x - origin.x}px, ${p.y - origin.y}px)`;
+      this.popup.hidden = false;
+    } else {
+      this.popup.hidden = true;
+    }
+  }
+}
+
+// Callsigns never start with "#", so this id cannot clash with a station.
+const OWN_MARKER = "#own";
 
 class MeshComChatPanel extends HTMLElement {
   constructor() {
@@ -464,10 +743,10 @@ class MeshComChatPanel extends HTMLElement {
     const refresh = el("button", "toggle", t.refresh);
     refresh.addEventListener("click", () => this._loadStations());
     bar.append(this._stationSearch, refresh);
-    this._mapHint = el("div", "hint");
-    this._mapHint.hidden = true;
+    this._mapBox = el("div", "map");
+    this._map = null;
     this._stationsBody = el("div");
-    body.append(this._mapHint, bar, this._stationsBody);
+    body.append(this._mapBox, bar, this._stationsBody);
     this._stationsView.append(body);
     return this._stationsView;
   }
@@ -1022,9 +1301,8 @@ class MeshComChatPanel extends HTMLElement {
   _renderStations() {
     if (!this._stationsBody) return;
     const t = this._t;
-    const hint = this._stationsMode === "data" ? t.mapHintData : this._stationsMode === "entities" ? t.mapHintEntities : "";
-    this._mapHint.textContent = hint;
-    this._mapHint.hidden = !hint;
+    this._mapBox.hidden = this._stationsMode === "off";
+    if (this._stationsMode !== "off" && this._stations !== null) this._renderMap();
     if (this._stationsMode === "off") {
       this._stationsBody.replaceChildren(el("div", "empty", t.stationsOff));
       return;
@@ -1084,13 +1362,83 @@ class MeshComChatPanel extends HTMLElement {
       const posTd = el("td");
       if (Number.isFinite(station.latitude) && Number.isFinite(station.longitude)) {
         const map = el("button", "linkbutton", t.map);
-        map.addEventListener("click", () => openMap(station.latitude, station.longitude));
+        map.addEventListener("click", () => {
+          if (this._map) {
+            this._map.focus(station.callsign);
+            this._mapBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
+        });
         posTd.append(map);
       }
       tr.append(posTd);
       table.append(tr);
     }
     this._stationsBody.replaceChildren(table);
+  }
+
+  _ownPositions() {
+    const node = this._node;
+    if (!node || !this._hass) return [];
+    for (const item of node.entities) {
+      if (item.domain !== "device_tracker") continue;
+      const state = this._hass.states[item.entity_id];
+      if (!state) continue;
+      return [{
+        id: OWN_MARKER,
+        lat: Number(state.attributes.latitude),
+        lon: Number(state.attributes.longitude),
+        label: node.callsign,
+        kind: "own",
+      }];
+    }
+    return [];
+  }
+
+  _renderMap() {
+    if (!this._map) this._map = new TileMap(this._mapBox, (id) => this._mapPopup(id));
+    const dark = Boolean(this._hass && this._hass.themes && this._hass.themes.darkMode);
+    this._mapBox.classList.toggle("dark", dark);
+    const now = Date.now();
+    const markers = this._stations.map((station) => {
+      const heard = new Date(station.last_heard).getTime();
+      const minutes = Number.isNaN(heard) ? Infinity : (now - heard) / 60000;
+      return {
+        id: station.callsign,
+        lat: Number(station.latitude),
+        lon: Number(station.longitude),
+        label: station.callsign,
+        kind: minutes < 60 ? "fresh" : minutes < 1440 ? "recent" : "old",
+      };
+    });
+    this._map.setMarkers([...this._ownPositions(), ...markers]);
+  }
+
+  _mapPopup(id) {
+    const t = this._t;
+    const node = this._node;
+    if (id === OWN_MARKER) {
+      return [el("div", "title", node ? node.callsign : ""), el("div", null, t.ownNode)];
+    }
+    const station = (this._stations || []).find((s) => s.callsign === id);
+    if (!station) return [];
+    const parts = [el("div", "title", station.callsign)];
+    const heard = new Date(station.last_heard).getTime();
+    if (!Number.isNaN(heard)) {
+      parts.push(el("div", null, t.ago(Math.max(0, Math.floor((Date.now() - heard) / 60000)))));
+    }
+    const values = [];
+    if (station.rssi !== null && station.rssi !== undefined) values.push(`${station.rssi} dBm / ${station.snr} dB`);
+    if (station.hops !== null && station.hops !== undefined) values.push(`${t.columns.hops} ${station.hops}`);
+    if (station.battery !== null && station.battery !== undefined) values.push(`${t.columns.battery} ${station.battery} %`);
+    if (values.length) parts.push(el("div", null, values.join(" \u00b7 ")));
+    const buttons = el("div", "buttons");
+    const dm = el("button", "toggle", t.message);
+    dm.addEventListener("click", () => this._openDirect(station.callsign));
+    const osm = el("button", "toggle", t.osm);
+    osm.addEventListener("click", () => openMap(station.latitude, station.longitude));
+    buttons.append(dm, osm);
+    parts.push(buttons);
+    return parts;
   }
 }
 
