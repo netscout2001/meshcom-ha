@@ -252,6 +252,9 @@
     "web_auth_failed": {
       "message": "Der Node hat die Web-Anmeldung abgelehnt."
     },
+    "web_node_away": {
+      "message": "Der Node war länger nicht zu hören; die Web-API wird erst wieder abgefragt, wenn er zurück ist."
+    },
     "web_throttled": {
       "message": "Der Node sperrt die Anmeldung nach Fehlversuchen für eine Minute."
     },

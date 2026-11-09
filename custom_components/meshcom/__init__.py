@@ -15,7 +15,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType
 
@@ -141,7 +141,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         # Never fall back to the plain-text login once the node used the secure one.
         allow_legacy=entry.data.get(CONF_WEB_AUTH) != AUTH_HMAC,
     )
-    web = MeshComWebCoordinator(hass, entry, client)
+    web = MeshComWebCoordinator(
+        hass,
+        entry,
+        client,
+        # Away: heard before, but nothing for longer than the inactive timeout.
+        node_away=lambda: node.last_packet is not None and not node.active,
+    )
 
     # Heard stations: restored from disk, saved on change, devices per mode.
     store = StationStore(hass, entry.entry_id)
@@ -190,23 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     )
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
-    @callback
-    def _apply_web_settings() -> None:
-        # The HA filter follows the node's "No MSG All" switch.
-        if web.data is not None:
-            node.apply_web_settings(
-                no_msg_all=web.data.no_msg_all,
-                groups=web.data.groups,
-                firmware=web.data.firmware,
-                battery_voltage=web.data.battery_voltage,
-            )
-        _async_track_login_method(hass, entry, client)
-
-    entry.async_on_unload(web.async_add_listener(_apply_web_settings))
-    # Not awaited: a mobile node may be away, which must not block setup.
-    entry.async_create_background_task(
-        hass, _async_first_web_contact(hass, entry, client, web), f"{DOMAIN} web start"
-    )
+    _async_start_web(hass, entry, node, client, web)
 
     # Time-based states ("active", "heard within 24 h") need a periodic refresh.
     @callback
@@ -259,6 +249,45 @@ def _async_track_login_method(
         )
 
 
+def _async_start_web(
+    hass: HomeAssistant,
+    entry: MeshComConfigEntry,
+    node: MeshComNode,
+    client: MeshComWebClient,
+    web: MeshComWebCoordinator,
+) -> None:
+    """Couple the web API polling to the node, then make first contact."""
+
+    @callback
+    def _apply_web_settings() -> None:
+        # The HA filter follows the node's "No MSG All" switch.
+        if web.data is not None:
+            node.apply_web_settings(
+                no_msg_all=web.data.no_msg_all,
+                groups=web.data.groups,
+                firmware=web.data.firmware,
+                battery_voltage=web.data.battery_voltage,
+            )
+        _async_track_login_method(hass, entry, client)
+
+    entry.async_on_unload(web.async_add_listener(_apply_web_settings))
+
+    @callback
+    def _node_back() -> None:
+        # Polling pauses while the node is away; resume as soon as it is heard.
+        if web.paused and node.active:
+            web.paused = False
+            entry.async_create_background_task(
+                hass, web.async_request_refresh(), f"{DOMAIN} web resume"
+            )
+
+    entry.async_on_unload(async_dispatcher_connect(hass, signal_update(entry.entry_id), _node_back))
+    # Not awaited: a mobile node may be away, which must not block setup.
+    entry.async_create_background_task(
+        hass, _async_first_web_contact(hass, entry, client, web), f"{DOMAIN} web start"
+    )
+
+
 async def _async_first_web_contact(
     hass: HomeAssistant,
     entry: MeshComConfigEntry,
@@ -286,7 +315,7 @@ async def _async_first_web_contact(
             )
         else:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
-    await web.async_refresh()
+    await web.async_refresh_now()
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: MeshComConfigEntry) -> None:

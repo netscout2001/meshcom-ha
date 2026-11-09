@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -48,7 +49,11 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
     config_entry: MeshComConfigEntry
 
     def __init__(
-        self, hass: HomeAssistant, entry: MeshComConfigEntry, client: MeshComWebClient
+        self,
+        hass: HomeAssistant,
+        entry: MeshComConfigEntry,
+        client: MeshComWebClient,
+        node_away: Callable[[], bool] = lambda: False,
     ) -> None:
         super().__init__(
             hass,
@@ -58,8 +63,28 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             config_entry=entry,
         )
         self.client = client
+        self._node_away = node_away
+        #: True while polling pauses because the node is away.
+        self.paused = False
+        self._force = False
+
+    async def async_refresh_now(self) -> None:
+        """Poll regardless of the node's activity (first contact at startup)."""
+        self.paused = False
+        self._force = True
+        try:
+            await self.async_refresh()
+        finally:
+            self._force = False
 
     async def _async_update_data(self) -> WebData:
+        # No login attempts at an address whose node has gone quiet: the
+        # address may now belong to another device, and every attempt would
+        # hand it the login (the plain-text password on firmware 4.40a).
+        if not self._force and self._node_away():
+            self.paused = True
+            raise UpdateFailed(translation_domain=DOMAIN, translation_key="web_node_away")
+        self.paused = False
         try:
             status = await self.client.get_overview()
         except WebAuthError as err:

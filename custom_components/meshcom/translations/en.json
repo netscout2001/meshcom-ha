@@ -252,6 +252,9 @@
     "web_auth_failed": {
       "message": "The node rejected the web login."
     },
+    "web_node_away": {
+      "message": "The node has not been heard for a while; the web API is not polled until it is back."
+    },
     "web_throttled": {
       "message": "The node blocks logins for a minute after failed attempts."
     },

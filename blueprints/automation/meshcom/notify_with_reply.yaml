@@ -117,12 +117,15 @@ actions:
           action: "{{ reply_action }}"
     timeout: !input reply_timeout
     continue_on_timeout: false
-  - variables:
-      reply_text: "{{ (wait.trigger.event.data.reply_text | default('')) | string | trim }}"
+  # The reply is never stored in a variable of its own: Home Assistant would
+  # turn a text such as "1e5", "True" or "[1, 2]" into a number, a boolean or
+  # a list. Rendered as one dictionary, every value stays a string.
   - condition: template
-    value_template: "{{ reply_text != '' }}"
+    value_template: "{{ (wait.trigger.event.data.reply_text | default('')) | string | trim != '' }}"
   - action: meshcom.send_message
-    data:
-      config_entry_id: !input node
-      destination: "{{ reply_to }}"
-      message: "{{ reply_text }}"
+    data: >-
+      {{ {
+        'config_entry_id': node_entry | string,
+        'destination': reply_to | string,
+        'message': (wait.trigger.event.data.reply_text | default('')) | string | trim,
+      } }}

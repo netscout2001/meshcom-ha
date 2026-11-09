@@ -182,3 +182,19 @@ async def test_radio_text_stays_text(hass: HomeAssistant, sent: list[ServiceCall
     assert [n.data["message"] for n in notified] == [
         f"QA{index}ABC-1: {text}" for index, text in enumerate(texts)
     ]
+
+
+@pytest.mark.parametrize("reply", ["1e5", "True", "[1, 2]", "007", "{'a': 1}", "None"])
+async def test_reply_stays_text(hass: HomeAssistant, sent: list[ServiceCall], reply: str) -> None:
+    """A reply that looks like a number, a list or a boolean is sent verbatim (F-10)."""
+    notified = async_capture_events(hass, "test_notify")
+    hass.bus.async_fire(
+        "meshcom_message", _message(destination="20", destination_kind="group", to_me=False)
+    )
+    await _until(notified, 1)
+    action = notified[0].data["data"]["actions"][0]["action"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": action, "reply_text": reply})
+    await hass.async_block_till_done()
+    assert len(sent) == 1
+    assert sent[0].data["message"] == reply
+    assert sent[0].data["destination"] == "20"

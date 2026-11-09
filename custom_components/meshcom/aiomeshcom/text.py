@@ -4,7 +4,12 @@ Message text is untrusted. Control characters would allow log injection
 (a newline that forges a log line), and bidirectional or zero-width format
 characters can make a text look different from what it is ("Trojan Source").
 Both are removed for display; the caller learns that something was removed
-(security concept C-08).
+(security concept C-08). Removed are all control (Cc) and format (Cf)
+characters - which covers bidi controls, zero-width characters, the soft
+hyphen and the invisible tag characters U+E0000-E007F - plus surrogates,
+the line and paragraph separators and the blank Hangul filler letters.
+Unassigned code points are kept: newer emoji may be unknown to the Python
+Unicode database.
 
 This module does not escape HTML. Escaping belongs to the render layer; the
 frontend must only ever insert text as text (security concept C-01).
@@ -15,7 +20,12 @@ from __future__ import annotations
 import unicodedata
 from typing import Final
 
-# Bidirectional controls and invisible format characters.
+# Categories removed as a whole: control, format, surrogate, line and
+# paragraph separator.
+_UNWANTED_CATEGORIES: Final = frozenset(["Cc", "Cf", "Cs", "Zl", "Zp"])
+
+# Letters that render as nothing (Hangul fillers), and - explicitly, although
+# they are in category Cf - the bidirectional and zero-width characters.
 _FORMAT_CHARS: Final = frozenset(
     [
         "\u061c",  # ARABIC LETTER MARK
@@ -35,12 +45,16 @@ _FORMAT_CHARS: Final = frozenset(
         "\u2068",  # FIRST STRONG ISOLATE
         "\u2069",  # POP DIRECTIONAL ISOLATE
         "\ufeff",  # ZERO WIDTH NO-BREAK SPACE
+        "\u115f",  # HANGUL CHOSEONG FILLER
+        "\u1160",  # HANGUL JUNGSEONG FILLER
+        "\u3164",  # HANGUL FILLER
+        "\uffa0",  # HALFWIDTH HANGUL FILLER
     ]
 )
 
 
 def _is_unwanted(char: str) -> bool:
-    return char in _FORMAT_CHARS or unicodedata.category(char) == "Cc"
+    return char in _FORMAT_CHARS or unicodedata.category(char) in _UNWANTED_CATEGORIES
 
 
 def clean_text(value: str) -> tuple[str, bool]:

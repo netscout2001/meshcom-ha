@@ -7,14 +7,13 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import STATE_OFF, EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import MeshComConfigEntry
 from .coordinator import MeshComWebCoordinator
-from .entity import MeshComEntity, node_device_info
+from .entity import MeshComEntity, async_require_admin, node_device_info
 from .node import MeshComNode
 
 PARALLEL_UPDATES = 0
@@ -52,7 +51,11 @@ class MeshComSendingSwitch(MeshComEntity, SwitchEntity, RestoreEntity):
         return self.node.sending_enabled
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Allow sending."""
+        """Allow sending again. Reserved for administrators.
+
+        Switching off stays open to everyone: stopping transmissions is always safe.
+        """
+        await async_require_admin(self.hass, self._context, self.node.entry_id)
         self.node.sending_enabled = True
         self.async_write_ha_state()
 
@@ -93,12 +96,7 @@ class MeshComNoMsgAllSwitch(CoordinatorEntity[MeshComWebCoordinator], SwitchEnti
 
     async def _check_admin(self) -> None:
         # Changing node settings is reserved for administrators.
-        user_id = self._context.user_id if self._context else None
-        if user_id is None:
-            return
-        user = await self.hass.auth.async_get_user(user_id)
-        if user is None or not user.is_admin:
-            raise Unauthorized(context=self._context, config_entry_id=self._entry_id)
+        await async_require_admin(self.hass, self._context, self._entry_id)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Hide messages to all on the node (and in Home Assistant)."""

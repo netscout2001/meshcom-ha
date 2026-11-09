@@ -34,5 +34,6 @@ class MeshComMessageText(MeshComEntity, TextEntity):
 
     async def async_set_value(self, value: str) -> None:
         """Store the draft (validated when sending)."""
+        await self._check_send_permission()
         self.node.compose_text = value
         self.async_write_ha_state()

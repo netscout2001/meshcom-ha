@@ -60,5 +60,6 @@ class MeshComClearButton(MeshComEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Clear the draft."""
+        await self._check_send_permission()
         self.node.compose_text = ""
         async_dispatcher_send(self.hass, signal_update(self.node.entry_id))

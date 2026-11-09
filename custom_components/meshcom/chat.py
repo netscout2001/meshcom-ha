@@ -173,7 +173,7 @@ def _parse(raw: Any) -> ChatMessage | None:
         via_server=raw.get("via_server") is True,
         rssi=rssi if isinstance(rssi, int) and not isinstance(rssi, bool) else None,
         snr=snr if isinstance(snr, (int, float)) and not isinstance(snr, bool) else None,
-        status=status if status in _STATUSES else None,
+        status=status if isinstance(status, str) and status in _STATUSES else None,
         path=path,
     )
 

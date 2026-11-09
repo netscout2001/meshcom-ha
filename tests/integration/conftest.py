@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
+from homeassistant.auth.models import User
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -254,3 +255,14 @@ async def init_integration(
 def inject(entry: MockConfigEntry, data: bytes, host: str = NODE_HOST) -> None:
     """Feed a datagram into the hub as if it came from ``host``."""
     entry.runtime_data.hub.handle_datagram(data, host)
+
+
+@pytest.fixture
+async def hass_user(hass: HomeAssistant, hass_owner_user: User) -> User:
+    """A regular (non-admin) user who may control entities.
+
+    Depends on the owner so that this user is not the first one (which becomes owner).
+    """
+    user = await hass.auth.async_create_user("Regular user", group_ids=["system-users"])
+    assert not user.is_admin
+    return user

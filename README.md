@@ -163,8 +163,8 @@ Changing the options reloads the node.
 | KISS connected (binary sensor) | KISS access only |
 | Position (device tracker) | Position of the node's beacon |
 | Recipient type, Group, Station (selects), Message (text), Send, Clear (buttons) | Compose and send from a dashboard |
-| Allow sending (switch) | Kill switch: off blocks every transmission through this node |
-| No MSG All (switch) | The node's setting, read and written via the web API |
+| Allow sending (switch) | Kill switch: off blocks every transmission through this node. Anyone may switch it off; only administrators switch it back on |
+| No MSG All (switch) | The node's setting, read and written via the web API (administrators only). Not polled while the node is inactive |
 
 ### Heard stations
 
@@ -234,7 +234,10 @@ count as heard stations.
 - Administrators, and users released in the options. Automations may send.
 - At most 3 messages in a row, then one every 30 seconds, for the whole
   Home Assistant instance.
-- **Allow sending** off blocks everything for that node.
+- **Allow sending** off blocks everything for that node. Only administrators
+  switch it back on.
+- Only users who may send can change the draft (recipient, group, station,
+  message text) in the dashboard entities.
 - Every transmission appears in the logbook with the user or automation.
 
 ## Actions and events
@@ -405,7 +408,9 @@ Recommended node settings:
 - Firmware 4.34z to 4.40a send the web password unencrypted and then trust
   the client's IP address for 4 hours. Home Assistant logs out right after
   every query and switches to the secure nonce/HMAC login as soon as the
-  node offers it, never back.
+  node offers it, never back. While the node is inactive (not heard for the
+  time set in the options), Home Assistant does not log in at all: its
+  address may meanwhile belong to another device.
 - Only enable **ext UDP** on nodes that stay in your home network; the
   interface accepts commands from any device on that network.
 - For **KISS**, always use `--kiss auth on` with `--passwd`.
@@ -422,6 +427,27 @@ Remaining risks you should know:
   options apply to the panel, the dashboard entities and actions started by a
   user. An automation (also the notify-with-reply blueprint) sends under the
   node's callsign on its own; only give such automations to licensed people.
+- **A forged flood starves the real node.** The rate limit per sender
+  address protects Home Assistant, but forged datagrams with the node's
+  address use up the same budget, so real packets are dropped for as long
+  as the flood lasts.
+- **"Delivered" is not proof.** The acknowledgement of a direct message is
+  an ordinary radio packet; any station that heard the message can send a
+  matching one.
+- **KISS: your callsign via the MeshCom server.** Frames with your own
+  callsign that came over the air carry signal values and are recognised as
+  foreign. Frames relayed from the MeshCom server (internet) carry the same
+  "no measurement" marker as the node's own, so someone forging your
+  callsign there can make a message or position look like your node's own.
+  This is a limit of the firmware's KISS metadata.
+- **The web password protects the node, not against your network.** On
+  firmware 4.40a it travels in plain text (see above). The secure login
+  shows a node impersonator a nonce and an HMAC of it, which allows an
+  offline guessing attack on weak passwords - use a long random one.
+- **Every Home Assistant user can read the entities.** Last message,
+  stations and positions are normal entity states; Home Assistant has no
+  per-entity read permission. The MeshCom panel and its history are limited
+  to administrators and released users.
 - **The Stations map loads tiles from OpenStreetMap** while the tab is open
   (see [MeshCom panel](#meshcom-panel)).
 
