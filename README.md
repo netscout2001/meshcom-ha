@@ -155,7 +155,8 @@ The switches use the normal Home Assistant services, so only administrators
 can change them.
 
 **Stations**: a map with your node and every station that sent a position
-(green: heard within the last hour, orange: within 24 hours, grey: older),
+(green: heard within the last hour, orange: within 24 hours, grey: older;
+a legend on the map explains the colours),
 and below it the heard stations as a sortable table. A click on a station on
 the map shows its values with buttons for a direct message and for
 OpenStreetMap; a click on a callsign in the table opens a direct message,

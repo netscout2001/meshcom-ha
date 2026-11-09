@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.3
+
+### Features
+- Stations map: legend for the marker colours (own node, < 1 h, < 24 h, older)
+
 ## v0.5.2
 
 ### Features
