@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.7.2
+
+Result of an independent security review of the code and of permanent fuzz
+tests. No critical or high findings.
+
+### Security
+- "Allow sending": anyone may switch it off, but only administrators may switch it back on (before, any user with control rights could undo an administrator's kill switch)
+- Draft entities (recipient type, group, station, message text, Clear): only users who may send can change them
+- Invisible characters in received text are removed more thoroughly: all format characters (including the invisible tag characters U+E0000-E007F and the soft hyphen), line and paragraph separators and the blank Hangul filler letters
+- The web API is not polled while the node is inactive: no logins at an address that may meanwhile belong to another device; polling resumes as soon as the node is heard
+- README: further remaining risks (forged UDP flood, forgeable delivery confirmations, own callsign over KISS, offline guessing of weak web passwords, entity states readable by all users)
+
+### Fixes
+- Blueprint "notify with reply": a reply that looks like a list or a dictionary (e.g. `[1, 2]`) failed to send; the reply is now always passed on as text. Re-import the blueprint to get the fix.
+- Chat history: a stored entry with a malformed delivery status no longer breaks loading (found by fuzzing)
+
+### Development
+- Property-based fuzz tests (Hypothesis) for every parser of untrusted input: datagrams, KISS frames, web API answers, station and chat storage; deterministic on pull requests, a weekly run searches randomly and longer
+- CodeQL now also scans the panel's JavaScript
+
 ## v0.7.1
 
 ### Fixes

@@ -435,3 +435,86 @@ async def test_logbook(hass: HomeAssistant, init_integration: MockConfigEntry) -
     event = MagicMock(data={"node": "QX1YZ-12", "destination": "262", "text": "secret"})
     entry = descriptions[EVENT_MESSAGE_SENT](event)  # type: ignore[operator]
     assert entry == {"name": "MeshCom QX1YZ-12", "message": "sent a message to 262"}
+
+
+async def test_sending_switch_turn_on_admin_only(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    hass_admin_user: User,
+    hass_user: User,
+) -> None:
+    """Anyone may stop sending; only administrators allow it again (review F-1)."""
+    user = Context(user_id=hass_user.id)
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: SWITCH}, blocking=True, context=user
+    )
+    assert hass.states.get(SWITCH).state == "off"  # type: ignore[union-attr]
+    for context in (user, Context(user_id="ghost")):
+        with pytest.raises(Unauthorized):
+            await hass.services.async_call(
+                SWITCH_DOMAIN,
+                SERVICE_TURN_ON,
+                {ATTR_ENTITY_ID: SWITCH},
+                blocking=True,
+                context=context,
+            )
+    assert init_integration.runtime_data.node.sending_enabled is False
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: SWITCH},
+        blocking=True,
+        context=Context(user_id=hass_admin_user.id),
+    )
+    assert init_integration.runtime_data.node.sending_enabled is True
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: SWITCH}, blocking=True
+    )
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: SWITCH}, blocking=True
+    )
+    assert init_integration.runtime_data.node.sending_enabled is True  # automations
+
+
+@pytest.mark.parametrize(
+    ("domain", "service", "entity_id", "data"),
+    [
+        (TEXT_DOMAIN, SERVICE_SET_VALUE, TEXT, {"value": "planted"}),
+        (SELECT_DOMAIN, SERVICE_SELECT_OPTION, TYPE_SELECT, {"option": "direct"}),
+        (BUTTON_DOMAIN, SERVICE_PRESS, CLEAR, {}),
+    ],
+)
+async def test_draft_needs_send_permission(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    hass_user: User,
+    domain: str,
+    service: str,
+    entity_id: str,
+    data: dict[str, str],
+) -> None:
+    """Users who may not transmit cannot change the draft either (review F-9)."""
+    node = init_integration.runtime_data.node
+    node.compose_text = "draft"
+    kind = node.compose_kind
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            domain,
+            service,
+            {ATTR_ENTITY_ID: entity_id, **data},
+            blocking=True,
+            context=Context(user_id=hass_user.id),
+        )
+    assert node.compose_text == "draft"
+    assert node.compose_kind is kind
+    hass.config_entries.async_update_entry(
+        init_integration, options={CONF_SEND_USERS: [hass_user.id], CONF_GROUPS: []}
+    )
+    await hass.async_block_till_done()
+    await hass.services.async_call(
+        domain,
+        service,
+        {ATTR_ENTITY_ID: entity_id, **data},
+        blocking=True,
+        context=Context(user_id=hass_user.id),
+    )

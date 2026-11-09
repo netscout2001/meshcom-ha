@@ -49,6 +49,7 @@ class MeshComRecipientTypeSelect(MeshComEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Change the recipient type."""
+        await self._check_send_permission()
         self.node.compose_kind = DestinationKind(option)
         self.async_write_ha_state()
 
@@ -79,6 +80,7 @@ class MeshComGroupSelect(MeshComEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Select a group."""
+        await self._check_send_permission()
         self.node.compose_group = option
         self.async_write_ha_state()
 
@@ -103,5 +105,6 @@ class MeshComStationSelect(MeshComEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Select a station."""
+        await self._check_send_permission()
         self.node.compose_station = option
         self.async_write_ha_state()

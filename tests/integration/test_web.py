@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 
 import pytest
 from homeassistant import config_entries
@@ -21,6 +22,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_capture_events,
@@ -602,3 +604,34 @@ async def test_reconfigure_pins_after_update(
     )
     assert result["reason"] == "reconfigure_successful"
     assert init_integration.data[CONF_WEB_AUTH] == "hmac"
+
+
+async def test_polling_pauses_while_node_away(
+    hass: HomeAssistant, init_integration: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """No logins at the address of a node gone quiet; resume once it is heard (F-4)."""
+    node = init_integration.runtime_data.node
+    web = init_integration.runtime_data.web
+    node.last_packet = dt_util.utcnow() - timedelta(hours=2)
+    before = len(web_client.calls)
+    await _refresh(hass, init_integration)
+    assert len(web_client.calls) == before  # the node was not contacted
+    assert web.paused is True
+    assert hass.states.get(NO_MSG_ALL).state == STATE_UNAVAILABLE  # type: ignore[union-attr]
+
+    inject(init_integration, _message("*", "a1b2c3d4"))
+    await hass.async_block_till_done()
+    assert node.active
+    assert web.paused is False
+    assert len(web_client.calls) > before  # polled again right away
+    assert hass.states.get(NO_MSG_ALL).state == "off"
+
+
+async def test_never_heard_node_is_polled(
+    hass: HomeAssistant, init_integration: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """A node not heard yet (fresh setup) is still polled."""
+    init_integration.runtime_data.node.last_packet = None
+    before = len(web_client.calls)
+    await _refresh(hass, init_integration)
+    assert len(web_client.calls) > before

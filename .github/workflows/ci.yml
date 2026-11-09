@@ -4,10 +4,17 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly: the fuzz tests search randomly and longer (MESHCOM_FUZZ=explore).
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
 
 # Least privilege: the workflow only needs to read the code.
 permissions:
   contents: read
+
+env:
+  MESHCOM_FUZZ: ${{ github.event_name == 'schedule' && 'explore' || '' }}
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -68,7 +75,7 @@ jobs:
 
       - name: Install
         run: |
-          pip install "pytest-homeassistant-custom-component==0.13.316" pytest-cov mypy
+          pip install "pytest-homeassistant-custom-component==0.13.316" pytest-cov mypy hypothesis
           pip install -e .
 
       - name: Mypy (strict)

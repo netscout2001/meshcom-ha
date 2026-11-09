@@ -38,6 +38,31 @@ def test_clean_text() -> None:
     assert not contains_unwanted("Gr\u00fc\u00dfe 73")
 
 
+@pytest.mark.parametrize(
+    "hidden",
+    [
+        "\U000e0041\U000e0042",  # tag characters (invisible ASCII copy)
+        "\u00ad",  # SOFT HYPHEN
+        "\u2028",  # LINE SEPARATOR
+        "\u2029",  # PARAGRAPH SEPARATOR
+        "\u3164",  # HANGUL FILLER
+        "\u115f\u1160\uffa0",  # further Hangul fillers
+        "\u2061",  # FUNCTION APPLICATION (format)
+        "\ud800",  # lone surrogate
+    ],
+)
+def test_clean_text_invisible(hidden: str) -> None:
+    """Invisible characters are removed (security review F-8)."""
+    assert clean_text(f"a{hidden}b") == ("ab", True)
+    assert contains_unwanted(hidden)
+
+
+def test_clean_text_keeps_visible() -> None:
+    """Umlauts, emoji with variation selector and CJK stay untouched."""
+    for text in ("\u00e4\u00f6\u00fc \u00df", "\u2764\ufe0f", "\u4f60\u597d", "73 de \U0001f4e1"):
+        assert clean_text(text) == (text, False)
+
+
 def test_message_id() -> None:
     msg_id = MessageId(0x63CF32D4)
     assert msg_id.counter == 724

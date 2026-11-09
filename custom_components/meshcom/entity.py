@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from homeassistant.core import callback
+from homeassistant.core import Context, HomeAssistant, callback
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN, signal_station, signal_update
 from .node import MeshComNode, StationInfo
+from .sender import allowed_users, async_check_send_permission
 from .stations import station_device_info
 
 
@@ -21,6 +23,19 @@ def node_device_info(node: MeshComNode) -> DeviceInfo:
         model="MeshCom node",
         sw_version=str(node.firmware) if node.firmware else None,
     )
+
+
+async def async_require_admin(hass: HomeAssistant, context: Context | None, entry_id: str) -> None:
+    """Raise Unauthorized unless the caller is an administrator.
+
+    Calls without a user (automations, scripts) are allowed.
+    """
+    user_id = context.user_id if context else None
+    if user_id is None:
+        return
+    user = await hass.auth.async_get_user(user_id)
+    if user is None or not user.is_admin:
+        raise Unauthorized(context=context, config_entry_id=entry_id)
 
 
 class MeshComEntity(Entity):
@@ -47,6 +62,14 @@ class MeshComEntity(Entity):
     @callback
     def _handle_update(self) -> None:
         self.async_write_ha_state()
+
+    async def _check_send_permission(self) -> None:
+        """Only users who may transmit may change the draft."""
+        entry = self.hass.config_entries.async_get_entry(self.node.entry_id)
+        options = dict(entry.options) if entry is not None else {}
+        await async_check_send_permission(
+            self.hass, self.node.entry_id, allowed_users(options), self._context
+        )
 
 
 class MeshComStationEntity(Entity):

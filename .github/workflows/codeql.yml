@@ -12,12 +12,17 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze (Python)
+    name: Analyze (${{ matrix.language }})
     # Code scanning is free for public repositories only. While the
     # repository is private this job is skipped instead of failing.
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # The panel (frontend/*.js) renders untrusted radio text.
+        language: [python, javascript-typescript]
     permissions:
       contents: read
       security-events: write
@@ -28,7 +33,9 @@ jobs:
 
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          languages: python
+          languages: ${{ matrix.language }}
           queries: security-extended
 
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}
