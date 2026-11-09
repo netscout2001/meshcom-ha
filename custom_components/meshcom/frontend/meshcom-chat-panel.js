@@ -48,6 +48,7 @@ const TEXT = {
     message: "Message",
     osm: "OpenStreetMap",
     ownNode: "own node",
+    legend: { own: "Own node", fresh: "< 1 h", recent: "< 24 h", old: "older" },
     noStations: "No stations heard yet.",
     search: "Search callsign",
     refresh: "Refresh",
@@ -103,6 +104,7 @@ const TEXT = {
     message: "Nachricht",
     osm: "OpenStreetMap",
     ownNode: "eigener Node",
+    legend: { own: "Eigener Node", fresh: "< 1 h", recent: "< 24 h", old: "\u00e4lter" },
     noStations: "Noch keine Stationen geh\u00f6rt.",
     search: "Rufzeichen suchen",
     refresh: "Aktualisieren",
@@ -284,6 +286,12 @@ const STYLE = `
 .map-controls { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 4; }
 .map-controls button { width: 30px; height: 30px; border: none; border-radius: 6px; font-size: 18px; line-height: 1;
   background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.map-legend { position: absolute; left: 8px; bottom: 8px; z-index: 4; display: flex; gap: 10px; flex-wrap: wrap;
+  padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: default;
+  background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.map-legend .map-marker { position: static; cursor: default; gap: 4px; }
+.map-legend .map-marker .dot { margin: 0; width: 10px; height: 10px; }
+.map-legend .map-marker.own .dot { margin: 0; width: 12px; height: 12px; }
 .map-attribution { position: absolute; right: 0; bottom: 0; z-index: 4; font-size: 10px; padding: 1px 5px;
   background: rgba(255,255,255,.75); color: #333; }
 .stationbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
@@ -329,7 +337,7 @@ function validPosition(lat, lon) {
 }
 
 class TileMap {
-  constructor(container, popupFor) {
+  constructor(container, popupFor, legend) {
     this.container = container;
     this.popupFor = popupFor;
     this.zoom = 6;
@@ -352,12 +360,18 @@ class TileMap {
     fit.addEventListener("click", () => this.fit());
     controls.append(plus, minus, fit);
     const attribution = el("div", "map-attribution", "\u00a9 OpenStreetMap contributors");
-    container.append(this.tileLayer, this.markerLayer, this.popup, controls, attribution);
+    const key = el("div", "map-legend");
+    for (const kind of ["own", "fresh", "recent", "old"]) {
+      const entry = el("span", `map-marker ${kind}`);
+      entry.append(el("span", "dot"), el("span", null, legend[kind]));
+      key.append(entry);
+    }
+    container.append(this.tileLayer, this.markerLayer, this.popup, controls, key, attribution);
 
     container.addEventListener("pointerdown", (ev) => this._dragStart(ev));
     container.addEventListener("wheel", (ev) => this._wheel(ev), { passive: false });
     container.addEventListener("dblclick", (ev) => {
-      if (ev.target.closest && ev.target.closest(".map-popup, .map-controls")) return;
+      if (ev.target.closest && ev.target.closest(".map-popup, .map-controls, .map-legend")) return;
       this._zoomAround(1, ev);
     });
     this._resize = new ResizeObserver(() => this.render());
@@ -1395,7 +1409,7 @@ class MeshComChatPanel extends HTMLElement {
   }
 
   _renderMap() {
-    if (!this._map) this._map = new TileMap(this._mapBox, (id) => this._mapPopup(id));
+    if (!this._map) this._map = new TileMap(this._mapBox, (id) => this._mapPopup(id), this._t.legend);
     const dark = Boolean(this._hass && this._hass.themes && this._hass.themes.darkMode);
     this._mapBox.classList.toggle("dark", dark);
     const now = Date.now();
