@@ -318,8 +318,10 @@ automation:
     actions:
       - action: notify.mobile_app_phone
         data:
-          title: "MeshCom from {{ trigger.event.data.sender }}"
-          message: "{{ trigger.event.data.text }}"
+          title: "MeshCom"
+          # Sender first: Home Assistant would turn radio text such as
+          # "[1, 2]" or "True" into a list or a boolean.
+          message: "{{ trigger.event.data.sender }}: {{ trigger.event.data.text }}"
 ```
 
 Send a daily message to a group:
@@ -407,6 +409,21 @@ Recommended node settings:
 - Only enable **ext UDP** on nodes that stay in your home network; the
   interface accepts commands from any device on that network.
 - For **KISS**, always use `--kiss auth on` with `--passwd`.
+
+Remaining risks you should know:
+
+- **External UDP is not authenticated.** Home Assistant only accepts
+  datagrams from the node's address and limits their rate, but a device in
+  your network can forge that sender address and inject fake messages,
+  positions or delivery confirmations. Keep untrusted devices out of the
+  node's network (e.g. a separate VLAN for guests and IoT) or use KISS with
+  authentication.
+- **Automations send without the per-user check.** The users released in the
+  options apply to the panel, the dashboard entities and actions started by a
+  user. An automation (also the notify-with-reply blueprint) sends under the
+  node's callsign on its own; only give such automations to licensed people.
+- **The Stations map loads tiles from OpenStreetMap** while the tab is open
+  (see [MeshCom panel](#meshcom-panel)).
 
 ## Development
 

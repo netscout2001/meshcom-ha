@@ -44,9 +44,9 @@ BASE_POS: dict[str, Any] = {
     "type": "pos",
     "src": "TST1-12",
     "msg": "",
-    "lat": 47.5,
+    "lat": 50.5,
     "lat_dir": "N",
-    "long": 11.5,
+    "long": 8.5,
     "long_dir": "E",
     "aprs_symbol": "-",
     "aprs_symbol_group": "/",
@@ -111,13 +111,13 @@ def test_framing_rejected(data: bytes, expected: str) -> None:
 
 def test_float_overflow_to_infinity() -> None:
     """json.loads turns 1e999 into inf without calling parse_constant."""
-    data = encode(BASE_POS).replace(b'"lat": 47.5', b'"lat": 1e999')
+    data = encode(BASE_POS).replace(b'"lat": 50.5', b'"lat": 1e999')
     assert reason(data) == "field_lat"
 
 
 def test_huge_integer() -> None:
     """float(10**400) raises OverflowError, which must not escape."""
-    data = encode(BASE_POS).replace(b'"lat": 47.5', b'"lat": 1' + b"0" * 400)
+    data = encode(BASE_POS).replace(b'"lat": 50.5', b'"lat": 1' + b"0" * 400)
     assert reason(data) == "field_lat"
 
 
@@ -194,8 +194,8 @@ def test_position_fields_rejected(changes: dict[str, Any], expected: str) -> Non
 
 def test_position_southern_western_hemisphere() -> None:
     packet = parse_datagram(pos(lat_dir="S", long_dir="W"))
-    assert packet.latitude == -47.5  # type: ignore[union-attr]
-    assert packet.longitude == -11.5  # type: ignore[union-attr]
+    assert packet.latitude == -50.5  # type: ignore[union-attr]
+    assert packet.longitude == -8.5  # type: ignore[union-attr]
 
 
 def test_position_without_fix() -> None:

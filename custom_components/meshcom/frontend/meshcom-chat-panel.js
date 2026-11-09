@@ -368,7 +368,7 @@ class TileMap {
     this.pathFor = pathFor;
     this.route = null;
     this.zoom = 6;
-    this.center = { lat: 48.0, lon: 11.5 };
+    this.center = { lat: 50.0, lon: 10.0 };
     this.markers = [];
     this.selected = null;
     this.tiles = new Map();

@@ -169,8 +169,8 @@ def test_position_with_tags_and_meta() -> None:
 def test_position_variants() -> None:
     packets = decode(
         data("TST1-1", "!4814.73S\\01122.16W-/A=00500"),  # metres, south/west
-        data("TST2-1", "=4744.88N/01215.00E#no tags at all"),
-        data("TST3-1", "!4744.88N/01215.00E#/B=150/A=12x"),  # odd values
+        data("TST2-1", "=5010.00N/00915.00E#no tags at all"),
+        data("TST3-1", "!5010.00N/00915.00E#/B=150/A=12x"),  # odd values
     )
     first, second, third = packets
     assert isinstance(first, PositionPacket)

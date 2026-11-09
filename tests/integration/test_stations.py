@@ -31,7 +31,7 @@ from .conftest import NODE_ID, datagram, inject
 HEARD = "sensor.meshcom_qx1yz_12_stations_heard_24_h"
 
 
-def station_position(callsign: str, msg_id: str, lat: float = 47.7, batt: int = 88) -> bytes:
+def station_position(callsign: str, msg_id: str, lat: float = 50.7, batt: int = 88) -> bytes:
     return datagram(
         src_type="lora",
         type="pos",
@@ -39,7 +39,7 @@ def station_position(callsign: str, msg_id: str, lat: float = 47.7, batt: int = 
         msg="",
         lat=lat,
         lat_dir="N",
-        long=11.9,
+        long=8.9,
         long_dir="E",
         aprs_symbol="#",
         aprs_symbol_group="/",
@@ -93,7 +93,7 @@ async def test_data_mode_list_attribute(
     stations = state.attributes["stations"]
     assert [s["callsign"] for s in stations] == ["QB0BBB-1", "QB0AAA-12"]
     assert stations[1]["rssi"] == -97
-    assert stations[1]["latitude"] == pytest.approx(47.7)
+    assert stations[1]["latitude"] == pytest.approx(50.7)
     assert stations[0]["battery"] is None  # 0 means unknown
     entity = hass.data["sensor"].get_entity(HEARD)
     assert "stations" in entity._unrecorded_attributes
@@ -157,10 +157,10 @@ async def test_entities_mode_creates_devices(
     assert hass.states.get(entities["station_rssi"]).state == "-97"  # type: ignore[union-attr]
     tracker = hass.states.get(entities["station_position"])
     assert tracker is not None
-    assert tracker.attributes["latitude"] == pytest.approx(47.7)
+    assert tracker.attributes["latitude"] == pytest.approx(50.7)
 
     # An update of the station reaches its entities.
-    inject(entry, station_position("QB0AAA-12", "40000103", lat=47.8, batt=70))
+    inject(entry, station_position("QB0AAA-12", "40000103", lat=50.8, batt=70))
     await hass.async_block_till_done()
     assert hass.states.get(entities["station_battery"]).state == "70"  # type: ignore[union-attr]
     # In entities mode there is no list attribute.
@@ -316,8 +316,8 @@ async def test_stored_data_validated(
         "snr": 5,
         "hops": 2,
         "battery": 77,
-        "latitude": 47.0,
-        "longitude": 12.0,
+        "latitude": 50.0,
+        "longitude": 9.0,
         "firmware": "4.40a",
     }
     hass_storage[f"{DOMAIN}.stations.{mock_config_entry.entry_id}"] = {
