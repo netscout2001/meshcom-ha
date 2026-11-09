@@ -134,6 +134,8 @@ const ENCODER = new TextEncoder();
 // The only address the panel opens; filled with two checked numbers.
 const OSM_URL = "https://www.openstreetmap.org/";
 const NEAR_BOTTOM = 80;
+const VIEW_KEY = "meshcom-panel-view";
+const TABS = ["chat", "nodes", "stations"];
 const STATIONS_REFRESH_MS = 60000;
 
 function el(tag, className, text) {
@@ -656,7 +658,10 @@ class MeshComChatPanel extends HTMLElement {
     this._loaded = true;
     this._renderNodeSelect();
     if (this._nodes.length) {
-      await this._selectNode(this._nodes[0].entry_id);
+      const remembered = this._loadView();
+      const node = this._nodes.find((n) => n.entry_id === remembered.node) || this._nodes[0];
+      if (remembered.tab && remembered.tab !== this._tab) this._setTab(remembered.tab);
+      await this._selectNode(node.entry_id);
     } else {
       this._render();
     }
@@ -678,7 +683,7 @@ class MeshComChatPanel extends HTMLElement {
     this._menu.narrow = this._narrow;
     const tabs = el("div", "tabs");
     this._tabButtons = {};
-    for (const key of ["chat", "nodes", "stations"]) {
+    for (const key of TABS) {
       const button = el("button", "tab", t.tabs[key]);
       button.addEventListener("click", () => this._setTab(key));
       this._tabButtons[key] = button;
@@ -774,6 +779,7 @@ class MeshComChatPanel extends HTMLElement {
 
   _setTab(tab) {
     this._tab = tab;
+    this._saveView();
     for (const [key, button] of Object.entries(this._tabButtons)) {
       button.className = key === tab ? "tab active" : "tab";
     }
@@ -812,7 +818,14 @@ class MeshComChatPanel extends HTMLElement {
   async _selectNode(entryId) {
     if (!entryId) return;
     this._stopSubscription();
+    if (entryId !== this._entryId) {
+      // Conversations belong to one node: start the other node at "All".
+      this._active = "all";
+      this._pinned = null;
+      this._dividerSince = null;
+    }
     this._entryId = entryId;
+    this._saveView();
     this._nodeSelect.value = entryId;
     this._stations = null;
     try {
@@ -897,6 +910,28 @@ class MeshComChatPanel extends HTMLElement {
   }
 
   // --- read state ----------------------------------------------------------------
+
+  // Selected node and tab, kept per browser so a reload opens the same view.
+  _loadView() {
+    try {
+      const data = JSON.parse(window.localStorage.getItem(VIEW_KEY) || "{}");
+      return {
+        node: typeof data.node === "string" ? data.node : null,
+        tab: TABS.includes(data.tab) ? data.tab : null,
+      };
+    } catch (err) {
+      return { node: null, tab: null };
+    }
+  }
+
+  _saveView() {
+    if (!this._loaded) return;
+    try {
+      window.localStorage.setItem(VIEW_KEY, JSON.stringify({ node: this._entryId, tab: this._tab }));
+    } catch (err) {
+      // not stored: the panel opens with the first node next time
+    }
+  }
 
   get _readKey() {
     return `meshcom-chat-read:${this._entryId}`;

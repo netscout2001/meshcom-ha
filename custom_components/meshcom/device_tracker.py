@@ -7,6 +7,7 @@ from homeassistant.components.device_tracker.const import SourceType
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import MeshComConfigEntry
 from .const import signal_new_station
@@ -35,20 +36,47 @@ async def async_setup_entry(
     )
 
 
-class MeshComTracker(MeshComEntity, TrackerEntity):
-    """Position from the node's own beacon."""
+def _coordinate(value: object, limit: float) -> float | None:
+    """A restored coordinate, only if it is a plain number in range."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if -limit <= number <= limit else None
+
+
+class MeshComTracker(MeshComEntity, TrackerEntity, RestoreEntity):
+    """Position from the node's own beacon.
+
+    The node sends its position only every few minutes; until the first one
+    after a restart the last known position is kept, like the sensors do.
+    """
 
     _attr_source_type = SourceType.GPS
+    _restored: tuple[float, float] | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last position."""
+        await super().async_added_to_hass()
+        if (state := await self.async_get_last_state()) is None:
+            return
+        latitude = _coordinate(state.attributes.get("latitude"), 90)
+        longitude = _coordinate(state.attributes.get("longitude"), 180)
+        if latitude is not None and longitude is not None:
+            self._restored = (latitude, longitude)
 
     @property
     def latitude(self) -> float | None:
         """Latitude of the last own beacon."""
-        return self.node.position.latitude if self.node.position else None
+        if self.node.position and self.node.position.latitude is not None:
+            return self.node.position.latitude
+        return self._restored[0] if self._restored else None
 
     @property
     def longitude(self) -> float | None:
         """Longitude of the last own beacon."""
-        return self.node.position.longitude if self.node.position else None
+        if self.node.position and self.node.position.longitude is not None:
+            return self.node.position.longitude
+        return self._restored[1] if self._restored else None
 
     @property
     def location_accuracy(self) -> float:

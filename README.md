@@ -138,7 +138,9 @@ The station list is stored and survives a restart.
 
 ### MeshCom panel
 
-The sidebar entry **MeshCom** opens a panel with three tabs.
+The sidebar entry **MeshCom** opens a panel with three tabs. With several
+nodes, a selector at the top switches between them; the panel remembers the
+selected node and tab per browser.
 
 **Chat**: a conversation for messages to all, for every group and every
 direct-message partner, plus read-only conversations for other addressees

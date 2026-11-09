@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.5
+
+### Fixes
+- Panel: switching to another node no longer shows the conversation that was open on the previous node (e.g. a direct message to your own callsign); the other node starts at "All"
+- Position of the own node: after a restart the last known position is kept until the node sends its next beacon (the sensors already did this); before, the tracker and the own marker on the map were unknown for several minutes
+
+### Changes
+- Panel: the selected node and tab are remembered per browser, a reload opens the same view
+
 ## v0.5.4
 
 ### Changes

@@ -5,9 +5,13 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_capture_events,
+    mock_restore_cache,
+)
 from pytest_homeassistant_custom_component.components.diagnostics import (
     get_diagnostics_for_config_entry,
 )
@@ -68,6 +72,38 @@ async def test_own_position(hass: HomeAssistant, init_integration: MockConfigEnt
     assert tracker.attributes["latitude"] == 47.5
     assert tracker.attributes["longitude"] == 12.0
     assert hass.states.get(ACTIVE).state == "on"  # type: ignore[union-attr]
+
+
+async def test_own_position_restored(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """After a restart the last position stays until the next own beacon."""
+    mock_restore_cache(hass, [State(TRACKER, "not_home", {"latitude": 47.1, "longitude": 11.9})])
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    tracker = hass.states.get(TRACKER)
+    assert tracker is not None
+    assert tracker.attributes["latitude"] == 47.1
+    assert tracker.attributes["longitude"] == 11.9
+    inject(mock_config_entry, OWN_POSITION)
+    await hass.async_block_till_done()
+    tracker = hass.states.get(TRACKER)
+    assert tracker is not None
+    assert tracker.attributes["latitude"] == 47.5
+
+
+async def test_own_position_restore_rejects_garbage(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Only plain numbers in range are restored."""
+    mock_restore_cache(hass, [State(TRACKER, "not_home", {"latitude": "47", "longitude": 200.0})])
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    tracker = hass.states.get(TRACKER)
+    assert tracker is not None
+    assert tracker.state == "unknown"
 
 
 async def test_unknown_sender_is_dropped(
