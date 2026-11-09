@@ -1294,7 +1294,7 @@ class MeshComChatPanel extends HTMLElement {
 
   _entityLabel(state, node) {
     const name = String(state.attributes.friendly_name || state.entity_id);
-    // "MeshCom DO8RE-12 Akku" -> "Akku"
+    // "MeshCom QX1YZ-12 Akku" -> "Akku"
     const index = name.indexOf(node.callsign);
     const rest = index >= 0 ? name.slice(index + node.callsign.length).trim() : name;
     return rest || name;

@@ -58,7 +58,7 @@
           "kiss_password": "Node password (--passwd)"
         },
         "data_description": {
-          "callsign": "The node's own callsign with SSID, e.g. DO8RE-9. Only messages from this callsign count as sent by the node.",
+          "callsign": "The node's own callsign with SSID, e.g. QX1YZ-9. Only messages from this callsign count as sent by the node.",
           "kiss_password": "Leave empty only if KISS authentication is off on the node."
         }
       }

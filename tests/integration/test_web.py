@@ -49,8 +49,8 @@ from custom_components.meshcom.const import (
 from .conftest import NODE_HOST, FakeWebClient, datagram, inject
 
 SWITCH_DOMAIN = "switch"
-NO_MSG_ALL = "switch.meshcom_do8re_12_no_msg_all"
-GROUP_SELECT = "select.meshcom_do8re_12_group"
+NO_MSG_ALL = "switch.meshcom_qx1yz_12_no_msg_all"
+GROUP_SELECT = "select.meshcom_qx1yz_12_group"
 PASSWORD = "geheim-123"  # test value
 
 
@@ -241,10 +241,10 @@ async def test_filter_follows_no_msg_all(
     inject(init_integration, _message("999", "40000002", "fremde Gruppe"))
     inject(init_integration, _message("TEST", "40000003", "anderer Adressat"))
     inject(init_integration, _message("262", "40000004", "eigene Gruppe"))
-    inject(init_integration, _message("DO8RE-12", "40000005", "an mich"))
+    inject(init_integration, _message("QX1YZ-12", "40000005", "an mich"))
     await hass.async_block_till_done()
 
-    assert [event.data["destination"] for event in events] == ["262", "DO8RE-12"]
+    assert [event.data["destination"] for event in events] == ["262", "QX1YZ-12"]
     node = init_integration.runtime_data.node
     assert node.messages_filtered == 3
     assert node.messages_received == 2
@@ -368,7 +368,7 @@ async def _flow_at_web_step(hass: HomeAssistant) -> str:
             {
                 "src_type": "node",
                 "type": "pos",
-                "src": "DO8RE-12",
+                "src": "QX1YZ-12",
                 "msg": "",
                 "lat": 47.5,
                 "lat_dir": "N",

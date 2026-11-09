@@ -96,7 +96,7 @@ async def test_delivery_status_datagram(
     inject(init_integration, datagram(type="ack", msg_id="63CF32D4", status=9))
     inject(
         init_integration,
-        datagram(type="ack", msg_id="63CF32D4", status=2, via="udp", **{"from": "DO8RE-9"}),
+        datagram(type="ack", msg_id="63CF32D4", status=2, via="udp", **{"from": "QX1YZ-9"}),
     )
     await hass.async_block_till_done()
     assert len(events) == 1
@@ -160,12 +160,12 @@ async def test_active_turns_off(hass: HomeAssistant, init_integration: MockConfi
     """Without packets the node becomes inactive after the timeout."""
     inject(init_integration, OWN_TELEMETRY)
     await hass.async_block_till_done()
-    assert hass.states.get("binary_sensor.meshcom_do8re_12_active").state == "on"  # type: ignore[union-attr]
+    assert hass.states.get("binary_sensor.meshcom_qx1yz_12_active").state == "on"  # type: ignore[union-attr]
     future = dt_util.utcnow() + timedelta(minutes=70)
     init_integration.runtime_data.node.last_packet = dt_util.utcnow() - timedelta(minutes=70)
     async_fire_time_changed(hass, future)
     await hass.async_block_till_done()
-    assert hass.states.get("binary_sensor.meshcom_do8re_12_active").state == "off"  # type: ignore[union-attr]
+    assert hass.states.get("binary_sensor.meshcom_qx1yz_12_active").state == "off"  # type: ignore[union-attr]
 
 
 async def test_station_limit_and_dedup_window(
@@ -187,7 +187,7 @@ async def test_restore_battery(hass: HomeAssistant, mock_config_entry: MockConfi
         hass,
         [
             (
-                State("sensor.meshcom_do8re_12_battery", "88"),
+                State("sensor.meshcom_qx1yz_12_battery", "88"),
                 {"native_value": 88, "native_unit_of_measurement": "%"},
             )
         ],
@@ -195,7 +195,7 @@ async def test_restore_battery(hass: HomeAssistant, mock_config_entry: MockConfi
     mock_config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
-    assert hass.states.get("sensor.meshcom_do8re_12_battery").state == "88"  # type: ignore[union-attr]
+    assert hass.states.get("sensor.meshcom_qx1yz_12_battery").state == "88"  # type: ignore[union-attr]
 
 
 async def test_hub_socket_handling() -> None:

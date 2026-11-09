@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.1
+
+### Changes
+- Examples in the setup texts, README, code comments and tests use the neutral callsign `QX1YZ` (prefix `Q` is not assigned to any country) instead of a real one
+- README: screenshots of the Stations tab with the map
+
 ## v0.6.0
 
 ### Migration

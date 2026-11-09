@@ -45,8 +45,8 @@ from custom_components.meshcom.sender import async_send_text
 from .conftest import OWN_POSITION, FakeWebClient
 
 KISS_HOST = "192.168.1.60"
-CALL = "DO8RE-9"
-CONNECTED = "binary_sensor.meshcom_do8re_9_kiss_connected"
+CALL = "QX1YZ-9"
+CONNECTED = "binary_sensor.meshcom_qx1yz_9_kiss_connected"
 
 
 class FakeKiss:
@@ -206,7 +206,7 @@ def _input(**overrides: Any) -> dict[str, Any]:
     return {
         CONF_HOST: KISS_HOST,
         CONF_KISS_PORT: 8001,
-        CONF_CALLSIGN: "do8re-9",
+        CONF_CALLSIGN: "qx1yz-9",
         CONF_KISS_PASSWORD: "geheim",
         **overrides,
     }
@@ -284,10 +284,10 @@ async def test_flow_same_node_twice(
     hass: HomeAssistant, kiss_entry: MockConfigEntry, mock_config_entry: MockConfigEntry
 ) -> None:
     """A callsign can be set up once, through UDP or KISS."""
-    mock_config_entry.add_to_hass(hass)  # DO8RE-12 via UDP
+    mock_config_entry.add_to_hass(hass)  # QX1YZ-12 via UDP
     flow_id = await _kiss_form(hass)
     result = await hass.config_entries.flow.async_configure(
-        flow_id, _input(**{CONF_CALLSIGN: "DO8RE-12"})
+        flow_id, _input(**{CONF_CALLSIGN: "QX1YZ-12"})
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -339,7 +339,7 @@ async def test_connects_and_receives(
     assert node.position.battery == 88
     assert node.firmware is None  # KISS carries no version
     # KISS carries no version: it comes from the node's web page.
-    assert hass.states.get("sensor.meshcom_do8re_9_firmware").state == "4.40a"  # type: ignore[union-attr]
+    assert hass.states.get("sensor.meshcom_qx1yz_9_firmware").state == "4.40a"  # type: ignore[union-attr]
     issue_id = f"{ISSUE_KISS_AUTH_OFF}_{entry.entry_id}"
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
     assert entry.runtime_data.hub is None
@@ -408,11 +408,11 @@ async def test_send_via_kiss(
     """Sending goes through the KISS link; the own message is tracked."""
     entry = await _setup(hass, kiss_entry, kiss)
     hass.data.pop("meshcom_send_limiter", None)
-    await async_send_text(hass, entry, "DO8RE-12", "Hallo", None)
+    await async_send_text(hass, entry, "QX1YZ-12", "Hallo", None)
     await async_send_text(hass, entry, "262", "GM", None)
-    assert kiss.sent == [("DO8RE-12", "Hallo", True), ("262", "GM", False)]
+    assert kiss.sent == [("QX1YZ-12", "Hallo", True), ("262", "GM", False)]
     chat = [m for m in entry.runtime_data.chat.messages if m.own]
-    assert [m.conversation for m in chat] == ["dm:DO8RE-12", "group:262"]
+    assert [m.conversation for m in chat] == ["dm:QX1YZ-12", "group:262"]
     assert entry.runtime_data.node.messages_sent == 2
 
 
@@ -519,5 +519,5 @@ async def test_diagnostics(
 async def test_udp_entry_unchanged(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
     """UDP nodes have no KISS link and no KISS sensor."""
     assert init_integration.runtime_data.kiss is None
-    assert hass.states.get("binary_sensor.meshcom_do8re_12_kiss_connected") is None
+    assert hass.states.get("binary_sensor.meshcom_qx1yz_12_kiss_connected") is None
     assert OWN_POSITION  # the UDP fixtures stay usable

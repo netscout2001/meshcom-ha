@@ -26,8 +26,8 @@ if TYPE_CHECKING:
     from custom_components.meshcom.aiomeshcom.webapi import WebApiError
 
 NODE_HOST = "192.168.1.50"
-#: Node id of DO8RE-12 (derived from the callsign since config entry 1.2).
-NODE_ID = callsign_node_id("DO8RE-12")
+#: Node id of QX1YZ-12 (derived from the callsign since config entry 1.2).
+NODE_ID = callsign_node_id("QX1YZ-12")
 
 
 @pytest.fixture(autouse=True)
@@ -133,7 +133,7 @@ def datagram(**fields: Any) -> bytes:
 OWN_POSITION = datagram(
     src_type="node",
     type="pos",
-    src="DO8RE-12",
+    src="QX1YZ-12",
     msg="",
     lat=47.5,
     lat_dir="N",
@@ -155,7 +155,7 @@ OWN_POSITION = datagram(
 OWN_TELEMETRY_EMPTY = datagram(
     src_type="node",
     type="tele",
-    src="DO8RE-12",
+    src="QX1YZ-12",
     temp1=0,
     temp2=0,
     hum=0,
@@ -167,7 +167,7 @@ OWN_TELEMETRY_EMPTY = datagram(
 OWN_TELEMETRY = datagram(
     src_type="node",
     type="tele",
-    src="DO8RE-12",
+    src="QX1YZ-12",
     temp1=21.5,
     temp2=0,
     hum=40,
@@ -194,8 +194,8 @@ INCOMING_MESSAGE = datagram(
 OWN_MESSAGE = datagram(
     src_type="node",
     type="msg",
-    src="DO8RE-12",
-    dst="DO8RE-9",
+    src="QX1YZ-12",
+    dst="QX1YZ-9",
     msg="Test2{724",
     msg_id="63CF32D4",
     firmware="4.40",
@@ -209,9 +209,9 @@ OWN_MESSAGE = datagram(
 ACK_TEXT = datagram(
     src_type="lora",
     type="msg",
-    src="DO8RE-9",
-    dst="DO8RE-12",
-    msg="DO8RE-12 :ack724",
+    src="QX1YZ-9",
+    dst="QX1YZ-12",
+    msg="QX1YZ-12 :ack724",
     msg_id="43758258",
     firmware=40,
     fw_sub="a",
@@ -228,13 +228,13 @@ def mock_config_entry() -> MockConfigEntry:
     """A configured node."""
     return MockConfigEntry(
         domain=DOMAIN,
-        title="DO8RE-12",
+        title="QX1YZ-12",
         unique_id=f"{NODE_ID:06x}",
         minor_version=2,
         data={
             CONF_HOST: NODE_HOST,
             CONF_LISTEN_PORT: 1799,
-            CONF_CALLSIGN: "DO8RE-12",
+            CONF_CALLSIGN: "QX1YZ-12",
             CONF_NODE_ID: NODE_ID,
         },
     )

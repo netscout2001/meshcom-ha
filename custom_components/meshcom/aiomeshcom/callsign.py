@@ -1,7 +1,7 @@
 """Validation of callsigns, group numbers and source paths.
 
 Only plain ASCII is accepted. Look-alike characters from other scripts (for
-example a Cyrillic "\u041e" in "DO8RE-12") therefore never validate as a callsign
+example a Cyrillic "\u0425" in place of the "X" in "QX1YZ-12") never validate as a callsign
 (security concept C-03).
 """
 

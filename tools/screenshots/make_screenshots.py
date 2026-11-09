@@ -4,7 +4,9 @@ Usage: python make_screenshots.py OUTPUT_DIR [FONT_DIR]
 
 Needs Playwright with Chromium. FONT_DIR may hold Roboto woff2 files
 (roboto-latin-400/500/700-normal.woff2). Map tiles are not loaded here;
-the map screenshot is taken in a normal browser from demo.html.
+OpenStreetMap only serves tiles to pages with a referrer, so the map
+screenshots are taken from a self-contained copy of demo.html served by
+Home Assistant (``/config/www`` -> ``/local/...``; remove it afterwards).
 """
 
 from __future__ import annotations

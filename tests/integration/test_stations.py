@@ -28,7 +28,7 @@ from custom_components.meshcom.const import (
 
 from .conftest import NODE_ID, datagram, inject
 
-HEARD = "sensor.meshcom_do8re_12_stations_heard_24_h"
+HEARD = "sensor.meshcom_qx1yz_12_stations_heard_24_h"
 
 
 def station_position(callsign: str, msg_id: str, lat: float = 47.7, batt: int = 88) -> bytes:

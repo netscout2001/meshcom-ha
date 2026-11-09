@@ -53,7 +53,7 @@ from .text import clean_text
 _MSG_ID_RE: Final = re.compile(r"[0-9A-Fa-f]{8}")
 _FIRMWARE_TEXT_RE: Final = re.compile(r"4\.([0-9]{2})")
 # Text acknowledgement: addressee padded to 9 characters, ":ack" or ":rej",
-# then the sequence number. Seen in the field: "DO8RE-12 :ack724".
+# then the sequence number. Seen in the field: "QX1YZ-12 :ack724".
 _ACK_TEXT_RE: Final = re.compile(r"([A-Z0-9-]{1,9}) *:(ack|rej)([0-9]{1,3})")
 # Sequence number at the end of a direct message: "Test2{724". The closing
 # brace is optional (APRS allows "{724}" as well).

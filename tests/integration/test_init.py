@@ -30,15 +30,15 @@ from .conftest import (
     inject,
 )
 
-BATTERY = "sensor.meshcom_do8re_12_battery"
-TRACKER = "device_tracker.meshcom_do8re_12_position"
-ACTIVE = "binary_sensor.meshcom_do8re_12_active"
-LAST_MESSAGE = "sensor.meshcom_do8re_12_last_message"
-LAST_SENDER = "sensor.meshcom_do8re_12_last_sender"
-RECEIVED = "sensor.meshcom_do8re_12_messages_received"
-SENT = "sensor.meshcom_do8re_12_messages_sent"
-FIRMWARE = "sensor.meshcom_do8re_12_firmware"
-TEMPERATURE = "sensor.meshcom_do8re_12_temperature_1"
+BATTERY = "sensor.meshcom_qx1yz_12_battery"
+TRACKER = "device_tracker.meshcom_qx1yz_12_position"
+ACTIVE = "binary_sensor.meshcom_qx1yz_12_active"
+LAST_MESSAGE = "sensor.meshcom_qx1yz_12_last_message"
+LAST_SENDER = "sensor.meshcom_qx1yz_12_last_sender"
+RECEIVED = "sensor.meshcom_qx1yz_12_messages_received"
+SENT = "sensor.meshcom_qx1yz_12_messages_sent"
+FIRMWARE = "sensor.meshcom_qx1yz_12_firmware"
+TEMPERATURE = "sensor.meshcom_qx1yz_12_temperature_1"
 
 
 async def test_setup_and_unload(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
@@ -169,7 +169,7 @@ async def test_ack_event(hass: HomeAssistant, init_integration: MockConfigEntry)
     inject(init_integration, ACK_TEXT.replace(b"43758258", b"43758259"))
     await hass.async_block_till_done()
     assert len(events) == 1
-    assert events[0].data["from"] == "DO8RE-9"
+    assert events[0].data["from"] == "QX1YZ-9"
     assert events[0].data["sequence"] == 724
     assert events[0].data["msg_id"] == "63CF32D4"
     assert events[0].data["status"] == "delivered"
@@ -192,7 +192,7 @@ async def test_disabled_by_default(
     hass: HomeAssistant, init_integration: MockConfigEntry, entity_registry: er.EntityRegistry
 ) -> None:
     """Noisy diagnostics are disabled by default."""
-    entry = entity_registry.async_get("sensor.meshcom_do8re_12_last_rssi")
+    entry = entity_registry.async_get("sensor.meshcom_qx1yz_12_last_rssi")
     assert entry is not None
     assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
 
@@ -201,7 +201,7 @@ async def test_stations_heard(hass: HomeAssistant, init_integration: MockConfigE
     """Heard stations are kept as data and counted."""
     inject(init_integration, INCOMING_MESSAGE)
     await hass.async_block_till_done()
-    assert hass.states.get("sensor.meshcom_do8re_12_stations_heard_24_h").state == "1"  # type: ignore[union-attr]
+    assert hass.states.get("sensor.meshcom_qx1yz_12_stations_heard_24_h").state == "1"  # type: ignore[union-attr]
 
 
 async def test_diagnostics_redacted(
@@ -221,7 +221,7 @@ async def test_diagnostics_redacted(
     assert "TST1-12" not in text
     assert diagnostics["entry"]["host"] == "**REDACTED**"
     # The own callsign identifies the licence holder; the node id derives from it.
-    assert "DO8RE" not in text
+    assert "QX1YZ" not in text
     assert diagnostics["entry"]["callsign"] == "**REDACTED**"
     assert diagnostics["entry"]["node_id"] == "**REDACTED**"
     assert diagnostics["node"]["messages_received"] == 1
