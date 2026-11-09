@@ -110,8 +110,8 @@ async def test_direct_message_reply(hass: HomeAssistant, sent: list[ServiceCall]
     await _until(notified, 1)
     assert len(notified) == 1
     note = notified[0].data
-    assert note["title"] == "MeshCom: QA1ABC-12"
-    assert note["message"] == "Hello"
+    assert note["title"] == "MeshCom \u00b7 DM"
+    assert note["message"] == "QA1ABC-12: Hello"
     action = note["data"]["actions"][0]
     assert action["behavior"] == "textInput"
     assert note["data"]["tag"] == "meshcom-QA1ABC-12"
@@ -146,7 +146,7 @@ async def test_group_reply_and_filters(hass: HomeAssistant, sent: list[ServiceCa
         await asyncio.sleep(0)
     assert len(notified) == 1
     note = notified[0].data
-    assert note["title"] == "MeshCom: QA1ABC-12 → 262"
+    assert note["title"] == "MeshCom \u00b7 262"
     action = note["data"]["actions"][0]["action"]
 
     # Another phone's button does not answer this notification.
@@ -170,3 +170,15 @@ async def test_group_reply_sent(hass: HomeAssistant, sent: list[ServiceCall]) ->
     hass.bus.async_fire("mobile_app_notification_action", {"action": action, "reply_text": "73"})
     await hass.async_block_till_done()
     assert sent[0].data["destination"] == "20"
+
+
+async def test_radio_text_stays_text(hass: HomeAssistant, sent: list[ServiceCall]) -> None:
+    """Text that looks like a number, a list or a template is passed on as text."""
+    notified = async_capture_events(hass, "test_notify")
+    texts = ["[1, 2]", "007", "{{ states('sun.sun') }}", "{'a': 1}", "True"]
+    for index, text in enumerate(texts):
+        hass.bus.async_fire("meshcom_message", _message(text=text, sender=f"QA{index}ABC-1"))
+    await _until(notified, len(texts))
+    assert [n.data["message"] for n in notified] == [
+        f"QA{index}ABC-1: {text}" for index, text in enumerate(texts)
+    ]

@@ -95,7 +95,7 @@ class Anonymizer:
 
     def position(self) -> tuple[float, float]:
         self._positions += 1
-        return 47.0 + self._positions * 0.01, 11.0 + self._positions * 0.01
+        return 50.0 + self._positions * 0.01, 8.0 + self._positions * 0.01
 
     def packet(self, raw: dict[str, Any]) -> dict[str, Any]:
         out = dict(raw)

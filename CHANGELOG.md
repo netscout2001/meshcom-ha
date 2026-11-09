@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.1
+
+### Fixes
+- Blueprint "notify with reply": radio text such as `[1, 2]`, `{'a': 1}` or `True` was turned into a list, dictionary or boolean by Home Assistant's template typing; the notification now shows "sender: text" and the conversation in the title (`MeshCom · DM`, `MeshCom · 262`). Re-import the blueprint to get the fix. The README example is fixed the same way.
+
+### Changes
+- Test data, demo data and the map's default centre use an invented area instead of coordinates in a real region
+- README: remaining security risks (unauthenticated external UDP, automations send without the per-user check, map tiles)
+
 ## v0.7.0
 
 ### Features

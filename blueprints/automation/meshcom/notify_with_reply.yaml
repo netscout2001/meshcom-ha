@@ -96,9 +96,11 @@ actions:
   - domain: mobile_app
     type: notify
     device_id: !input notify_device
+    # The sender comes first in the text: Home Assistant would otherwise turn
+    # radio text such as "[1, 2]" or "True" into a list or a boolean.
     title: >-
-      {% if kind == 'direct' %}MeshCom: {{ msg.sender }}{% elif kind == 'broadcast' %}MeshCom: {{ msg.sender }} → all{% else %}MeshCom: {{ msg.sender }} → {{ msg.destination }}{% endif %}
-    message: "{{ msg.text }}"
+      {% if kind == 'direct' %}MeshCom · DM{% elif kind == 'broadcast' %}MeshCom · all{% else %}MeshCom · {{ msg.destination }}{% endif %}
+    message: "{{ msg.sender }}: {{ msg.text }}"
     data:
       tag: "meshcom-{{ reply_to }}"
       group: meshcom
