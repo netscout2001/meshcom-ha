@@ -140,6 +140,7 @@ Leave it empty if the node has none (not recommended, see
 | Stations | Off / Data only (default) / One device per station |
 | Maximum station devices | Default 50 |
 | Remove station devices after (days) | Default 7 |
+| Node inactive after (minutes) | Default 65: "Active" turns off when the node sent nothing for this long (the node beacons every 30 minutes by default) |
 
 Changing the options reloads the node.
 
@@ -157,7 +158,8 @@ Changing the options reloads the node.
 | Last RSSI, Last SNR | Signal of the last message (unknown if it came via the server); disabled by default |
 | Firmware | From the node's beacon (UDP) or its info page (KISS) |
 | Temperature, humidity, pressure, CO2 | Only if the node reports sensor values |
-| Active (binary sensor) | On while the node sends packets |
+| Active (binary sensor) | On while the node sends packets; off after the time set in the options (default 65 minutes) |
+| Last packet | Time of the last packet from the node; kept over a restart, so "Active" is right after a restart too |
 | KISS connected (binary sensor) | KISS access only |
 | Position (device tracker) | Position of the node's beacon |
 | Recipient type, Group, Station (selects), Message (text), Send, Clear (buttons) | Compose and send from a dashboard |
@@ -170,7 +172,11 @@ Changing the options reloads the node.
 | --- | --- |
 | Off | Only the count and the station select for direct messages |
 | Data only (default) | The attribute `stations` of "Stations heard": the 100 most recently heard stations with last heard, RSSI, SNR, hops, battery and position. Not written to the database. |
-| One device per station | A device per station (behind the own node) with position, last heard, battery, RSSI, SNR and hops. Limited in number; removed after the configured days without a packet and back when heard again; can be deleted by hand. |
+| One device per station | A device per station (behind the own node) with position, last heard, battery, RSSI, SNR and hops, plus temperature, humidity and air pressure for stations that send weather values. Limited in number; removed after the configured days without a packet and back when heard again; can be deleted by hand. |
+
+For every station the integration also keeps its weather values (temperature,
+humidity, air pressure QNH and QFE, if the station sends them) and the relays
+of its last packet; the panel shows both.
 
 The station list is stored and survives a restart.
 
@@ -183,7 +189,8 @@ selected node and tab per browser.
 **Chat**: a conversation for messages to all, for every group and every
 direct-message partner, plus read-only conversations for other addressees
 (e.g. `TEST`). Filters: All, Unread, DMs, Groups (including the broadcast channel "All"), Other. Each message shows
-time, path (`via DJ6PT-2 > DB0HOB-12`) and RSSI/SNR. Conversations with new
+time, path (`via QR1ABC-2 > QB0RLY-12`) and RSSI/SNR; a click on the path
+shows it on the map. Conversations with new
 messages show a badge with their number (read state is kept per browser);
 when you open one, it starts at a "New messages" line, and a button jumps to
 the newest message. Delivery of your direct messages is shown (sent,
@@ -198,8 +205,11 @@ can change them.
 (green: heard within the last hour, orange: within 24 hours, grey: older;
 a legend on the map explains the colours),
 and below it the heard stations as a sortable table. A click on a station on
-the map shows its values with buttons for a direct message and for
-OpenStreetMap. In the table, a click on a callsign zooms the map to that
+the map shows its values (signal, battery, weather) and the relays of its
+last packet, draws that path as a line to your node (dashed where a relay
+has no known position) and has buttons for a direct message and for
+OpenStreetMap. The table also lists temperature, humidity and air pressure
+(QNH). In the table, a click on a callsign zooms the map to that
 station (as does "Map"), and "(DM)" behind the callsign opens a direct
 message.
 
@@ -261,6 +271,39 @@ feed it into templates that are executed, commands or scripts.
 
 ## Examples
 
+### Blueprint: notification with reply
+
+[![Open your Home Assistant instance and show the blueprint import dialog with this blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fnetscout2001%2Fmeshcom-ha%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fmeshcom%2Fnotify_with_reply.yaml)
+
+[`notify_with_reply.yaml`](blueprints/automation/meshcom/notify_with_reply.yaml)
+sends a push notification to a phone with the Home Assistant Companion app
+for direct messages to the node and, optionally, for chosen groups and for
+messages to all. The notification has a **Reply** button; the answer goes
+back into the same conversation (to the sender, or into the group) with
+`meshcom.send_message`.
+
+The reply is sent by the automation under the node's callsign. Only choose a
+phone whose owner holds an amateur radio licence.
+
+### Node silent
+
+Notify when the node has sent nothing for the time set in the options:
+
+```yaml
+automation:
+  - alias: MeshCom node silent
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.meshcom_qx1yz_12_active
+        to: "off"
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          message: "MeshCom node QX1YZ-12 has been silent since {{ states('sensor.meshcom_qx1yz_12_last_packet') }}"
+```
+
+### Your own automations
+
 Notify on a direct message to you:
 
 ```yaml
@@ -296,6 +339,7 @@ automation:
 ```
 
 Use cases: a chat on the wall tablet, notifications for direct messages,
+weather of the stations around you,
 presence of a mobile node ("Active"), a map of heard stations, switching
 **No MSG All** at night.
 
@@ -374,6 +418,7 @@ Recommended node settings:
 | `tests/lib/` | Library tests, including anonymised real-world packets |
 | `tests/integration/` | Home Assistant integration tests |
 | `tools/` | Capture anonymiser, brand icon source |
+| `blueprints/` | Automation blueprints (notification with reply) |
 | `tools/screenshots/` | Demo data and script for the panel screenshots in `docs/images/` (invented data only) |
 | `docs/images/` | Screenshots used in this README |
 

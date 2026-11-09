@@ -55,11 +55,18 @@
   const stations = names.map((callsign, i) => {
     const heard = i < 9 ? rnd() * 50 : i < 19 ? 70 + rnd() * 900 : 1600 + rnd() * 4000;
     const located = i % 7 !== 3;
+    const relays = ["QB0RPT-12", "QB0HIL-12", "QB0TWR-1"].filter((r) => r !== callsign);
+    const hops = callsign === mobile ? 0 : Math.floor(rnd() * 3);
+    const weather = rnd() > 0.55;
     return {
+      path: relays.slice(0, hops),
+      temperature: weather ? Math.round((2 + rnd() * 8) * 10) / 10 : null,
+      humidity: weather ? Math.round(60 + rnd() * 35) : null,
+      pressure: weather ? Math.round((1012 + rnd() * 14) * 10) / 10 : null,
       callsign, last_heard: ago(heard),
       rssi: callsign === mobile ? -60 : Math.round(-90 - rnd() * 37),
       snr: callsign === mobile ? 11 : Math.round(10 - rnd() * 27),
-      hops: callsign === mobile ? 0 : Math.floor(rnd() * 4),
+      hops,
       battery: rnd() > 0.4 ? Math.round(60 + rnd() * 40) : null,
       latitude: located ? centre.lat + (rnd() - 0.5) * 0.32 : null,
       longitude: located ? centre.lon + (rnd() - 0.5) * 1.3 : null,
@@ -83,10 +90,11 @@
     ent(`sensor.${slug}_messages_received`, "sensor", values.rx, "Messages received"),
     ent(`sensor.${slug}_messages_sent`, "sensor", values.tx, "Messages sent"),
     ent(`sensor.${slug}_stations_heard`, "sensor", values.heard, "Stations heard (24 h)"),
+    ent(`sensor.${slug}_last_packet`, "sensor", values.lastPacket, "Last packet"),
     ent(`device_tracker.${slug}_position`, "device_tracker", "away", "Position", { latitude: values.lat, longitude: values.lon }),
   ];
-  const udp = nodeEntities("meshcom_qx1node_12", own, false, { alt: "516.9 m", batt: "96 %", volt: "4.01 V", fw: "4.40a", msg: "19:00 works, see you on 262", sender: "QA1ABC-12", rssi: "-101 dBm", snr: "5.0 dB", rx: "41", tx: "3", heard: "24", lat: 50.06, lon: 8.82 });
-  const kiss = nodeEntities("meshcom_qx1node_9", mobile, true, { alt: "512.1 m", batt: "99 %", volt: "4.16 V", fw: "4.40a", msg: "Test", sender: own, rssi: "-60 dBm", snr: "9.0 dB", rx: "2", tx: "1", heard: "19", lat: 50.0, lon: 8.95 });
+  const udp = nodeEntities("meshcom_qx1node_12", own, false, { alt: "516.9 m", batt: "96 %", volt: "4.01 V", fw: "4.40a", msg: "19:00 works, see you on 262", sender: "QA1ABC-12", rssi: "-101 dBm", snr: "5.0 dB", rx: "41", tx: "3", heard: "24", lastPacket: "1 minute ago", lat: 50.06, lon: 8.82 });
+  const kiss = nodeEntities("meshcom_qx1node_9", mobile, true, { alt: "512.1 m", batt: "99 %", volt: "4.16 V", fw: "4.40a", msg: "Test", sender: own, rssi: "-60 dBm", snr: "9.0 dB", rx: "2", tx: "1", heard: "19", lastPacket: "4 minutes ago", lat: 50.0, lon: 8.95 });
   const states = {};
   for (const e of [...udp, ...kiss]) {
     const owner = udp.includes(e) ? own : mobile;

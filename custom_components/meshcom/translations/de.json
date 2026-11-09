@@ -156,6 +156,18 @@
       },
       "station_hops": {
         "name": "Hops"
+      },
+      "last_packet": {
+        "name": "Letztes Paket"
+      },
+      "station_temperature": {
+        "name": "Temperatur"
+      },
+      "station_humidity": {
+        "name": "Luftfeuchte"
+      },
+      "station_pressure": {
+        "name": "Luftdruck"
       }
     },
     "binary_sensor": {
@@ -293,14 +305,16 @@
           "station_mode": "Stationen",
           "station_max": "Maximale Anzahl Stationsgeräte",
           "station_stale_days": "Stationsgeräte entfernen nach (Tagen)",
-          "hide_foreign_groups": "Chat: nur eigene Gruppen"
+          "hide_foreign_groups": "Chat: nur eigene Gruppen",
+          "inactive_minutes": "Node inaktiv nach (Minuten)"
         },
         "data_description": {
           "groups": "Gruppennummern für die Gruppen-Auswahl, durch Kommas getrennt, z. B. 262, 26298.",
           "station_mode": "Wie gehörte Stationen erscheinen: gar nicht, als Liste im Attribut des Sensors „Stationen gehört“ oder als ein Gerät pro Station.",
           "station_max": "Nur im Modus „Ein Gerät pro Station“. Weitere Stationen stehen in der Liste, bekommen aber kein Gerät.",
           "station_stale_days": "Ein Stationsgerät wird entfernt, wenn die Station so viele Tage nicht gehört wurde. Es kommt wieder, sobald die Station wieder gehört wird.",
-          "hide_foreign_groups": "Nachrichten an Gruppen ausblenden, die der Node nicht abonniert hat (nicht in seiner Gruppenliste und nicht oben eingetragen). Events und Sensoren bleiben unberührt."
+          "hide_foreign_groups": "Nachrichten an Gruppen ausblenden, die der Node nicht abonniert hat (nicht in seiner Gruppenliste und nicht oben eingetragen). Events und Sensoren bleiben unberührt.",
+          "inactive_minutes": "„Aktiv“ geht aus, wenn der Node so lange nichts gesendet hat. Der Node sendet seine Bake standardmäßig alle 30 Minuten; nimm mehr als das Doppelte seines Bakenintervalls."
         }
       }
     },

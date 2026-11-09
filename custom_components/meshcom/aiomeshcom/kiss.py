@@ -434,7 +434,8 @@ class KissDecoder:
         )
         position = parse_object(obj)
         results: list[Packet | KissTxResult] = [position]
-        if isinstance(position, PositionPacket) and position.source_type is SourceType.NODE:
+        # Weather tags (/T /H /P /Q ...) of the own node and of other stations.
+        if isinstance(position, PositionPacket):
             telemetry = self._telemetry(obj, tags)
             if telemetry is not None:
                 results.append(telemetry)

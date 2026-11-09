@@ -31,6 +31,7 @@ from .const import (
     DEFAULT_STATION_MODE,
     DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
+    MAX_PATH,
     MAX_STATIONS,
     STATION_CLEANUP_INTERVAL,
     STATION_MODE_ENTITIES,
@@ -89,6 +90,17 @@ def _parse_station(raw: Any) -> StationInfo | None:
     if last_heard is None or last_heard.tzinfo is None:
         return None
     firmware = raw.get("firmware")
+    weather = raw.get("weather_time")
+    weather_time = dt_util.parse_datetime(weather) if isinstance(weather, str) else None
+    if weather_time is not None and weather_time.tzinfo is None:
+        weather_time = None
+    path = raw.get("path")
+    if not (
+        isinstance(path, list)
+        and len(path) <= MAX_PATH
+        and all(isinstance(call, str) and is_callsign(call) for call in path)
+    ):
+        path = []
     return StationInfo(
         callsign=callsign,
         last_heard=last_heard,
@@ -99,6 +111,12 @@ def _parse_station(raw: Any) -> StationInfo | None:
         latitude=_number(raw.get("latitude"), float, -90, 90),
         longitude=_number(raw.get("longitude"), float, -180, 180),
         firmware=firmware if isinstance(firmware, str) and len(firmware) <= 16 else None,
+        temperature=_number(raw.get("temperature"), float, -60, 85),
+        humidity=_number(raw.get("humidity"), float, 0, 100),
+        pressure_qnh=_number(raw.get("pressure_qnh"), float, 800, 1100),
+        pressure_qfe=_number(raw.get("pressure_qfe"), float, 300, 1100),
+        weather_time=weather_time,
+        path=list(path),
     )
 
 
@@ -113,6 +131,12 @@ def _dump_station(station: StationInfo) -> dict[str, Any]:
         "latitude": station.latitude,
         "longitude": station.longitude,
         "firmware": station.firmware,
+        "temperature": station.temperature,
+        "humidity": station.humidity,
+        "pressure_qnh": station.pressure_qnh,
+        "pressure_qfe": station.pressure_qfe,
+        "weather_time": station.weather_time.isoformat() if station.weather_time else None,
+        "path": list(station.path),
     }
 
 

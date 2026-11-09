@@ -84,14 +84,14 @@ async def test_data_mode_list_attribute(
 ) -> None:
     """By default the stations are a list attribute, newest first, not recorded."""
     entry = await _setup(hass, mock_config_entry)
-    inject(entry, station_position("DB0AAA-12", "40000101"))
-    inject(entry, station_position("DB0BBB-1", "40000102", batt=0))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0BBB-1", "40000102", batt=0))
     await hass.async_block_till_done()
     state = hass.states.get(HEARD)
     assert state is not None
     assert state.state == "2"
     stations = state.attributes["stations"]
-    assert [s["callsign"] for s in stations] == ["DB0BBB-1", "DB0AAA-12"]
+    assert [s["callsign"] for s in stations] == ["QB0BBB-1", "QB0AAA-12"]
     assert stations[1]["rssi"] == -97
     assert stations[1]["latitude"] == pytest.approx(47.7)
     assert stations[0]["battery"] is None  # 0 means unknown
@@ -103,7 +103,7 @@ async def test_data_mode_list_attribute(
 async def test_off_mode(hass: HomeAssistant, mock_config_entry: MockConfigEntry) -> None:
     """Off: only the count, no list and no devices."""
     entry = await _setup(hass, mock_config_entry, **{CONF_STATION_MODE: "off"})
-    inject(entry, station_position("DB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
     await hass.async_block_till_done()
     state = hass.states.get(HEARD)
     assert state is not None
@@ -117,7 +117,7 @@ async def test_unknown_mode_falls_back(
 ) -> None:
     """A tampered option value means the default mode."""
     entry = await _setup(hass, mock_config_entry, **{CONF_STATION_MODE: "everything"})
-    inject(entry, station_position("DB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
     await hass.async_block_till_done()
     assert "stations" in hass.states.get(HEARD).attributes  # type: ignore[union-attr]
 
@@ -130,13 +130,13 @@ async def test_entities_mode_creates_devices(
 ) -> None:
     """Each heard station gets a device behind the own node, with its entities."""
     entry = await _setup(hass, mock_config_entry, **{CONF_STATION_MODE: "entities"})
-    inject(entry, station_position("DB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
     await hass.async_block_till_done()
 
     devices = _station_devices(hass, entry)
-    assert list(devices) == ["DB0AAA-12"]
-    device = devices["DB0AAA-12"]
-    assert device.name == "DB0AAA-12"
+    assert list(devices) == ["QB0AAA-12"]
+    device = devices["QB0AAA-12"]
+    assert device.name == "QB0AAA-12"
     own = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, f"{NODE_ID:06x}")})
     assert own is not None
     assert device.via_device_id == own.id
@@ -160,7 +160,7 @@ async def test_entities_mode_creates_devices(
     assert tracker.attributes["latitude"] == pytest.approx(47.7)
 
     # An update of the station reaches its entities.
-    inject(entry, station_position("DB0AAA-12", "40000103", lat=47.8, batt=70))
+    inject(entry, station_position("QB0AAA-12", "40000103", lat=47.8, batt=70))
     await hass.async_block_till_done()
     assert hass.states.get(entities["station_battery"]).state == "70"  # type: ignore[union-attr]
     # In entities mode there is no list attribute.
@@ -172,11 +172,11 @@ async def test_device_limit(hass: HomeAssistant, mock_config_entry: MockConfigEn
     entry = await _setup(
         hass, mock_config_entry, **{CONF_STATION_MODE: "entities", CONF_STATION_MAX: 1}
     )
-    inject(entry, station_position("DB0AAA-12", "40000101"))
-    inject(entry, station_position("DB0BBB-12", "40000102"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0BBB-12", "40000102"))
     await hass.async_block_till_done()
-    assert list(_station_devices(hass, entry)) == ["DB0AAA-12"]
-    assert "DB0BBB-12" in entry.runtime_data.node.stations
+    assert list(_station_devices(hass, entry)) == ["QB0AAA-12"]
+    assert "QB0BBB-12" in entry.runtime_data.node.stations
 
 
 async def test_stale_devices_removed(
@@ -186,23 +186,23 @@ async def test_stale_devices_removed(
     entry = await _setup(
         hass, mock_config_entry, **{CONF_STATION_MODE: "entities", CONF_STATION_STALE_DAYS: 2}
     )
-    inject(entry, station_position("DB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
     await hass.async_block_till_done()
     freezer.tick(timedelta(days=1))
-    inject(entry, station_position("DB0BBB-12", "40000102"))
+    inject(entry, station_position("QB0BBB-12", "40000102"))
     await hass.async_block_till_done()
-    assert set(_station_devices(hass, entry)) == {"DB0AAA-12", "DB0BBB-12"}
+    assert set(_station_devices(hass, entry)) == {"QB0AAA-12", "QB0BBB-12"}
 
     freezer.tick(timedelta(days=1, hours=1))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert set(_station_devices(hass, entry)) == {"DB0BBB-12"}
-    assert entry.runtime_data.stations.tracked == {"DB0BBB-12"}
+    assert set(_station_devices(hass, entry)) == {"QB0BBB-12"}
+    assert entry.runtime_data.stations.tracked == {"QB0BBB-12"}
 
     # Heard again: the device comes back.
-    inject(entry, station_position("DB0AAA-12", "40000103"))
+    inject(entry, station_position("QB0AAA-12", "40000103"))
     await hass.async_block_till_done()
-    assert set(_station_devices(hass, entry)) == {"DB0AAA-12", "DB0BBB-12"}
+    assert set(_station_devices(hass, entry)) == {"QB0AAA-12", "QB0BBB-12"}
 
 
 async def test_switch_to_data_removes_devices(
@@ -210,7 +210,7 @@ async def test_switch_to_data_removes_devices(
 ) -> None:
     """Leaving the entities mode removes the station devices."""
     entry = await _setup(hass, mock_config_entry, **{CONF_STATION_MODE: "entities"})
-    inject(entry, station_position("DB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
     await hass.async_block_till_done()
     assert _station_devices(hass, entry)
 
@@ -221,7 +221,7 @@ async def test_switch_to_data_removes_devices(
     # The station itself survived the reload (stored).
     state = hass.states.get(HEARD)
     assert state is not None
-    assert [s["callsign"] for s in state.attributes["stations"]] == ["DB0AAA-12"]
+    assert [s["callsign"] for s in state.attributes["stations"]] == ["QB0AAA-12"]
 
 
 async def test_data_update_does_not_reload(
@@ -243,12 +243,12 @@ async def test_remove_device(
     """Station devices can be deleted by the user; the own node cannot."""
     assert await async_setup_component(hass, "config", {})
     entry = await _setup(hass, mock_config_entry, **{CONF_STATION_MODE: "entities"})
-    inject(entry, station_position("DB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
     await hass.async_block_till_done()
     registry = dr.async_get(hass)
     own = registry.async_get_device(identifiers={(DOMAIN, f"{NODE_ID:06x}")})
     assert own is not None
-    station = _station_devices(hass, entry)["DB0AAA-12"]
+    station = _station_devices(hass, entry)["QB0AAA-12"]
     client = await hass_ws_client(hass)
 
     async def _remove(device_id: str) -> bool:
@@ -268,9 +268,9 @@ async def test_remove_device(
     assert _station_devices(hass, entry) == {}
     assert entry.runtime_data.stations.tracked == set()
 
-    inject(entry, station_position("DB0AAA-12", "40000102"))
+    inject(entry, station_position("QB0AAA-12", "40000102"))
     await hass.async_block_till_done()
-    assert list(_station_devices(hass, entry)) == ["DB0AAA-12"]
+    assert list(_station_devices(hass, entry)) == ["QB0AAA-12"]
 
 
 # --- persistence -------------------------------------------------------------
@@ -284,19 +284,19 @@ async def test_stations_survive_restart(
 ) -> None:
     """The station list is written to disk and read back on setup."""
     entry = await _setup(hass, mock_config_entry, **{CONF_STATION_MODE: "entities"})
-    inject(entry, station_position("DB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0AAA-12", "40000101"))
     await hass.async_block_till_done()
     freezer.tick(timedelta(seconds=STATION_SAVE_DELAY + 1))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     key = f"{DOMAIN}.stations.{entry.entry_id}"
     stored = hass_storage[key]["data"]["stations"]
-    assert [s["callsign"] for s in stored] == ["DB0AAA-12"]
+    assert [s["callsign"] for s in stored] == ["QB0AAA-12"]
 
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
-    assert "DB0AAA-12" in entry.runtime_data.node.stations
-    assert list(_station_devices(hass, entry)) == ["DB0AAA-12"]
+    assert "QB0AAA-12" in entry.runtime_data.node.stations
+    assert list(_station_devices(hass, entry)) == ["QB0AAA-12"]
 
     # Removing the entry deletes the file.
     await hass.config_entries.async_remove(entry.entry_id)
@@ -310,7 +310,7 @@ async def test_stored_data_validated(
     """Tampered or old entries in the station file are dropped."""
     now = dt_util.utcnow()
     good = {
-        "callsign": "DB0AAA-12",
+        "callsign": "QB0AAA-12",
         "last_heard": (now - timedelta(hours=1)).isoformat(),
         "rssi": -90,
         "snr": 5,
@@ -328,11 +328,11 @@ async def test_stored_data_validated(
             "stations": [
                 good,
                 {**good, "callsign": "<script>"},
-                {**good, "callsign": "DB0OLD-1", "last_heard": "2020-01-01T00:00:00+00:00"},
-                {**good, "callsign": "DB0NTZ-1", "last_heard": "2026-01-01T00:00:00"},
-                {**good, "callsign": "DB0BAD-1", "last_heard": "yesterday"},
-                {**good, "callsign": "DB0VAL-1", "rssi": "x", "battery": 500, "snr": True},
-                {**good, "callsign": "DB0FW-1", "hops": 2.5, "firmware": "x" * 50},
+                {**good, "callsign": "QB0OLD-1", "last_heard": "2020-01-01T00:00:00+00:00"},
+                {**good, "callsign": "QB0NTZ-1", "last_heard": "2026-01-01T00:00:00"},
+                {**good, "callsign": "QB0BAD-1", "last_heard": "yesterday"},
+                {**good, "callsign": "QB0VAL-1", "rssi": "x", "battery": 500, "snr": True},
+                {**good, "callsign": "QB0FW-1", "hops": 2.5, "firmware": "x" * 50},
                 "not a dict",
                 {**good, "callsign": 12},
             ]
@@ -340,13 +340,13 @@ async def test_stored_data_validated(
     }
     entry = await _setup(hass, mock_config_entry)
     stations = entry.runtime_data.node.stations
-    assert set(stations) == {"DB0AAA-12", "DB0VAL-1", "DB0FW-1"}
-    assert stations["DB0AAA-12"].battery == 77
-    assert stations["DB0VAL-1"].rssi is None
-    assert stations["DB0VAL-1"].battery is None
-    assert stations["DB0VAL-1"].snr is None
-    assert stations["DB0FW-1"].hops is None
-    assert stations["DB0FW-1"].firmware is None
+    assert set(stations) == {"QB0AAA-12", "QB0VAL-1", "QB0FW-1"}
+    assert stations["QB0AAA-12"].battery == 77
+    assert stations["QB0VAL-1"].rssi is None
+    assert stations["QB0VAL-1"].battery is None
+    assert stations["QB0VAL-1"].snr is None
+    assert stations["QB0FW-1"].hops is None
+    assert stations["QB0FW-1"].firmware is None
 
 
 @pytest.mark.parametrize("data", [None, {"stations": "x"}, ["x"]])

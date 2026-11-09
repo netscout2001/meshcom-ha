@@ -61,8 +61,13 @@ const TEXT = {
       snr: "SNR",
       hops: "Hops",
       battery: "Battery",
+      temperature: "Temp.",
+      humidity: "Hum.",
+      pressure: "Pressure",
       position: "Position",
     },
+    direct: "heard directly",
+    showPath: "Show the path on the map",
     ago: (min) => (min < 1 ? "just now" : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.floor(min / 60)} h ago` : `${Math.floor(min / 1440)} d ago`),
     on: "On",
     off: "Off",
@@ -119,8 +124,13 @@ const TEXT = {
       snr: "SNR",
       hops: "Hops",
       battery: "Akku",
+      temperature: "Temp.",
+      humidity: "Feuchte",
+      pressure: "Luftdruck",
       position: "Position",
     },
+    direct: "direkt geh\u00f6rt",
+    showPath: "Pfad auf der Karte zeigen",
     ago: (min) => (min < 1 ? "gerade eben" : min < 60 ? `vor ${min} min` : min < 1440 ? `vor ${Math.floor(min / 60)} h` : `vor ${Math.floor(min / 1440)} d`),
     on: "An",
     off: "Aus",
@@ -293,6 +303,11 @@ const STYLE = `
 .map-controls { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 4; }
 .map-controls button { width: 30px; height: 30px; border: none; border-radius: 6px; font-size: 18px; line-height: 1;
   background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.map-path { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.map-path line { stroke: var(--primary-color, #03a9f4); stroke-width: 3; stroke-linecap: round; opacity: .85; }
+.map-path line.gap { stroke-dasharray: 6 6; opacity: .6; }
+.map-popup .path { opacity: .8; }
+.msg .meta .via { font-size: inherit; color: inherit; text-decoration: underline dotted; }
 .map-legend { position: absolute; left: 8px; bottom: 8px; z-index: 4; display: flex; gap: 10px; flex-wrap: wrap;
   padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: default;
   background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
@@ -323,6 +338,7 @@ button { font: inherit; cursor: pointer; }
 // textContent. Tile addresses are built from three integers only.
 
 const TILE_URL = "https://tile.openstreetmap.org/";
+const SVG_NS = "http://www.w3.org/2000/svg";
 const TILE = 256;
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 18;
@@ -345,9 +361,12 @@ function validPosition(lat, lon) {
 }
 
 class TileMap {
-  constructor(container, popupFor, legend) {
+  constructor(container, popupFor, legend, pathFor) {
     this.container = container;
     this.popupFor = popupFor;
+    // Points of the radio path of a station: [{lat, lon} | null, ...].
+    this.pathFor = pathFor;
+    this.route = null;
     this.zoom = 6;
     this.center = { lat: 48.0, lon: 11.5 };
     this.markers = [];
@@ -356,6 +375,8 @@ class TileMap {
     this.fitted = false;
 
     this.tileLayer = el("div", "map-tiles");
+    this.pathLayer = document.createElementNS(SVG_NS, "svg");
+    this.pathLayer.setAttribute("class", "map-path");
     this.markerLayer = el("div", "map-markers");
     this.popup = el("div", "map-popup");
     this.popup.hidden = true;
@@ -374,7 +395,7 @@ class TileMap {
       entry.append(el("span", "dot"), el("span", null, legend[kind]));
       key.append(entry);
     }
-    container.append(this.tileLayer, this.markerLayer, this.popup, controls, key, attribution);
+    container.append(this.tileLayer, this.pathLayer, this.markerLayer, this.popup, controls, key, attribution);
 
     container.addEventListener("pointerdown", (ev) => this._dragStart(ev));
     container.addEventListener("wheel", (ev) => this._wheel(ev), { passive: false });
@@ -421,26 +442,53 @@ class TileMap {
   fit() {
     if (!this.markers.length || !this.width) return;
     this.fitted = true;
+    this._fitPoints(this.markers);
+    this.render();
+  }
+
+  // Zoom and centre so that all points are visible (no render).
+  _fitPoints(list, maxZoom = 13) {
     const pad = 40;
-    let zoom = 13;
+    let zoom = maxZoom;
     for (; zoom > MIN_ZOOM; zoom -= 1) {
-      const points = this.markers.map((m) => project(m.lat, m.lon, zoom));
+      const points = list.map((m) => project(m.lat, m.lon, zoom));
       const xs = points.map((p) => p.x);
       const ys = points.map((p) => p.y);
       if (Math.max(...xs) - Math.min(...xs) <= this.width - 2 * pad &&
           Math.max(...ys) - Math.min(...ys) <= this.height - 2 * pad) break;
     }
-    const points = this.markers.map((m) => project(m.lat, m.lon, zoom));
+    const points = list.map((m) => project(m.lat, m.lon, zoom));
     const x = (Math.min(...points.map((p) => p.x)) + Math.max(...points.map((p) => p.x))) / 2;
     const y = (Math.min(...points.map((p) => p.y)) + Math.max(...points.map((p) => p.y))) / 2;
     this.zoom = zoom;
     this.center = this._unproject(x, y, zoom);
+  }
+
+  _known(points) {
+    return (points || []).filter((p) => p && validPosition(p.lat, p.lon));
+  }
+
+  // Show a path (e.g. of a chat message) without selecting a station.
+  showRoute(points) {
+    this.route = points;
+    this.selected = null;
+    const known = this._known(points);
+    if (known.length && this.width) this._fitPoints(known, 12);
     this.render();
   }
 
   focus(id) {
     const marker = this.markers.find((m) => m.id === id);
     if (!marker) return;
+    this.route = null;
+    const path = this._known(this.pathFor(id));
+    if (path.length > 1 && this.width) {
+      // The station and its path to the own node in view.
+      this._fitPoints(path, 12);
+      this.selected = id;
+      this.render();
+      return;
+    }
     this.zoom = Math.max(this.zoom, 12);
     this.center = { lat: marker.lat, lon: marker.lon };
     this.selected = id;
@@ -494,8 +542,9 @@ class TileMap {
       this.container.removeEventListener("pointermove", move);
       this.container.removeEventListener("pointerup", up);
       this.container.removeEventListener("pointercancel", up);
-      if (!moved && this.selected !== null) {
+      if (!moved && (this.selected !== null || this.route !== null)) {
         this.selected = null;
+        this.route = null;
         this.render();
       }
     };
@@ -554,22 +603,54 @@ class TileMap {
       item.addEventListener("click", (ev) => {
         ev.stopPropagation();
         this.selected = this.selected === marker.id ? null : marker.id;
+        this.route = null;
         this.render();
       });
       if (marker.id === this.selected) item.classList.add("selected");
       items.push(item);
     }
     this.markerLayer.replaceChildren(...items);
+    this._renderPath(origin);
 
     const chosen = this.markers.find((m) => m.id === this.selected);
     if (chosen) {
       const p = project(chosen.lat, chosen.lon, this.zoom);
       this.popup.replaceChildren(...this.popupFor(chosen.id));
-      this.popup.style.transform = `translate(${p.x - origin.x}px, ${p.y - origin.y}px)`;
+      // Keep the box (180 px wide, centred under the marker) inside the map.
+      const x = Math.min(Math.max(p.x - origin.x, 98), width - 98);
+      this.popup.style.transform = `translate(${Math.round(x)}px, ${Math.round(p.y - origin.y)}px)`;
       this.popup.hidden = false;
     } else {
       this.popup.hidden = true;
     }
+  }
+
+  // Lines between the known positions of a path; dashed across unknown hops.
+  _renderPath(origin) {
+    const points = this.selected !== null ? this.pathFor(this.selected) : this.route;
+    const lines = [];
+    let last = null;
+    let gap = false;
+    for (const point of points || []) {
+      if (!point || !validPosition(point.lat, point.lon)) {
+        gap = true;
+        continue;
+      }
+      const p = project(point.lat, point.lon, this.zoom);
+      const here = { x: Math.round(p.x - origin.x), y: Math.round(p.y - origin.y) };
+      if (last) {
+        const line = document.createElementNS(SVG_NS, "line");
+        line.setAttribute("x1", String(last.x));
+        line.setAttribute("y1", String(last.y));
+        line.setAttribute("x2", String(here.x));
+        line.setAttribute("y2", String(here.y));
+        if (gap) line.setAttribute("class", "gap");
+        lines.push(line);
+      }
+      last = here;
+      gap = false;
+    }
+    this.pathLayer.replaceChildren(...lines);
   }
 }
 
@@ -1143,13 +1224,21 @@ class MeshComChatPanel extends HTMLElement {
       parts.push(time.toLocaleTimeString(this._hass.language || undefined, { timeStyle: "medium" }));
     }
     const path = Array.isArray(message.path) ? message.path : [];
-    if (path.length > 1) parts.push(`${t.via} ${path.join(" > ")}`);
-    if (message.via_server) parts.push(t.viaServer);
+    const tail = [];
+    if (message.via_server) tail.push(t.viaServer);
     if (!message.own && message.rssi !== null && message.rssi !== undefined) {
-      parts.push(`${message.rssi} dBm / ${message.snr} dB`);
+      tail.push(`${message.rssi} dBm / ${message.snr} dB`);
     }
     const meta = el("div", "meta", parts.join(" \u00b7 "));
     meta.dir = "auto";
+    if (path.length > 1) {
+      // The path opens the map with the route of this message.
+      const via = el("button", "linkbutton via", `${t.via} ${path.join(" > ")}`);
+      via.title = t.showPath;
+      via.addEventListener("click", () => this._showRoute(path));
+      meta.append(" \u00b7 ", via);
+    }
+    if (tail.length) meta.append(` \u00b7 ${tail.join(" \u00b7 ")}`);
     box.append(meta);
     if (!message.own) box.append(el("div", "sender", `${message.sender}:`));
     const text = el("div", "text", message.text);
@@ -1383,8 +1472,9 @@ class MeshComChatPanel extends HTMLElement {
     });
     const table = el("table");
     const head = el("tr");
-    const numeric = new Set(["rssi", "snr", "hops", "battery"]);
-    for (const column of ["callsign", "last_heard", "rssi", "snr", "hops", "battery", "position"]) {
+    const numeric = new Set(["rssi", "snr", "hops", "battery", "temperature", "humidity", "pressure"]);
+    const columns = ["callsign", "last_heard", "rssi", "snr", "hops", "battery", "temperature", "humidity", "pressure", "position"];
+    for (const column of columns) {
       const marker = column === key ? (desc ? " \u25bc" : " \u25b2") : "";
       const th = el("th", numeric.has(column) ? "num" : null, `${t.columns[column]}${marker}`);
       if (column !== "position") {
@@ -1424,7 +1514,10 @@ class MeshComChatPanel extends HTMLElement {
         el("td", "num", station.rssi ?? ""),
         el("td", "num", station.snr ?? ""),
         el("td", "num", station.hops ?? ""),
-        el("td", "num", station.battery === null || station.battery === undefined ? "" : `${station.battery} %`)
+        el("td", "num", station.battery === null || station.battery === undefined ? "" : `${station.battery} %`),
+        el("td", "num", Number.isFinite(station.temperature) ? `${station.temperature.toFixed(1)} \u00b0C` : ""),
+        el("td", "num", Number.isFinite(station.humidity) ? `${Math.round(station.humidity)} %` : ""),
+        el("td", "num", Number.isFinite(station.pressure) ? `${Math.round(station.pressure)} hPa` : "")
       );
       const posTd = el("td");
       if (Number.isFinite(station.latitude) && Number.isFinite(station.longitude)) {
@@ -1436,6 +1529,14 @@ class MeshComChatPanel extends HTMLElement {
       table.append(tr);
     }
     this._stationsBody.replaceChildren(table);
+  }
+
+  _weatherText(station) {
+    const values = [];
+    if (Number.isFinite(station.temperature)) values.push(`${station.temperature.toFixed(1)} \u00b0C`);
+    if (Number.isFinite(station.humidity)) values.push(`${Math.round(station.humidity)} %`);
+    if (Number.isFinite(station.pressure)) values.push(`${Math.round(station.pressure)} hPa`);
+    return values.join(" \u00b7 ");
   }
 
   _focusStation(callsign) {
@@ -1463,7 +1564,12 @@ class MeshComChatPanel extends HTMLElement {
   }
 
   _renderMap() {
-    if (!this._map) this._map = new TileMap(this._mapBox, (id) => this._mapPopup(id), this._t.legend);
+    if (!this._map) this._map = new TileMap(
+        this._mapBox,
+        (id) => this._mapPopup(id),
+        this._t.legend,
+        (id) => this._stationRoute(id)
+      );
     const dark = Boolean(this._hass && this._hass.themes && this._hass.themes.darkMode);
     this._mapBox.classList.toggle("dark", dark);
     const now = Date.now();
@@ -1479,6 +1585,41 @@ class MeshComChatPanel extends HTMLElement {
       };
     });
     this._map.setMarkers([...this._ownPositions(), ...markers]);
+    if (this._pendingRoute) {
+      const route = this._pendingRoute;
+      this._pendingRoute = null;
+      this._map.showRoute(this._routePoints(route));
+      this._mapBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  // Positions along a path: originator, relays, then the own node.
+  _routePoints(callsigns) {
+    const own = this._ownPositions()[0] || null;
+    const node = this._node;
+    const position = (call) => {
+      if (node && call === node.callsign) return own;
+      const station = (this._stations || []).find((s) => s.callsign === call);
+      return station && Number.isFinite(station.latitude) && Number.isFinite(station.longitude)
+        ? { lat: station.latitude, lon: station.longitude }
+        : null;
+    };
+    const points = callsigns.map(position);
+    if (!node || callsigns[callsigns.length - 1] !== node.callsign) points.push(own);
+    return points;
+  }
+
+  _stationRoute(id) {
+    if (id === OWN_MARKER) return [];
+    const station = (this._stations || []).find((s) => s.callsign === id);
+    if (!station) return [];
+    return this._routePoints([station.callsign, ...(Array.isArray(station.path) ? station.path : [])]);
+  }
+
+  // From the chat: show the path of a message on the map.
+  _showRoute(path) {
+    this._pendingRoute = path;
+    this._setTab("stations");
   }
 
   _mapPopup(id) {
@@ -1499,6 +1640,10 @@ class MeshComChatPanel extends HTMLElement {
     if (station.hops !== null && station.hops !== undefined) values.push(`${t.columns.hops} ${station.hops}`);
     if (station.battery !== null && station.battery !== undefined) values.push(`${t.columns.battery} ${station.battery} %`);
     if (values.length) parts.push(el("div", null, values.join(" \u00b7 ")));
+    const weather = this._weatherText(station);
+    if (weather) parts.push(el("div", null, weather));
+    const path = Array.isArray(station.path) ? station.path : [];
+    parts.push(el("div", "path", path.length ? `${t.via} ${path.join(" > ")}` : t.direct));
     const buttons = el("div", "buttons");
     const dm = el("button", "toggle", t.message);
     dm.addEventListener("click", () => this._openDirect(station.callsign));

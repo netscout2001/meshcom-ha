@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.7.0
+
+### Features
+- Blueprint "MeshCom – notify with reply": push notification for direct messages (and optionally chosen groups and messages to all) with a Reply button that answers into the same conversation
+- Sensor "Last packet" (time of the node's last packet), kept over a restart; "Active" is now right right after a restart too
+- Option "Node inactive after (minutes)" (default 65) for "Active"
+- Weather values of other stations (temperature, humidity, air pressure QNH/QFE) from their telemetry, also over KISS: in the station table and on the map; in the mode "One device per station" as sensors of stations that send them
+- Radio path: the relays of each station's last packet are kept; on the map a selected station shows its path to the own node as a line (dashed across relays without a known position); a click on a message's path in the chat shows it on the map
+
+### Changes
+- Example callsigns in README and tests use the unassigned prefix `Q`
+- Test data no longer contains the exact position of a real node
+
 ## v0.6.1
 
 ### Changes
@@ -67,7 +80,7 @@
 ### Features
 - MeshCom panel with the tabs Chat, Nodes and Stations
 - Chat: filters All / Unread / DMs / Groups / Other and a coloured symbol per conversation
-- Chat: the path of a message is shown in its header ("via DJ6PT-2 > DB0HOB-12")
+- Chat: the path of a message is shown in its header ("via QR1ABC-2 > QB0RLY-12")
 - Chat: a "New messages" line marks the first unread message; opening a conversation starts there, a button jumps to the newest message
 - Chat: only the messages scroll; the conversation list stays in place
 - Nodes: one card per own node with status, sensors and the switches "Allow sending" and "No MSG All"

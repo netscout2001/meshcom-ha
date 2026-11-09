@@ -148,6 +148,14 @@ def ws_stations(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str
                     "battery": station.battery or None,
                     "latitude": station.latitude,
                     "longitude": station.longitude,
+                    "temperature": station.temperature,
+                    "humidity": station.humidity,
+                    "pressure": station.pressure_qnh,
+                    "pressure_qfe": station.pressure_qfe,
+                    "weather_time": (
+                        station.weather_time.isoformat() if station.weather_time else None
+                    ),
+                    "path": list(station.path),
                 }
                 for station in reversed(stations)
             ],

@@ -88,6 +88,13 @@ STATION_MAX_LIMIT: Final = 200
 #: Options: station devices are removed after this many days without a packet.
 CONF_STATION_STALE_DAYS: Final = "station_stale_days"
 DEFAULT_STATION_STALE_DAYS: Final = 7
+#: Longest relay path kept per station and message (MeshCom allows few hops).
+MAX_PATH: Final = 12
+#: Minutes without any packet from the node until "Active" turns off. The
+#: node beacons every 30 minutes by default (POSINFO_INTERVAL in the firmware).
+CONF_INACTIVE_MINUTES: Final = "inactive_minutes"
+DEFAULT_INACTIVE_MINUTES: Final = 65
+INACTIVE_MINUTES_RANGE: Final = (10, 1440)
 STATION_STALE_DAYS_LIMIT: Final = 90
 #: Stations in the "stations" attribute (data mode), newest first.
 STATION_ATTRIBUTE_LIMIT: Final = 100
@@ -107,6 +114,11 @@ def signal_station(entry_id: str, callsign: str) -> str:
 def signal_new_station(entry_id: str) -> str:
     """Dispatcher signal: entities for a station should be added."""
     return f"{DOMAIN}_new_station_{entry_id}"
+
+
+def signal_station_weather(entry_id: str) -> str:
+    """Dispatcher signal: a station reported weather values for the first time."""
+    return f"{DOMAIN}_station_weather_{entry_id}"
 
 
 # --- access path --------------------------------------------------------------

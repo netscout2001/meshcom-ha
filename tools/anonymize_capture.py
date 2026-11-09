@@ -5,7 +5,7 @@ addresses, IP addresses and messages of other radio amateurs. None of that
 may enter the public repository. This tool replaces them consistently, so
 the structure (paths, acknowledgements, sequence numbers) stays intact:
 
-* base callsigns -> placeholders (SSID kept), e.g. DL1AAA-2 -> TST1-2
+* base callsigns -> placeholders (SSID kept), e.g. QL1AAA-2 -> TST1-2
 * positions -> synthetic coordinates
 * upper 22 bits of message ids (node id) -> synthetic node id, counter kept
 * IP addresses -> documentation ranges (RFC 5737)

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     mock_restore_cache_with_extra_data,
@@ -270,3 +273,48 @@ async def test_migrate_conflict_and_future_version(hass: HomeAssistant) -> None:
     future.add_to_hass(hass)
     assert not await hass.config_entries.async_setup(future.entry_id)
     assert future.state is ConfigEntryState.MIGRATION_ERROR
+
+
+# --- node monitoring --------------------------------------------------------------
+
+ACTIVE = "binary_sensor.meshcom_qx1yz_12_active"
+
+
+async def test_last_packet_restored_keeps_active(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """After a restart "Active" follows the restored time of the last packet."""
+    recent = dt_util.utcnow() - timedelta(minutes=10)
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(f"{PREFIX}last_packet", recent.isoformat()),
+                {
+                    "native_value": _timestamp(recent.isoformat()),
+                    "native_unit_of_measurement": None,
+                },
+            )
+        ],
+    )
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get(ACTIVE).state == "on"  # type: ignore[union-attr]
+    assert mock_config_entry.runtime_data.node.last_packet == recent
+
+
+async def test_inactive_after_option(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """The time until "Active" turns off comes from the options."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(mock_config_entry, options={"inactive_minutes": 20})
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    node = mock_config_entry.runtime_data.node
+    assert node.active_timeout == timedelta(minutes=20)
+    node.last_packet = dt_util.utcnow() - timedelta(minutes=25)
+    assert node.active is False
+    node.last_packet = dt_util.utcnow() - timedelta(minutes=15)
+    assert node.active is True
