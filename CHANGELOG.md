@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.1
+
+### Fixes
+- Chat filters: the open conversation no longer stays in every filter (e.g. "All" under "DMs"); it only stays while it was opened from the current filter. "All" belongs to "Groups" as the broadcast channel.
+
+### Features
+- Stations tab: hint that the station mode "One device per station" shows the stations on the Home Assistant map
+
 ## v0.5.0
 
 ### Features
