@@ -135,15 +135,31 @@ Changing the options reloads the node.
 
 The station list is stored and survives a restart.
 
-### Chat panel
+### MeshCom panel
 
-The sidebar entry **MeshCom** opens a chat with a conversation for messages
-to all, for every group and every direct-message partner, plus read-only
-conversations for other addressees (e.g. `TEST`). Delivery of your direct
-messages is shown (sent, delivered, rejected). Conversations with new
-messages show a badge with their number (read state is kept per browser).
-The last 500 messages per node
-are stored. Administrators and the users released in the options may use it.
+The sidebar entry **MeshCom** opens a panel with three tabs.
+
+**Chat**: a conversation for messages to all, for every group and every
+direct-message partner, plus read-only conversations for other addressees
+(e.g. `TEST`). Filters: All, Unread, DMs, Groups, Other. Each message shows
+time, path (`via DJ6PT-2 > DB0HOB-12`) and RSSI/SNR. Conversations with new
+messages show a badge with their number (read state is kept per browser);
+when you open one, it starts at a "New messages" line, and a button jumps to
+the newest message. Delivery of your direct messages is shown (sent,
+delivered, rejected). The last 500 messages per node are stored.
+
+**Nodes**: one card per own node with access, status, battery, firmware,
+stations, signal values and the switches "Allow sending" and "No MSG All".
+The switches use the normal Home Assistant services, so only administrators
+can change them.
+
+**Stations**: the heard stations as a sortable table. A click on a callsign
+opens a direct message, "Map" opens the position on OpenStreetMap in a new
+tab. The panel embeds no map itself: map tiles from a third party would
+reveal your IP address to that server on every visit. With the station mode
+"One device per station" the stations also appear on the Home Assistant map.
+
+Administrators and the users released in the options may use the panel.
 
 ### No MSG All and the message filter
 

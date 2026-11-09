@@ -209,14 +209,15 @@ async def test_released_user_reads_and_sends(
     await hass.async_block_till_done()
     client = await hass_ws_client(hass, hass_read_only_access_token)
     nodes = await _call(client, type="meshcom/chat/nodes")
-    assert nodes["result"]["nodes"] == [
-        {
-            "entry_id": init_integration.entry_id,
-            "callsign": "DO8RE-12",
-            "groups": ["262", "26298", "9"],
-            "sending_enabled": True,
-        }
-    ]
+    (node,) = nodes["result"]["nodes"]
+    assert {key: node[key] for key in ("entry_id", "callsign", "groups", "sending_enabled")} == {
+        "entry_id": init_integration.entry_id,
+        "callsign": "DO8RE-12",
+        "groups": ["262", "26298", "9"],
+        "sending_enabled": True,
+    }
+    assert node["access"] == "udp"
+    assert node["station_mode"] == "data"
     result = await _call(
         client,
         type="meshcom/chat/send",
@@ -622,3 +623,98 @@ async def test_two_nodes_set_up_together(
     assert second.state.name == "LOADED"
     assert PANEL_URL_PATH in hass.data[DATA_PANELS]
     assert "could not be registered" not in caplog.text
+
+
+# --- path, nodes tab, stations tab ---------------------------------------------
+
+
+async def test_message_path(
+    hass: HomeAssistant, init_integration: MockConfigEntry, hass_ws_client: WebSocketGenerator
+) -> None:
+    """Messages carry originator and relays for the "via" line."""
+    inject(init_integration, INCOMING_MESSAGE)
+    client = await hass_ws_client(hass)
+    history = await _call(client, type="meshcom/chat/history", entry_id=init_integration.entry_id)
+    assert history["result"]["messages"][0]["path"] == ["TST1-12", "TST2-12"]
+
+
+async def test_stored_path_validated(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, hass_storage: dict[str, Any]
+) -> None:
+    base = {
+        "id": "40000ED4",
+        "conversation": "all",
+        "sender": "TST1-12",
+        "destination": "*",
+        "text": "ok",
+        "time": "2026-11-06T10:00:00+00:00",
+        "own": False,
+    }
+    key = f"{DOMAIN}.chat.{mock_config_entry.entry_id}"
+    hass_storage[key] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": key,
+        "data": {
+            "messages": [
+                {**base, "path": ["TST1-12", "RLY1-1"]},
+                {**base, "path": ["TST1-12", "<img>"]},
+                {**base, "path": "TST1-12"},
+                {**base, "path": ["TST1-12"] * 13},
+                base,
+            ]
+        },
+    }
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    paths = [m.path for m in mock_config_entry.runtime_data.chat.messages]
+    assert paths == [["TST1-12", "RLY1-1"], [], [], [], []]
+
+
+async def test_nodes_tab_entities(
+    hass: HomeAssistant, init_integration: MockConfigEntry, hass_ws_client: WebSocketGenerator
+) -> None:
+    """The node card lists sensors, switches and the tracker, not the compose controls."""
+    client = await hass_ws_client(hass)
+    nodes = await _call(client, type="meshcom/chat/nodes")
+    entities = nodes["result"]["nodes"][0]["entities"]
+    domains = [item["domain"] for item in entities]
+    assert domains == sorted(
+        domains,
+        key=["binary_sensor", "switch", "sensor", "device_tracker"].index,
+    )
+    keys = {item["key"] for item in entities}
+    assert {"active", "no_msg_all", "sending_enabled", "battery", "position"} <= keys
+    assert not {"recipient_type", "message", "send"} & keys
+    assert all(hass.states.get(item["entity_id"]) is not None for item in entities)
+
+
+async def test_stations_tab(
+    hass: HomeAssistant, init_integration: MockConfigEntry, hass_ws_client: WebSocketGenerator
+) -> None:
+    inject(init_integration, INCOMING_MESSAGE)
+    client = await hass_ws_client(hass)
+    result = await _call(client, type="meshcom/chat/stations", entry_id=init_integration.entry_id)
+    assert result["result"]["mode"] == "data"
+    (station,) = result["result"]["stations"]
+    assert station["callsign"] == "TST1-12"
+    assert station["rssi"] == -110
+
+
+async def test_stations_tab_off_and_refused(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    hass_ws_client: WebSocketGenerator,
+    hass_read_only_access_token: str,
+) -> None:
+    inject(init_integration, INCOMING_MESSAGE)
+    reader = await hass_ws_client(hass, hass_read_only_access_token)
+    result = await _call(reader, type="meshcom/chat/stations", entry_id=init_integration.entry_id)
+    assert result["error"]["code"] == "unauthorized"
+
+    hass.config_entries.async_update_entry(init_integration, options={"station_mode": "off"})
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    result = await _call(client, type="meshcom/chat/stations", entry_id=init_integration.entry_id)
+    assert result["result"] == {"stations": [], "mode": "off"}

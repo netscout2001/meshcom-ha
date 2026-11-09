@@ -209,6 +209,14 @@ class MeshComNode:
             return
         self._station(packet.path.originator, now)
 
+    def _heard_message(self, packet: TextMessagePacket, now: datetime) -> None:
+        """A message also tells hops and signal of its sender."""
+        station = self._station(packet.path.originator, now)
+        station.hops = packet.path.hops
+        if packet.source_type is SourceType.LORA and packet.radio.rssi is not None:
+            station.rssi = packet.radio.rssi
+            station.snr = packet.radio.snr
+
     def _handle_message(self, packet: TextMessagePacket, now: datetime) -> None:
         if self._is_duplicate("msg", packet.msg_id.value):
             return
@@ -223,11 +231,11 @@ class MeshComNode:
             self.messages_sent += 1
             self._track_own(packet, now)
         elif not to_me:
-            self._station(packet.path.originator, now)
+            self._heard_message(packet, now)
         elif self.is_filtered(packet):
             # Filtered: the station is still known, but no message, no event.
             self.messages_filtered += 1
-            self._station(packet.path.originator, now)
+            self._heard_message(packet, now)
             return
         else:
             self.messages_received += 1
@@ -241,7 +249,7 @@ class MeshComNode:
             )
             if packet.radio.rssi is not None:
                 self.last_radio = (packet.radio.rssi, packet.radio.snr)
-            self._station(packet.path.originator, now)
+            self._heard_message(packet, now)
         if (is_own or to_me) and self.message_listener is not None:
             self.message_listener(packet, is_own, now)
         # Message text is untrusted data. It is passed on as data only; never
