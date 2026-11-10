@@ -113,10 +113,10 @@
         "name": "Stations heard (24 h)"
       },
       "last_rssi": {
-        "name": "Last RSSI"
+        "name": "Last RSSI (packet)"
       },
       "last_snr": {
-        "name": "Last SNR"
+        "name": "Last SNR (packet)"
       },
       "firmware": {
         "name": "Firmware"

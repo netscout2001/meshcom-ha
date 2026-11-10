@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.2
+
+### Changed
+- "Last RSSI" and "Last SNR" are now "Last RSSI (packet)" and "Last SNR (packet)": the signal of the last packet received over the air (message, position or telemetry of any station) instead of the last message only, so they update much more often. Packets via the MeshCom server keep the last value instead of making it unknown. Existing entities keep their entity IDs; new installations get `..._last_rssi_packet` / `..._last_snr_packet`.
+- Nodes dashboard: the tile is called "Last signal (packet)"
+
 ## v0.9.1
 
 ### Changed
