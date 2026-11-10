@@ -161,11 +161,24 @@ Changing the options reloads the node.
 | Temperature, humidity, pressure, CO2 | Only if the node reports sensor values |
 | Active (binary sensor) | On while the node sends packets; off after the time set in the options (default 65 minutes) |
 | Last packet | Time of the last packet from the node; kept over a restart, so "Active" is right after a restart too |
-| KISS connected (binary sensor) | KISS access only |
+| KISS connected (binary sensor) | KISS access only. Off within about 2 minutes when the node is switched off or out of reach; Home Assistant reconnects on its own |
 | Position (device tracker) | Position of the node's beacon |
 | Recipient type, Group, Station (selects), Message (text), Send, Clear (buttons) | Compose and send from a dashboard |
 | Allow sending (switch) | Kill switch: off blocks every transmission through this node. Anyone may switch it off; only administrators switch it back on |
 | No MSG All (switch) | The node's setting, read and written via the web API (administrators only). Not polled while the node is inactive |
+
+**When a node is switched off**, Home Assistant notices it at different speeds:
+
+- **KISS connected** goes off within about 2 minutes: the connection probes
+  the idle node every 15 seconds after one minute of silence.
+- **Web API** entities (No MSG All) become unavailable at the next query,
+  at most 5 minutes later.
+- **Active** goes off after the time set in the options (default 65
+  minutes). With UDP there is no connection to watch; only the packets
+  show that the node is there, and it beacons every 30 minutes.
+- Measured values (battery, voltage, signal, ...) keep their last value,
+  also over a restart; **Last packet** shows how old they are. A mobile
+  node out of reach is not an error, and its history stays without gaps.
 
 ### Heard stations
 

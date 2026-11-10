@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import socket
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 
@@ -46,11 +47,16 @@ from aiomeshcom.kiss import (
     parse_nonce,
 )
 from aiomeshcom.kiss_client import (
+    KEEPALIVE_COUNT,
+    KEEPALIVE_IDLE,
+    KEEPALIVE_INTERVAL,
+    USER_TIMEOUT_MS,
     KissAuthError,
     KissAuthRequiredError,
     KissConnection,
     KissConnectionError,
     KissSendError,
+    set_keepalive,
 )
 
 OWN = "TST9-9"
@@ -668,3 +674,38 @@ def test_own_callsign_over_the_air_is_not_own() -> None:
     assert isinstance(position, PositionPacket)
     assert position.source_type is SourceType.LORA
     assert len(packets) == 1  # no telemetry for the own node either
+
+
+async def test_keepalive_detects_dead_node(server: asyncio.Server) -> None:
+    """The connection probes an idle node: lost after about 2 minutes, not 2 hours."""
+    connection = KissConnection("127.0.0.1", OWN, "geheim", print, port=_port(server))
+    await connection.connect()
+    try:
+        assert connection._writer is not None
+        sock = connection._writer.get_extra_info("socket")
+        assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE) == 1
+        if hasattr(socket, "TCP_KEEPIDLE"):  # Linux, as in Home Assistant OS
+            assert sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE) == KEEPALIVE_IDLE
+            assert sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL) == KEEPALIVE_INTERVAL
+            assert sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT) == KEEPALIVE_COUNT
+            assert sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT) == USER_TIMEOUT_MS
+        assert KEEPALIVE_IDLE + KEEPALIVE_INTERVAL * KEEPALIVE_COUNT <= 150
+    finally:
+        await connection.close()
+
+
+def test_set_keepalive_tolerates_missing_options() -> None:
+    """A platform rejecting an option does not break the connection set-up."""
+
+    class Strict:
+        def __init__(self) -> None:
+            self.calls: list[tuple[int, int, int]] = []
+
+        def setsockopt(self, level: int, option: int, value: int) -> None:
+            self.calls.append((level, option, value))
+            if level == socket.IPPROTO_TCP:
+                raise OSError("not supported")
+
+    sock = Strict()
+    set_keepalive(sock)  # type: ignore[arg-type]
+    assert (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1) in sock.calls

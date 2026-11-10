@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.8.2
+
+### Fixed
+- KISS: a switched-off node is noticed within about 2 minutes ("KISS connected" turns off, Home Assistant reconnects when the node is back). Before, the system defaults applied and it took over 2 hours.
+
+### Documentation
+- README: what happens when a node is switched off (KISS, web API, UDP, measured values)
+
 ## v0.8.1
 
 ### Added
