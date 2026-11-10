@@ -37,8 +37,41 @@ AUTH_ANSWER_TIMEOUT: Final = 10.0
 #: A data frame waits this long for its RSSI/SNR frame.
 META_WAIT: Final = 0.3
 TX_RESULT_TIMEOUT: Final = 5.0
+#: Dead-node detection. The node sends nothing while idle and a switched-off
+#: node does not close the connection, so the system probes it: first after
+#: KEEPALIVE_IDLE seconds of silence, then every KEEPALIVE_INTERVAL seconds;
+#: after KEEPALIVE_COUNT unanswered probes (about 2 minutes in total) the
+#: connection counts as lost. The system defaults (Linux: 2 h + 9 x 75 s)
+#: would take over 2 hours.
+KEEPALIVE_IDLE: Final = 60
+KEEPALIVE_INTERVAL: Final = 15
+KEEPALIVE_COUNT: Final = 4
+#: Data sent to a dead node is given up after this long (Linux only); without
+#: it the system retries for about 15 minutes.
+USER_TIMEOUT_MS: Final = 120_000
 _READ_SIZE: Final = 1024
 _MAX_LINE: Final = 128
+
+
+def set_keepalive(sock: socket.socket) -> None:
+    """Let the system detect a switched-off node within about 2 minutes.
+
+    Options a platform lacks are skipped (macOS names the idle time
+    TCP_KEEPALIVE; TCP_USER_TIMEOUT exists on Linux only).
+    """
+    options = [
+        (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1),
+        (socket.IPPROTO_TCP, getattr(socket, "TCP_KEEPIDLE", None), KEEPALIVE_IDLE),
+        (socket.IPPROTO_TCP, getattr(socket, "TCP_KEEPALIVE", None), KEEPALIVE_IDLE),
+        (socket.IPPROTO_TCP, getattr(socket, "TCP_KEEPINTVL", None), KEEPALIVE_INTERVAL),
+        (socket.IPPROTO_TCP, getattr(socket, "TCP_KEEPCNT", None), KEEPALIVE_COUNT),
+        (socket.IPPROTO_TCP, getattr(socket, "TCP_USER_TIMEOUT", None), USER_TIMEOUT_MS),
+    ]
+    for level, option, value in options:
+        if option is None:
+            continue
+        with contextlib.suppress(OSError):
+            sock.setsockopt(level, option, value)
 
 
 class KissError(MeshComError):
@@ -109,9 +142,7 @@ class KissConnection:
             raise KissConnectionError(type(err).__name__) from err
         sock = self._writer.get_extra_info("socket")
         if sock is not None:
-            # The node sends nothing while idle; let the OS detect a dead peer.
-            with contextlib.suppress(OSError):
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            set_keepalive(sock)
         try:
             await self._handshake(self._reader, self._writer)
         except BaseException:
