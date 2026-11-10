@@ -47,7 +47,7 @@ station.
 | ![Chat](docs/images/panel-chat.png) | ![Nodes](docs/images/panel-nodes.png) |
 | **Chat**: conversations for all, groups and direct messages; path and signal of every message, unread counters, "New messages" line | **Nodes**: one card per own node with its sensors and switches |
 | ![Stations](docs/images/panel-stations.png) | ![Station on the map](docs/images/panel-stations-popup.png) |
-| **Stations**: map of the own node and the heard stations (colour by last heard), sortable table below | **Map**: a click on a station shows its values and distance, with buttons for a direct message and OpenStreetMap |
+| **Stations**: map of the own node and the heard stations (violet: direct neighbour, otherwise colour by last heard), sortable table below with "hears me", relay role and hardware | **Map**: a click on a station shows its values, distance and neighbour values, with buttons for a direct message and OpenStreetMap |
 | ![Add a node](docs/images/ha-add-node.png) | ![Integration page](docs/images/ha-integration.png) |
 | **Setup**: choose external UDP or KISS over TCP | **Integration page**: one entry per node |
 | ![UDP setup](docs/images/ha-add-udp.png) | ![KISS setup](docs/images/ha-add-kiss.png) |
