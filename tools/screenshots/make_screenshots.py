@@ -25,12 +25,17 @@ def _fonts(font_dir: Path | None) -> str:
         return ""
     rules = []
     for weight in (400, 500, 700):
-        path = font_dir / f"roboto-latin-{weight}-normal.woff2"
-        if path.exists():
-            rules.append(
-                f"@font-face {{ font-family: Roboto; font-weight: {weight}; "
-                f"src: url('{path.as_uri()}') format('woff2'); }}"
-            )
+        for name, kind in (
+            (f"roboto-latin-{weight}-normal.woff2", "woff2"),
+            (f"roboto-{weight}.ttf", "truetype"),
+        ):
+            path = font_dir / name
+            if path.exists():
+                rules.append(
+                    f"@font-face {{ font-family: Roboto; font-weight: {weight}; "
+                    f"src: url('{path.as_uri()}') format('{kind}'); }}"
+                )
+                break
     return "\n".join(rules)
 
 
@@ -47,7 +52,8 @@ async def main(out: Path, font_dir: Path | None) -> None:
         # The map is not part of these shots: block tile requests.
         await page.route("https://tile.openstreetmap.org/**", lambda route: route.abort())
         await page.goto((HERE / "demo.html").as_uri())
-        await page.add_style_tag(content=_fonts(font_dir))
+        if fonts := _fonts(font_dir):
+            await page.add_style_tag(content=fonts)
         await page.wait_for_timeout(600)
         await _shot(
             page,

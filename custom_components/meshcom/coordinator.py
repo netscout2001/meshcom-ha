@@ -5,13 +5,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .aiomeshcom.webapi import (
     MeshComWebClient,
@@ -21,6 +22,7 @@ from .aiomeshcom.webapi import (
     WebDowngradeError,
     WebThrottledError,
 )
+from .aiomeshcom.webpages import GpsInfo, NodeInfo, RadioStats
 from .const import DOMAIN, ISSUE_WEB_DOWNGRADE
 
 if TYPE_CHECKING:
@@ -44,6 +46,12 @@ class WebData:
     battery_voltage: float | None = None
     #: Stations heard directly (MHeard page); None if unreadable.
     mheard: list[MHeardEntry] | None = None
+    #: Further values of the info page, GPS state, LoRa queue (if enabled).
+    info: NodeInfo | None = None
+    gps: GpsInfo | None = None
+    radio: RadioStats | None = None
+    #: When the node answered (uptime and server age refer to this time).
+    fetched: datetime | None = None
 
 
 class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
@@ -57,6 +65,8 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
         entry: MeshComConfigEntry,
         client: MeshComWebClient,
         node_away: Callable[[], bool] = lambda: False,
+        *,
+        radio_stats: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -67,6 +77,7 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
         )
         self.client = client
         self._node_away = node_away
+        self.radio_stats = radio_stats
         #: True while polling pauses because the node is away.
         self.paused = False
         self._force = False
@@ -89,7 +100,7 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             raise UpdateFailed(translation_domain=DOMAIN, translation_key="web_node_away")
         self.paused = False
         try:
-            status = await self.client.get_overview()
+            status = await self.client.get_overview(radio_stats=self.radio_stats)
         except WebAuthError as err:
             # Starts the reauthentication flow. No retry loop: five failed
             # logins would block the node's login for everyone (F-06).
@@ -122,6 +133,10 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             firmware=status.firmware,
             battery_voltage=status.battery_voltage,
             mheard=status.mheard,
+            info=status.info,
+            gps=status.gps,
+            radio=status.radio,
+            fetched=dt_util.utcnow(),
         )
 
     @property

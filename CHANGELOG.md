@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.0
+
+### Added
+- Nodes tab is now a dashboard per node: chips to switch between several nodes, a header with hardware, firmware, radio settings and status pills (active, running for, MeshCom server, KISS, web API), tiles with status dots and bars (battery with its 48-hour course, last signal, channel use, TX queue, messages received and sent in 48 hours, stations and direct neighbours), 48-hour charts (messages per hour, channel use), sensor groups (radio, status, GPS, environment), a table of direct neighbours and the controls
+- Values from the node's info page (hardware, radio settings, running time, WLAN signal, MeshCom server state, max. hops, blocked frames) and position page (satellites, fix, next position, interval); WLAN name, BSSID, IP addresses and the position on these pages are not read
+- Option "Read radio statistics (LoRa queue)", off by default: channel use RX/TX and TX queue of the last 5 minutes from the node's RX log page, as three sensors and in the dashboard
+- Messages per hour of the last 48 hours are counted per node and kept over a restart
+
+### Development
+- Parsers and fuzz tests for the info, position and RX log pages; test pages rendered like the firmware does, with invented values
+- Screenshot tool: works with TrueType fonts and without a font directory
+
 ## v0.8.2
 
 ### Fixed

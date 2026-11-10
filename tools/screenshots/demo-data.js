@@ -88,48 +88,124 @@
     };
   });
 
-  const ent = (entity_id, domain, state, name, extra = {}) => ({ entity_id, domain, state, name, extra });
-  const nodeEntities = (slug, call, kiss, values) => [
-    ent(`binary_sensor.${slug}_active`, "binary_sensor", "Connected", "Active"),
-    ...(kiss ? [ent(`binary_sensor.${slug}_kiss_connected`, "binary_sensor", "Connected", "KISS connected")] : []),
-    ent(`switch.${slug}_no_msg_all`, "switch", "on", "No MSG All"),
-    ent(`switch.${slug}_sending_enabled`, "switch", "on", "Allow sending"),
-    ent(`sensor.${slug}_altitude`, "sensor", values.alt, "Altitude"),
-    ent(`sensor.${slug}_battery`, "sensor", values.batt, "Battery"),
-    ent(`sensor.${slug}_battery_voltage`, "sensor", values.volt, "Battery voltage"),
-    ent(`sensor.${slug}_firmware`, "sensor", values.fw, "Firmware"),
-    ent(`sensor.${slug}_last_message`, "sensor", values.msg, "Last message"),
-    ent(`sensor.${slug}_last_sender`, "sensor", values.sender, "Last sender"),
-    ent(`sensor.${slug}_last_rssi`, "sensor", values.rssi, "Last RSSI"),
-    ent(`sensor.${slug}_last_snr`, "sensor", values.snr, "Last SNR"),
-    ent(`sensor.${slug}_messages_received`, "sensor", values.rx, "Messages received"),
-    ent(`sensor.${slug}_messages_sent`, "sensor", values.tx, "Messages sent"),
-    ent(`sensor.${slug}_stations_heard`, "sensor", values.heard, "Stations heard (24 h)"),
-    ent(`sensor.${slug}_last_packet`, "sensor", values.lastPacket, "Last packet"),
-    ent(`device_tracker.${slug}_position`, "device_tracker", "away", "Position", { latitude: values.lat, longitude: values.lon }),
-  ];
-  const udp = nodeEntities("meshcom_qx1node_12", own, false, { alt: "516.9 m", batt: "96 %", volt: "4.01 V", fw: "4.40a", msg: "19:00 works, see you on 262", sender: "QA1ABC-12", rssi: "-101 dBm", snr: "5.0 dB", rx: "41", tx: "3", heard: "24", lastPacket: "1 minute ago", lat: 50.06, lon: 8.82 });
-  const kiss = nodeEntities("meshcom_qx1node_9", mobile, true, { alt: "512.1 m", batt: "99 %", volt: "4.16 V", fw: "4.40a", msg: "Test", sender: own, rssi: "-60 dBm", snr: "9.0 dB", rx: "2", tx: "1", heard: "19", lastPacket: "4 minutes ago", lat: 50.0, lon: 8.95 });
+  // Entity states as Home Assistant has them: raw value plus unit.
+  const ent = (key, domain, state, name, unit = null, extra = {}) => ({ key, domain, state, name, unit, extra });
+  const minutesAgo = (min) => new Date(Date.now() - min * 60000).toISOString();
+  const nodeEntities = (slug, kiss, values) =>
+    [
+      ent("active", "binary_sensor", "on", "Active"),
+      ...(kiss ? [ent("kiss_connected", "binary_sensor", "on", "KISS connected")] : []),
+      ent("no_msg_all", "switch", "on", "No MSG All"),
+      ent("sending_enabled", "switch", "on", "Allow sending"),
+      ent("altitude", "sensor", values.alt, "Altitude", "m"),
+      ent("battery", "sensor", values.batt, "Battery", "%"),
+      ent("battery_voltage", "sensor", values.volt, "Battery voltage", "V"),
+      ent("firmware", "sensor", values.fw, "Firmware"),
+      ent("last_message", "sensor", values.msg, "Last message"),
+      ent("last_sender", "sensor", values.sender, "Last sender"),
+      ent("last_rssi", "sensor", values.rssi, "Last RSSI", "dBm"),
+      ent("last_snr", "sensor", values.snr, "Last SNR", "dB"),
+      ent("messages_received", "sensor", values.rx, "Messages received"),
+      ent("messages_sent", "sensor", values.tx, "Messages sent"),
+      ent("stations_heard", "sensor", values.heard, "Stations heard (24 h)"),
+      ent("last_packet", "sensor", values.lastPacket, "Last packet"),
+      ...(values.radio
+        ? [
+            ent("channel_rx", "sensor", "11.4", "Channel use RX", "%"),
+            ent("channel_tx", "sensor", "4.4", "Channel use TX", "%"),
+            ent("tx_queue", "sensor", "3", "TX queue"),
+          ]
+        : []),
+      ent("position", "device_tracker", "away", "Position", null, { latitude: values.lat, longitude: values.lon }),
+    ].map((e) => ({ ...e, entity_id: `${e.domain}.${slug}_${e.key}` }));
+  const udp = nodeEntities("meshcom_qx1node_12", false, { alt: "517", batt: "96", volt: "4.157", fw: "4.40a", msg: "19:00 works, see you on 262", sender: "QA1ABC-12", rssi: "-101", snr: "5.0", rx: "412", tx: "23", heard: "24", lastPacket: minutesAgo(1), lat: 50.06, lon: 8.82, radio: true });
+  const kiss = nodeEntities("meshcom_qx1node_9", true, { alt: "512", batt: "63", volt: "3.86", fw: "4.40a", msg: "Test", sender: own, rssi: "-60", snr: "9.0", rx: "57", tx: "4", heard: "19", lastPacket: minutesAgo(4), lat: 50.0, lon: 8.95, radio: false });
   const states = {};
   for (const e of [...udp, ...kiss]) {
     const owner = udp.includes(e) ? own : mobile;
-    states[e.entity_id] = { entity_id: e.entity_id, state: e.state, attributes: { friendly_name: `MeshCom ${owner} ${e.name}`, ...e.extra } };
+    const attributes = { friendly_name: `MeshCom ${owner} ${e.name}`, ...e.extra };
+    if (e.unit) attributes.unit_of_measurement = e.unit;
+    states[e.entity_id] = { entity_id: e.entity_id, state: e.state, attributes };
   }
-  const entityList = (list) => list.map((e) => ({ entity_id: e.entity_id, domain: e.domain, key: e.name }));
+  const entityList = (list) => list.map((e) => ({ entity_id: e.entity_id, domain: e.domain, key: e.key }));
   const nodes = [
     { entry_id: "demo-udp", callsign: own, groups: [262, 20, 9], sending_enabled: true, access: "udp", station_mode: "data", entities: entityList(udp) },
     { entry_id: "demo-kiss", callsign: mobile, groups: [262], sending_enabled: true, access: "kiss", station_mode: "data", entities: entityList(kiss) },
   ];
 
+  // Node dashboard: 48 hours of message activity and channel use (invented).
+  const hourStart = new Date();
+  hourStart.setUTCMinutes(0, 0, 0);
+  const hours = Array.from({ length: 48 }, (_, i) => new Date(hourStart.getTime() - (47 - i) * 3600000).toISOString());
+  const wave = (i, base, amp, phase) => Math.max(0, Math.round(base + amp * Math.sin((i + phase) / 3.8) + (rnd() - 0.5) * amp));
+  const activityFor = (scale) => ({
+    hours,
+    received_direct: hours.map((_, i) => Math.round(wave(i, 1, 1, 0) * scale)),
+    received_group: hours.map((_, i) => Math.round(wave(i, 7, 5, 2) * scale)),
+    received_all: hours.map((_, i) => Math.round(wave(i, 1, 1, 5) * scale)),
+    sent: hours.map((_, i) => (i % 9 === 3 ? 1 : 0)),
+  });
+  const neighbourList = stations
+    .filter((st) => st.direct)
+    .map((st, i) => ({
+      callsign: st.callsign, direct_heard: minutesAgo(i * 3), rssi: st.rssi, snr: st.snr,
+      hears_me_snr: st.hears_me_snr, relay_role: st.relay_role, hardware: st.hardware,
+      it_hears: st.it_hears, only_it_hears: st.only_it_hears, gateway: st.gateway, located: st.latitude !== null,
+    }));
+  const nodeStatus = {
+    "demo-udp": {
+      entry_id: "demo-udp", callsign: own, active: true, last_packet: minutesAgo(1), kiss_connected: null,
+      web: {
+        ok: true, paused: false, radio_enabled: true, fetched: minutesAgo(0.5), started: minutesAgo(2 * 1440 + 207),
+        info: { uptime_seconds: 185220, hardware: "TBEAM_AXP2101", frequency_mhz: 433.175, bandwidth_khz: 250, spreading_factor: 11, coding_rate: 6, tx_power_dbm: 20, wifi_rssi: -56, server: "connected", server_age_seconds: 10, max_hop_text: 4, max_hop_pos: 2, blocked_dropped: 0 },
+        gps: { enabled: true, satellites: 10, fix: true, hdop: 1, beacon_interval: 1800, next_beacon: 1275 },
+        radio: { queue_used: 3, queue_size: 20, queue_by_priority: { crit: 0, high: 1, normal: 1, low: 0, bg: 1 }, waiting_ack: 1, slow_down_at: 7, refuse_at: 16, state: "accepted", rx_percent: 11.4, tx_percent: 4.4, dropped: 0, new_ids: 13, duplicates: 8, dedup_window_minutes: 27, window_age_seconds: 186 },
+      },
+      counters: { received: 412, sent: 23, duplicates: 148, filtered: 6 },
+      activity: activityFor(1),
+      delivery: { delivered: 4, pending: 1, failed: 0, unknown: 0 },
+      stations: { heard_24h: 24, direct: neighbourList.length },
+      neighbours: neighbourList,
+    },
+    "demo-kiss": {
+      entry_id: "demo-kiss", callsign: mobile, active: true, last_packet: minutesAgo(4), kiss_connected: true,
+      web: {
+        ok: true, paused: false, radio_enabled: false, fetched: minutesAgo(1), started: minutesAgo(310),
+        info: { uptime_seconds: 18600, hardware: "TLORA_V2_1_1p6", frequency_mhz: 433.175, bandwidth_khz: 250, spreading_factor: 11, coding_rate: 6, tx_power_dbm: 17, wifi_rssi: -71, server: "off", server_age_seconds: null, max_hop_text: 4, max_hop_pos: 2, blocked_dropped: 0 },
+        gps: { enabled: false, satellites: null, fix: null, hdop: null, beacon_interval: 1800, next_beacon: 900 },
+        radio: null,
+      },
+      counters: { received: 57, sent: 4, duplicates: 12, filtered: 0 },
+      activity: activityFor(0.3),
+      delivery: { delivered: 1, pending: 0, failed: 0, unknown: 0 },
+      stations: { heard_24h: 19, direct: 3 },
+      neighbours: neighbourList.slice(0, 3),
+    },
+  };
+  const historyFor = (id) => {
+    const points = [];
+    for (let i = 0; i <= 48 * 12; i += 1) {
+      const time = Date.now() - (48 * 12 - i) * 300000;
+      let value;
+      if (id.endsWith("_battery")) value = Math.round(96 - 3 * Math.sin((576 - i) / 70));
+      else if (id.endsWith("_channel_rx")) value = Math.round((9 + 4 * Math.sin(i / 40) + rnd() * 4) * 10) / 10;
+      else value = Math.round((3 + 2 * Math.sin(i / 25) + rnd() * 2) * 10) / 10;
+      points.push({ s: String(value), lu: time / 1000 });
+    }
+    return points;
+  };
+
   window.demoHass = {
     language: "en",
     themes: { darkMode: true },
     states,
-    formatEntityState: (state) => (state.entity_id.startsWith("switch.") ? state.state : state.state),
+    formatEntityState: (state) => (state.attributes.unit_of_measurement ? `${state.state} ${state.attributes.unit_of_measurement}` : state.state),
     callWS: async (msg) => {
       if (msg.type === "meshcom/chat/nodes") return { nodes };
       if (msg.type === "meshcom/chat/history") return { messages: msg.entry_id === "demo-udp" ? messages : messages.filter((m) => m.conversation === "dm:" + own) };
       if (msg.type === "meshcom/chat/stations") return { mode: "data", stations };
+      if (msg.type === "meshcom/chat/node_status") return nodeStatus[msg.entry_id];
+      if (msg.type === "history/history_during_period") return Object.fromEntries(msg.entity_ids.map((id) => [id, historyFor(id)]));
       return {};
     },
     callService: async () => {},

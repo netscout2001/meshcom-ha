@@ -19,7 +19,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dis
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType
 
-from .aiomeshcom import TextMessagePacket
+from .activity import ActivityLog
+from .aiomeshcom import DestinationKind, TextMessagePacket
 from .aiomeshcom.webapi import AUTH_HMAC, AUTH_LEGACY, MeshComWebClient, WebApiError
 from .chat import ChatHistory, conversation_of, is_foreign_group, own_groups
 from .const import (
@@ -31,9 +32,11 @@ from .const import (
     CONF_INACTIVE_MINUTES,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
+    CONF_RADIO_STATS,
     CONF_WEB_AUTH,
     DEFAULT_HIDE_FOREIGN_GROUPS,
     DEFAULT_INACTIVE_MINUTES,
+    DEFAULT_RADIO_STATS,
     DOMAIN,
     ISSUE_WEB_LEGACY_LOGIN,
     ISSUE_WEB_PASSWORD_MISSING,
@@ -76,6 +79,7 @@ class MeshComRuntime:
     stations: StationDevices
     store: StationStore
     chat: ChatHistory
+    activity: ActivityLog
     options: dict[str, Any]
 
     def send_datagram(self, data: bytes) -> None:
@@ -147,6 +151,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         client,
         # Away: heard before, but nothing for longer than the inactive timeout.
         node_away=lambda: node.last_packet is not None and not node.active,
+        radio_stats=bool(entry.options.get(CONF_RADIO_STATS, DEFAULT_RADIO_STATS)),
     )
 
     # Heard stations: restored from disk, saved on change, devices per mode.
@@ -165,9 +170,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     # Chat history for the panel.
     chat = ChatHistory(hass, entry.entry_id)
     await chat.async_load()
+    activity = ActivityLog(hass, entry.entry_id)
+    await activity.async_load()
 
     @callback
     def _message(packet: TextMessagePacket, own: bool, when: datetime) -> None:
+        activity.add(_activity_kind(packet, own), when)
         # Foreign groups stay out of the history (they would also push own
         # messages out of the size-limited store).
         if (
@@ -192,6 +200,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         stations=stations,
         store=store,
         chat=chat,
+        activity=activity,
         options=dict(entry.options),
     )
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
@@ -335,6 +344,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> 
     if unloaded:
         await entry.runtime_data.store.async_save_now(entry.runtime_data.node)
         await entry.runtime_data.chat.async_save_now()
+        await entry.runtime_data.activity.async_save_now()
         entry.runtime_data.chat.async_close()
         others = [
             other
@@ -346,10 +356,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> 
     return unloaded
 
 
+def _activity_kind(packet: TextMessagePacket, own: bool) -> str:
+    if own:
+        return "sent"
+    return {
+        DestinationKind.DIRECT: "received_direct",
+        DestinationKind.GROUP: "received_group",
+    }.get(packet.destination_kind, "received_all")
+
+
 async def async_remove_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> None:
     """Delete the stored station list together with the entry."""
     await StationStore(hass, entry.entry_id).async_remove()
     await ChatHistory(hass, entry.entry_id).async_remove()
+    await ActivityLog(hass, entry.entry_id).async_remove()
 
 
 async def async_remove_config_entry_device(

@@ -38,6 +38,7 @@ from .const import (
     DOMAIN,
     STATION_MODE_OFF,
 )
+from .node_status import node_status
 from .sender import allowed_users, async_send_text
 from .stations import station_mode
 
@@ -52,6 +53,7 @@ STATION_LIST_LIMIT = 500
 def async_register_websocket(hass: HomeAssistant) -> None:
     """Register the commands (once)."""
     async_register_command(hass, ws_nodes)
+    async_register_command(hass, ws_node_status)
     async_register_command(hass, ws_history)
     async_register_command(hass, ws_stations)
     async_register_command(hass, ws_subscribe)
@@ -104,6 +106,17 @@ def ws_nodes(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, A
             }
         )
     connection.send_result(msg["id"], {"nodes": nodes})
+
+
+@websocket_command(
+    {vol.Required("type"): "meshcom/chat/node_status", vol.Required("entry_id"): _ENTRY_ID}
+)
+@callback
+def ws_node_status(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
+    """Dashboard values of one node beyond its entities."""
+    if (entry := _entry(hass, connection, msg)) is None:
+        return
+    connection.send_result(msg["id"], node_status(entry, dt_util.utcnow()))
 
 
 def _node_entities(hass: HomeAssistant, entry: Any) -> list[dict[str, str]]:

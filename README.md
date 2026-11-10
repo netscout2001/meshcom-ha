@@ -45,7 +45,7 @@ station.
 | | |
 | --- | --- |
 | ![Chat](docs/images/panel-chat.png) | ![Nodes](docs/images/panel-nodes.png) |
-| **Chat**: conversations for all, groups and direct messages; path and signal of every message, unread counters, "New messages" line | **Nodes**: one card per own node with its sensors and switches |
+| **Chat**: conversations for all, groups and direct messages; path and signal of every message, unread counters, "New messages" line | **Nodes**: dashboard per own node with status, tiles, 48-hour charts, sensor groups and direct neighbours |
 | ![Stations](docs/images/panel-stations.png) | ![Station on the map](docs/images/panel-stations-popup.png) |
 | **Stations**: map of the own node and the heard stations (violet: direct neighbour, otherwise colour by last heard), sortable table below with "hears me", relay role and hardware | **Map**: a click on a station shows its values, distance and neighbour values, with buttons for a direct message and OpenStreetMap |
 | ![Add a node](docs/images/ha-add-node.png) | ![Integration page](docs/images/ha-integration.png) |
@@ -142,6 +142,7 @@ Leave it empty if the node has none (not recommended, see
 | Maximum station devices | Default 50 |
 | Remove station devices after (days) | Default 7 |
 | Node inactive after (minutes) | Default 65: "Active" turns off when the node sent nothing for this long (the node beacons every 30 minutes by default) |
+| Read radio statistics (LoRa queue) | Off by default: reads the node's RX log page (web API) for channel use and TX queue of the last 5 minutes and adds three sensors. The first request makes the node set aside memory for its RX log, which it keeps until it restarts |
 
 Changing the options reloads the node.
 
@@ -166,6 +167,7 @@ Changing the options reloads the node.
 | Recipient type, Group, Station (selects), Message (text), Send, Clear (buttons) | Compose and send from a dashboard |
 | Allow sending (switch) | Kill switch: off blocks every transmission through this node. Anyone may switch it off; only administrators switch it back on |
 | No MSG All (switch) | The node's setting, read and written via the web API (administrators only). Not polled while the node is inactive |
+| Channel use RX, Channel use TX, TX queue | Only with the option "Read radio statistics": share of the last 5 minutes the channel was busy receiving / sending, and frames waiting to be sent (attributes: size, per priority, waiting for acknowledgement, slow-down and refuse levels, state of own messages) |
 
 **When a node is switched off**, Home Assistant notices it at different speeds:
 
@@ -222,10 +224,36 @@ when you open one, it starts at a "New messages" line, and a button jumps to
 the newest message. Delivery of your direct messages is shown (sent,
 delivered, rejected). The last 500 messages per node are stored.
 
-**Nodes**: one card per own node with access, status, battery, firmware,
-stations, signal values and the switches "Allow sending" and "No MSG All".
-The switches use the normal Home Assistant services, so only administrators
-can change them.
+**Nodes**: a dashboard of the selected node. With more than one node, a
+row of chips at the top (status, callsign, access, battery) switches between
+them; the choice is shared with the node selector and remembered.
+
+- **Header**: callsign, hardware, firmware, access, radio settings
+  (frequency, bandwidth, SF, CR, TX power) and status pills: active or
+  inactive, running for (since the node's start), MeshCom server, KISS
+  connection, web API.
+- **Tiles** with a status dot and a bar: battery (with its course over
+  48 hours), last signal, channel use and TX queue (with the option "Read
+  radio statistics"), messages received and sent in the last 48 hours (by
+  kind and by delivery state), stations heard and direct neighbours.
+- **Charts** of the last 48 hours: messages per hour (received, sent) and,
+  with radio statistics, channel use RX/TX. The messages per hour are kept
+  for 48 hours over a restart; battery and channel use come from the Home
+  Assistant history (recorder).
+- **Sensor groups**: radio (channel use, queue, dropped, duplicates, dedup
+  window), status (battery, voltage, running for, last packet, WLAN signal,
+  server, max. hops, blocked frames), GPS (altitude, satellites, next
+  position, interval) and environment (only if the node reports sensors).
+- **Direct neighbours** with SNR, "hears me", relay role, hardware and last
+  heard; a click opens the station on the map.
+- **Control**: "Allow sending" and "No MSG All", plus all entities of the
+  node. The switches use the normal Home Assistant services, so only
+  administrators can change them.
+
+Hardware, radio settings, running time, WLAN signal, server state, hops and
+blocked frames come from the node's info page, GPS state from its position
+page (both web API). WLAN name, BSSID, IP addresses and the position from
+these pages are not read.
 
 **Stations**: a map with your node and every station that sent a position
 (violet: direct neighbour, green: heard within the last hour, orange: within
@@ -300,8 +328,9 @@ feed it into templates that are executed, commands or scripts.
 ## Data updates
 
 - **UDP and KISS are push:** every packet updates the entities immediately.
-- **Web API** (No MSG All, groups, firmware, battery voltage, MHeard list):
-  read every 5 minutes with one login, and right after a change from Home Assistant.
+- **Web API** (No MSG All, groups, firmware, battery voltage, MHeard list,
+  info and position page, RX log page with the option): read every 5
+  minutes with one login, and right after a change from Home Assistant.
 - "Active" turns off when the node sent nothing for 65 minutes (beacons
   come every 30 minutes by default).
 
@@ -388,8 +417,9 @@ presence of a mobile node ("Active"), a map of heard stations, switching
   callsign. The node serves one KISS client at a time; Home Assistant keeps
   that slot. RSSI/SNR are those of the last hop and need `--kiss meta on`.
 - **Firmware 4.34z–4.40a web login** is plain text (see [Security](#security)).
-- **Battery voltage, firmware (KISS) and direct neighbours** are read from
-  the node's HTML pages with fixed patterns. A firmware that changes these
+- **Battery voltage, firmware (KISS), direct neighbours and the dashboard
+  values of the info, position and RX log pages** are read from the node's
+  HTML pages with fixed patterns. A firmware that changes these
   pages makes the values disappear (the rest keeps working) until the
   integration is adapted.
 - Direct messages between other stations are passed on as events but not

@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.meshcom.aiomeshcom.webapi import MHeardEntry, NodeStatus
+from custom_components.meshcom.aiomeshcom.webpages import GpsInfo, NodeInfo, RadioStats
 from custom_components.meshcom.const import (
     CONF_CALLSIGN,
     CONF_LISTEN_PORT,
@@ -53,6 +54,11 @@ class FakeWebClient:
         self.battery_voltage: float | None = 4.012
         #: MHeard list of the node; None: page unreadable.
         self.mheard: list[MHeardEntry] | None = None
+        #: Info page, position page and LoRa queue values.
+        self.info: NodeInfo | None = None
+        self.gps: GpsInfo | None = None
+        self.radio: RadioStats | None = None
+        self.radio_requested = False
         self.open = False
         self.error: WebApiError | None = None
         self.calls: list[tuple[str, ...]] = []
@@ -91,9 +97,10 @@ class FakeWebClient:
         self._raise()
         return self.no_msg_all, list(self.groups)
 
-    async def get_overview(self) -> NodeStatus:
+    async def get_overview(self, *, radio_stats: bool = False) -> NodeStatus:
         """Settings, firmware and voltage in one session."""
         self.calls.append(("get_status",))
+        self.radio_requested = radio_stats
         self._raise()
         return NodeStatus(
             self.no_msg_all,
@@ -101,6 +108,9 @@ class FakeWebClient:
             self.firmware,
             self.battery_voltage,
             None if self.mheard is None else list(self.mheard),
+            info=self.info,
+            gps=self.gps,
+            radio=self.radio if radio_stats else None,
         )
 
     async def get_param(self, name: str) -> str:
