@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.9.1
+
+### Changed
+- Stations table: the column headers name the units, "RSSI (dBm)" and "SNR (dB)"; the cells keep the bare numbers
+
 ## v0.9.0
 
 ### Added
