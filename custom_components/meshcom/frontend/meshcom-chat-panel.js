@@ -112,8 +112,8 @@ const TEXT = {
     columns: {
       callsign: "Callsign",
       last_heard: "Last heard",
-      rssi: "RSSI",
-      snr: "SNR",
+      rssi: "RSSI (dBm)",
+      snr: "SNR (dB)",
       hops: "Hops",
       battery: "Battery",
       temperature: "Temp.",
@@ -242,8 +242,8 @@ const TEXT = {
     columns: {
       callsign: "Rufzeichen",
       last_heard: "Zuletzt geh\u00f6rt",
-      rssi: "RSSI",
-      snr: "SNR",
+      rssi: "RSSI (dBm)",
+      snr: "SNR (dB)",
       hops: "Hops",
       battery: "Akku",
       temperature: "Temp.",
