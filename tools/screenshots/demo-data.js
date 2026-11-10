@@ -56,7 +56,10 @@
     const heard = i < 9 ? rnd() * 50 : i < 19 ? 70 + rnd() * 900 : 1600 + rnd() * 4000;
     const located = i % 7 !== 3;
     const relays = ["QB0RPT-12", "QB0HIL-12", "QB0TWR-1"].filter((r) => r !== callsign);
-    const hops = callsign === mobile ? 0 : Math.floor(rnd() * 3);
+    // Direct neighbours (the first stations) were last heard without relay.
+    const direct = i < 6;
+    const randomHops = Math.floor(rnd() * 3); // drawn anyway: keeps the other values stable
+    const hops = callsign === mobile || direct ? 0 : randomHops;
     const weather = rnd() > 0.55;
     return {
       path: relays.slice(0, hops),
@@ -70,8 +73,8 @@
       battery: rnd() > 0.4 ? Math.round(60 + rnd() * 40) : null,
       latitude: located ? centre.lat + (rnd() - 0.5) * 0.32 : null,
       longitude: located ? centre.lon + (rnd() - 0.5) * 1.3 : null,
-      // Direct neighbours (MHeard list of the node): the first few stations.
-      ...(i < 6 || callsign === mobile ? {
+      // Values from the MHeard list of the node.
+      ...(direct ? {
         direct: true,
         hardware: ["TBEAM_AXP2101", "HELTEC_V3", "RAK4631", "TBEAM_1W"][i % 4],
         altitude: Math.round(400 + rnd() * 1200),
