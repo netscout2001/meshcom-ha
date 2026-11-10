@@ -25,7 +25,15 @@ from custom_components.meshcom.const import (
 )
 from custom_components.meshcom.migration import async_migrate_entry, callsign_node_id
 
-from .conftest import INCOMING_MESSAGE, NODE_HOST, NODE_ID, FakeWebClient, datagram, inject
+from .conftest import (
+    INCOMING_MESSAGE,
+    NODE_HOST,
+    NODE_ID,
+    OWN_POSITION,
+    FakeWebClient,
+    datagram,
+    inject,
+)
 
 PREFIX = "sensor.meshcom_qx1yz_12_"
 
@@ -138,23 +146,60 @@ async def test_counter_ignores_garbage(
     assert mock_config_entry.runtime_data.node.messages_received == 0
 
 
-async def test_signal_belongs_to_last_message(
+async def test_signal_of_last_packet(
     hass: HomeAssistant, init_integration: MockConfigEntry
 ) -> None:
-    """Beacons of other stations do not change the signal of the last message."""
+    """Any packet received over the air sets the signal; server packets keep it."""
     node = init_integration.runtime_data.node
+    assert node.last_radio == (None, None)
     inject(init_integration, STATION_POSITION)
     await hass.async_block_till_done()
-    assert node.last_radio == (None, None)
+    assert node.last_radio == (-90, 8.0)
     inject(init_integration, INCOMING_MESSAGE)
     await hass.async_block_till_done()
     assert node.last_radio == (-110, -5)
-    # Via the server there is no signal: unknown, not the old value.
+    # Via the server there is no signal: the last value from the air stays.
     inject(init_integration, SERVER_MESSAGE)
     await hass.async_block_till_done()
     assert node.last_message is not None
     assert node.last_message.sender == "TST4-12"
-    assert node.last_radio[0] is None
+    assert node.last_radio == (-110, -5)
+    # Own frames carry no reception values either.
+    inject(init_integration, OWN_POSITION)
+    await hass.async_block_till_done()
+    assert node.last_radio == (-110, -5)
+
+
+async def test_signal_restored_until_next_packet(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """After a restart the last values are shown until a packet brings new ones."""
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(f"{PREFIX}last_rssi", "-101"),
+                {"native_value": -101, "native_unit_of_measurement": "dBm"},
+            ),
+            (
+                State(f"{PREFIX}last_snr", "4.0"),
+                {"native_value": 4.0, "native_unit_of_measurement": "dB"},
+            ),
+        ],
+    )
+    registry = er.async_get(hass)
+    for key in ("last_rssi", "last_snr"):
+        registry.async_get_or_create(
+            "sensor", DOMAIN, f"{NODE_ID:06x}_{key}", suggested_object_id=f"meshcom_qx1yz_12_{key}"
+        )
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get(f"{PREFIX}last_rssi").state == "-101"  # type: ignore[union-attr]
+    inject(mock_config_entry, STATION_POSITION)
+    await hass.async_block_till_done()
+    assert hass.states.get(f"{PREFIX}last_rssi").state == "-90"  # type: ignore[union-attr]
+    assert hass.states.get(f"{PREFIX}last_snr").state == "8.0"  # type: ignore[union-attr]
 
 
 async def test_web_firmware_and_voltage(

@@ -157,7 +157,7 @@ Changing the options reloads the node.
 | Last message, Last sender, Last message time | Messages to you, your groups and to all; kept over a restart |
 | Messages received, Messages sent | Counters; continue over a restart |
 | Stations heard (24 h) | In "data only" mode with the list attribute `stations` |
-| Last RSSI, Last SNR | Signal of the last message (unknown if it came via the server); disabled by default |
+| Last RSSI (packet), Last SNR (packet) | Signal of the last packet the node received over the air: a message, position or telemetry of any station. Packets via the MeshCom server and the node's own frames carry none and keep the last value; kept over a restart; disabled by default |
 | Firmware | From the node's beacon (UDP) or its info page (KISS) |
 | Temperature, humidity, pressure, CO2 | Only if the node reports sensor values |
 | Active (binary sensor) | On while the node sends packets; off after the time set in the options (default 65 minutes) |
@@ -233,7 +233,7 @@ them; the choice is shared with the node selector and remembered.
   inactive, running for (since the node's start), MeshCom server, KISS
   connection, web API.
 - **Tiles** with a status dot and a bar: battery (with its course over
-  48 hours), last signal, channel use and TX queue (with the option "Read
+  48 hours), last signal (of the last received packet), channel use and TX queue (with the option "Read
   radio statistics"), messages received and sent in the last 48 hours (by
   kind and by delivery state), stations heard and direct neighbours.
 - **Charts** of the last 48 hours: messages per hour (received, sent) and,

@@ -192,7 +192,7 @@ async def test_disabled_by_default(
     hass: HomeAssistant, init_integration: MockConfigEntry, entity_registry: er.EntityRegistry
 ) -> None:
     """Noisy diagnostics are disabled by default."""
-    entry = entity_registry.async_get("sensor.meshcom_qx1yz_12_last_rssi")
+    entry = entity_registry.async_get("sensor.meshcom_qx1yz_12_last_rssi_packet")
     assert entry is not None
     assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
 

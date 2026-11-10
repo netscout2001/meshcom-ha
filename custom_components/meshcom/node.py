@@ -123,6 +123,7 @@ class MeshComNode:
         self.web_firmware: str | None = None
         self.battery_voltage: float | None = None
         self.last_message: ReceivedMessage | None = None
+        #: RSSI and SNR of the last packet received over the air.
         self.last_radio: tuple[int | None, float | None] = (None, None)
         self.messages_received = 0
         self.messages_sent = 0
@@ -216,6 +217,13 @@ class MeshComNode:
         elif isinstance(packet, (TimeBeaconPacket, RemoteManagementPacket)):
             # Control traffic, not chat. Only proves that the node is alive.
             pass
+        # Signal of the last packet the node received over the air (message,
+        # position or telemetry of another station). Own frames and packets
+        # from the MeshCom server carry none and leave the value as it is.
+        radio = getattr(packet, "radio", None)
+        source = getattr(packet, "source_type", None)
+        if source is SourceType.LORA and radio is not None and radio.rssi is not None:
+            self.last_radio = (radio.rssi, radio.snr)
         async_dispatcher_send(self.hass, signal_update(self.entry_id))
         if (callsign := self._touched) is not None:
             async_dispatcher_send(self.hass, signal_station(self.entry_id, callsign))
@@ -304,8 +312,6 @@ class MeshComNode:
                 received=now,
                 via_server=packet.source_type is SourceType.UDP,
             )
-            # Signal of this message; unknown if it came via the server.
-            self.last_radio = (packet.radio.rssi, packet.radio.snr)
             self._heard_message(packet, now)
         if (is_own or to_me) and self.message_listener is not None:
             self.message_listener(packet, is_own, now)

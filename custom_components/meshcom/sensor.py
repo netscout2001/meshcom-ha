@@ -141,7 +141,6 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
         entity_registry_enabled_default=False,
         value_fn=lambda node: node.last_radio[0],
         restore=True,
-        message_bound=True,
     ),
     MeshComSensorDescription(
         key="last_snr",
@@ -152,7 +151,6 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
         entity_registry_enabled_default=False,
         value_fn=lambda node: node.last_radio[1],
         restore=True,
-        message_bound=True,
     ),
     MeshComSensorDescription(
         key="firmware",
