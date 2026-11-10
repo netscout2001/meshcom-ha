@@ -39,6 +39,16 @@ from yarl import URL
 from .callsign import is_callsign
 from .const import SECRET_WEB_PARAMETERS
 from .errors import MeshComError
+from .webpages import (
+    POSITION_PAGE,
+    RXLOG_PAGE,
+    GpsInfo,
+    NodeInfo,
+    RadioStats,
+    parse_node_info,
+    parse_position_page,
+    parse_rxlog_page,
+)
 
 #: Parameters the client may read.
 READABLE_PARAMETERS: Final = frozenset({"nomsgall", "setgrc", "setcall"})
@@ -56,6 +66,11 @@ _INFO_BATTERY_RE: Final = re.compile(r"<td>Battery</td><td>(\d{1,2}\.\d{3})V \(\
 MHEARD_PAGE: Final = "/?page=mheard"
 _MHEARD_MAX_BYTES: Final = 256 * 1024
 _MHEARD_TITLE: Final = "MHeard Information"
+#: The info page is about 6 kB; the values at its end must not be cut off.
+_INFO_MAX_BYTES: Final = 32 * 1024
+#: The queue panel is at the top of the RX log page; the log lines below it
+#: are not needed.
+_RXLOG_MAX_BYTES: Final = 8 * 1024
 _MHEARD_MAX_ENTRIES: Final = 128
 _MHEARD_CARD_RE: Final = re.compile(
     r'<label class="cardlabel"><a href="https://aprs\.fi/\?call=[^"]{1,40}" target="_blank">'
@@ -265,25 +280,48 @@ class MeshComWebClient:
         status = await self.get_overview()
         return status.no_msg_all, status.groups
 
-    async def get_overview(self) -> NodeStatus:
-        """Settings, firmware, battery voltage and MHeard list, with a single login.
+    async def get_overview(self, *, radio_stats: bool = False) -> NodeStatus:
+        """Settings and the values of the node's pages, with a single login.
 
-        Firmware, voltage and the MHeard list are only on HTML pages. They
-        are taken from them with fixed patterns; if a page looks different,
-        its values stay unknown and the settings are still returned.
+        Firmware, voltage, the MHeard list and the other node values are
+        only on HTML pages. They are taken from them with fixed patterns; if
+        a page looks different, its values stay unknown and the settings are
+        still returned. ``radio_stats`` also reads the RX log page (LoRa
+        queue); its first request makes the node allocate the RX log buffer.
         """
+        pages = [INFO_PAGE, MHEARD_PAGE, POSITION_PAGE]
+        if radio_stats:
+            pages.append(RXLOG_PAGE)
         answers = await self._fetch(
-            ["/getparam/?nomsgall", "/getparam/?setgrc", INFO_PAGE, MHEARD_PAGE],
-            pages=frozenset({INFO_PAGE, MHEARD_PAGE}),
-            limits={MHEARD_PAGE: _MHEARD_MAX_BYTES},
+            ["/getparam/?nomsgall", "/getparam/?setgrc", *pages],
+            pages=frozenset(pages),
+            limits={
+                INFO_PAGE: _INFO_MAX_BYTES,
+                MHEARD_PAGE: _MHEARD_MAX_BYTES,
+                RXLOG_PAGE: _RXLOG_MAX_BYTES,
+            },
         )
         no_msg_all = _value("nomsgall", *answers[0])
         groups = parse_groups(_value("setgrc", *answers[1]))
-        info_status, info_body = answers[2]
-        firmware, voltage = parse_info_page(info_body) if info_status == 200 else (None, None)
-        mheard_status, mheard_body = answers[3]
-        mheard = parse_mheard_page(mheard_body) if mheard_status == 200 else None
-        return NodeStatus(no_msg_all == "on", groups, firmware, voltage, mheard)
+        bodies = {
+            path: body if status == 200 else None
+            for path, (status, body) in zip(pages, answers[2:], strict=True)
+        }
+        info_body = bodies[INFO_PAGE]
+        firmware, voltage = parse_info_page(info_body) if info_body else (None, None)
+        mheard_body = bodies[MHEARD_PAGE]
+        position_body = bodies[POSITION_PAGE]
+        rxlog_body = bodies.get(RXLOG_PAGE)
+        return NodeStatus(
+            no_msg_all == "on",
+            groups,
+            firmware,
+            voltage,
+            parse_mheard_page(mheard_body) if mheard_body is not None else None,
+            info=parse_node_info(info_body) if info_body else None,
+            gps=parse_position_page(position_body) if position_body else None,
+            radio=parse_rxlog_page(rxlog_body) if rxlog_body else None,
+        )
 
     # --- public API ------------------------------------------------------------
 
@@ -323,6 +361,12 @@ class NodeStatus:
     battery_voltage: float | None = None
     #: Stations heard directly (MHeard page); None if the page was unreadable.
     mheard: list[MHeardEntry] | None = None
+    #: Further values of the info page.
+    info: NodeInfo | None = None
+    #: GPS state of the position page.
+    gps: GpsInfo | None = None
+    #: LoRa queue and channel use (RX log page, only when enabled).
+    radio: RadioStats | None = None
 
 
 @dataclass(frozen=True, slots=True)

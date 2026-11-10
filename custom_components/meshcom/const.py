@@ -97,6 +97,10 @@ MAX_PATH: Final = 12
 #: node beacons every 30 minutes by default (POSINFO_INTERVAL in the firmware).
 CONF_INACTIVE_MINUTES: Final = "inactive_minutes"
 DEFAULT_INACTIVE_MINUTES: Final = 65
+#: Read the LoRa queue and channel use (RX log page). Off by default: the
+#: first request makes the node allocate its RX log buffer, which it keeps.
+CONF_RADIO_STATS: Final = "radio_stats"
+DEFAULT_RADIO_STATS: Final = False
 INACTIVE_MINUTES_RANGE: Final = (10, 1440)
 STATION_STALE_DAYS_LIMIT: Final = 90
 #: Stations in the "stations" attribute (data mode), newest first.

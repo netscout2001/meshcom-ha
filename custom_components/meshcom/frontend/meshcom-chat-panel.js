@@ -43,6 +43,61 @@ const TEXT = {
     },
     error: "Error",
     access: { udp: "External UDP", kiss: "KISS over TCP" },
+    dash: {
+      uptime: "running",
+      now: "now",
+      since: (text) => `for ${text}`,
+      active: "active",
+      inactive: "inactive",
+      lastHeard: (text) => `last heard ${text}`,
+      server: { connected: "server connected", lost: "server not answering", waiting: "server: no answer yet", no_ip: "no IP address", not_selected: "no server selected", off: "gateway off" },
+      kiss: { true: "KISS connected", false: "KISS disconnected" },
+      web: { ok: "web API ok", down: "web API not reachable", paused: "web API paused (node inactive)" },
+      battery: "Battery",
+      signal: "Last signal",
+      channel: "Channel use",
+      channelOff: "Switch on \"Read radio statistics\" in the node's options to see channel use and queue.",
+      queue: "TX queue",
+      queueState: { accepted: "own messages accepted", slow_down: "own messages: slow down", refused: "own messages refused" },
+      received: "Received (48 h)",
+      sent: "Sent (48 h)",
+      stations: "Stations (24 h)",
+      directCount: (n) => `${n} direct`,
+      kinds: { received_direct: "DM", received_group: "groups", received_all: "to all" },
+      delivery: { delivered: "delivered", pending: "open", failed: "failed", unknown: "unknown" },
+      activity: "Messages per hour (48 h)",
+      utilisation: "Channel use (48 h)",
+      receivedLine: "received",
+      sentLine: "sent",
+      rxLine: "RX",
+      txLine: "TX",
+      noHistory: "No history yet.",
+      groups: { radio: "Radio", status: "Status", gps: "GPS", environment: "Environment" },
+      rows: {
+        rx: "Channel use RX", tx: "Channel use TX", queue: "TX queue", dropped: "Dropped (5 min)",
+        duplicates: "Duplicates (5 min)", dedup: "Dedup window", battery: "Battery", voltage: "Voltage",
+        uptime: "Running for", lastPacket: "Last packet", firmware: "Firmware", hardware: "Hardware",
+        wifi: "WLAN signal", server: "MeshCom server", blocked: "Blocked frames", hops: "Max. hops text / position",
+        satellites: "Satellites", nextBeacon: "Next position", interval: "Position interval",
+        received: "Messages received", sentTotal: "Messages sent", duplicatesTotal: "Duplicates since HA start", filtered: "Filtered since HA start",
+      },
+      fix: "fix",
+      noFix: "no fix",
+      inMinutes: (min) => `in ${min} min`,
+      everyMinutes: (min) => `every ${min} min`,
+      minutes: (min) => `${min} min`,
+      neighbours: "Direct neighbours",
+      noNeighbours: "No direct neighbours. They come from the node's MHeard page (web API).",
+      columns: { callsign: "Callsign", snr: "SNR", hearsMe: "Hears me", role: "Relay role", hardware: "Hardware", heard: "Last heard" },
+      controls: "Control",
+      entities: "All entities",
+      days: (d, h) => `${d} d ${h} h`,
+      hours: (h, m) => `${h} h ${m} min`,
+      mins: (m) => `${m} min`,
+      secs: (sec) => `${sec} s`,
+      dupOf: (dup, fresh) => `${dup} (${fresh} new)`,
+      lastAnswer: (text) => `last answer ${text} ago`,
+    },
     map: "Map",
     stationsOff: "Stations are switched off in the options of this node.",
     message: "Message",
@@ -118,6 +173,61 @@ const TEXT = {
     },
     error: "Fehler",
     access: { udp: "Externes UDP", kiss: "KISS \u00fcber TCP" },
+    dash: {
+      uptime: "l\u00e4uft",
+      now: "jetzt",
+      since: (text) => `seit ${text}`,
+      active: "aktiv",
+      inactive: "inaktiv",
+      lastHeard: (text) => `zuletzt geh\u00f6rt ${text}`,
+      server: { connected: "Server verbunden", lost: "Server antwortet nicht", waiting: "Server: noch keine Antwort", no_ip: "keine IP-Adresse", not_selected: "kein Server gew\u00e4hlt", off: "Gateway aus" },
+      kiss: { true: "KISS verbunden", false: "KISS getrennt" },
+      web: { ok: "Web-API ok", down: "Web-API nicht erreichbar", paused: "Web-API pausiert (Node inaktiv)" },
+      battery: "Akku",
+      signal: "Letztes Signal",
+      channel: "Kanalauslastung",
+      channelOff: "F\u00fcr Kanalauslastung und Warteschlange in den Optionen des Nodes \"Funkstatistik lesen\" einschalten.",
+      queue: "Sendewarteschlange",
+      queueState: { accepted: "eigene Nachrichten angenommen", slow_down: "eigene Nachrichten: langsamer", refused: "eigene Nachrichten abgelehnt" },
+      received: "Empfangen (48 h)",
+      sent: "Gesendet (48 h)",
+      stations: "Stationen (24 h)",
+      directCount: (n) => `${n} direkt`,
+      kinds: { received_direct: "DM", received_group: "Gruppen", received_all: "an alle" },
+      delivery: { delivered: "zugestellt", pending: "offen", failed: "fehlgeschlagen", unknown: "unbekannt" },
+      activity: "Nachrichten pro Stunde (48 h)",
+      utilisation: "Kanalauslastung (48 h)",
+      receivedLine: "empfangen",
+      sentLine: "gesendet",
+      rxLine: "RX",
+      txLine: "TX",
+      noHistory: "Noch kein Verlauf.",
+      groups: { radio: "Funk", status: "Status", gps: "GPS", environment: "Umwelt" },
+      rows: {
+        rx: "Kanalauslastung RX", tx: "Kanalauslastung TX", queue: "Sendewarteschlange", dropped: "Verworfen (5 min)",
+        duplicates: "Duplikate (5 min)", dedup: "Dedup-Fenster", battery: "Akku", voltage: "Spannung",
+        uptime: "L\u00e4uft seit", lastPacket: "Letztes Paket", firmware: "Firmware", hardware: "Hardware",
+        wifi: "WLAN-Signal", server: "MeshCom-Server", blocked: "Gesperrte Rahmen", hops: "Max. Hops Text / Position",
+        satellites: "Satelliten", nextBeacon: "N\u00e4chste Position", interval: "Positionsintervall",
+        received: "Nachrichten empfangen", sentTotal: "Nachrichten gesendet", duplicatesTotal: "Duplikate seit HA-Start", filtered: "Gefiltert seit HA-Start",
+      },
+      fix: "Fix",
+      noFix: "kein Fix",
+      inMinutes: (min) => `in ${min} min`,
+      everyMinutes: (min) => `alle ${min} min`,
+      minutes: (min) => `${min} min`,
+      neighbours: "Direkte Nachbarn",
+      noNeighbours: "Keine direkten Nachbarn. Sie kommen von der MHeard-Seite des Nodes (Web-API).",
+      columns: { callsign: "Rufzeichen", snr: "SNR", hearsMe: "H\u00f6rt mich", role: "Relay-Rolle", hardware: "Hardware", heard: "Zuletzt geh\u00f6rt" },
+      controls: "Steuerung",
+      entities: "Alle Entit\u00e4ten",
+      days: (d, h) => `${d} T ${h} h`,
+      hours: (h, m) => `${h} h ${m} min`,
+      mins: (m) => `${m} min`,
+      secs: (sec) => `${sec} s`,
+      dupOf: (dup, fresh) => `${dup} (${fresh} neu)`,
+      lastAnswer: (text) => `letzte Antwort vor ${text}`,
+    },
     map: "Karte",
     stationsOff: "Stationen sind in den Optionen dieses Nodes ausgeschaltet.",
     message: "Nachricht",
@@ -296,6 +406,67 @@ const STYLE = `
 .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 0;
   border-top: 1px solid var(--divider-color); }
 .row .label { opacity: .8; }
+.nodechips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.nodechips[hidden] { display: none; }
+.nodechip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--divider-color);
+  background: var(--card-background-color); color: inherit; border-radius: 18px; padding: 6px 14px; font: inherit; cursor: pointer; }
+.nodechip.active { border-color: var(--primary-color, #03a9f4); box-shadow: 0 0 0 1px var(--primary-color, #03a9f4) inset; }
+.nodechip .call { font-weight: 500; }
+.nodechip .meta { font-size: 12px; opacity: .7; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #9e9e9e; }
+.dot.ok { background: #43a047; } .dot.warn { background: #fb8c00; } .dot.bad { background: #e53935; }
+.dot.info { background: #1e88e5; } .dot.off { background: #9e9e9e; }
+.dash { display: flex; flex-direction: column; gap: 14px; }
+.dash .card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+.dashhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.headmain { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.headicon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  background: var(--primary-color, #03a9f4); color: var(--text-primary-color, #fff); flex-shrink: 0; }
+.headtext { min-width: 0; }
+.headtext .sub { margin: 2px 0 0; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border-radius: 12px; padding: 3px 10px;
+  border: 1px solid var(--divider-color); background: var(--secondary-background-color); }
+.pill.ok { border-color: rgba(67,160,71,.5); } .pill.warn { border-color: rgba(251,140,0,.6); } .pill.bad { border-color: rgba(229,57,53,.6); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 12px; }
+.tile { background: var(--card-background-color); border-radius: var(--ha-card-border-radius, 12px);
+  box-shadow: var(--ha-card-box-shadow, 0 1px 2px rgba(0,0,0,.2)); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tilehead { display: flex; justify-content: space-between; align-items: center; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .05em; opacity: .75; gap: 6px; }
+.tile .big { font-size: 26px; font-weight: 600; line-height: 1.1; }
+.tile .big .unit { font-size: 13px; font-weight: 400; opacity: .7; margin-left: 4px; }
+.tilesub { font-size: 12px; opacity: .75; }
+.tile.hint { justify-content: center; }
+.bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--divider-color); width: 100%; }
+.bar span { height: 100%; }
+.minilegend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; opacity: .85; }
+.minilegend > span { display: inline-flex; align-items: center; gap: 4px; }
+.minilegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.qwrap { position: relative; padding-bottom: 14px; }
+.qbar { display: flex; gap: 2px; height: 12px; }
+.qbar span { flex: 1; border-radius: 2px; }
+.qbar span.free { background: var(--divider-color); }
+.qtick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--primary-text-color); font-size: 10px;
+  padding-top: 13px; transform: translateX(-1px); opacity: .7; line-height: 1; }
+.spark { width: 100%; height: 24px; display: block; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.chart .chartsvg { width: 100%; height: auto; display: block; }
+.chartsvg .grid { stroke: var(--divider-color); stroke-dasharray: 3 4; }
+.chartsvg .axis { stroke: var(--divider-color); }
+.chartsvg .lbl { fill: var(--secondary-text-color, currentColor); font-size: 11px; }
+.sensorgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 24px; }
+.srow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 5px 0; border-top: 1px solid var(--divider-color); align-items: center; }
+.srow .label { opacity: .8; }
+.srow .value { text-align: right; font-variant-numeric: tabular-nums; }
+.srow .bar { grid-column: 1 / -1; height: 4px; }
+.tablewrap { overflow-x: auto; }
+table.neighbours { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.neighbours th, table.neighbours td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--divider-color); white-space: nowrap; }
+table.neighbours th { font-weight: 500; opacity: .75; border-top: none; }
+table.neighbours td.num { min-width: 90px; }
+table.neighbours td.num .bar { height: 4px; margin-top: 3px; }
+details.allentities { margin-top: 10px; }
+details.allentities summary { cursor: pointer; opacity: .8; padding: 4px 0; }
 .row .value { text-align: right; }
 .toggle { font: inherit; border-radius: 14px; padding: 2px 12px; border: 1px solid var(--divider-color);
   background: none; color: inherit; }
@@ -834,6 +1005,40 @@ class TileMap {
 }
 
 // Callsigns never start with "#", so this id cannot clash with a station.
+// --- nodes dashboard: constants and helpers ---------------------------------------
+
+const DASH_WINDOW_MS = 48 * 3600000;
+const DASH_REFRESH_MS = 30000;
+const DASH_HISTORY_MS = 5 * 60000;
+const PRIORITIES = ["crit", "high", "normal", "low", "bg"];
+// The node's own colours for the queue priorities (web_functions.cpp).
+const PRIORITY_COLORS = { crit: "#A2182F", high: "#E07B39", normal: "#3B7DD8", low: "#6FA96F", bg: "#9E9E9E" };
+const LEVEL_COLORS = { ok: "#43a047", warn: "#fb8c00", bad: "#e53935", info: "#1e88e5", off: "#9e9e9e" };
+const SERIES_COLORS = { received: "#43a047", sent: "#1e88e5", rx: "#3B7DD8", tx: "#A2182F" };
+const DIRECT_COLOR = "#8e24aa";
+const ACTIVITY_KINDS = ["received_direct", "received_group", "received_all", "sent"];
+const KIND_COLORS = { received_direct: "#43a047", received_group: "#1e88e5", received_all: "#fb8c00" };
+const DELIVERY_STATES = ["delivered", "pending", "failed", "unknown"];
+const DELIVERY_COLORS = { delivered: "#43a047", pending: "#1e88e5", failed: "#e53935", unknown: "#9e9e9e" };
+const ENVIRONMENT_KEYS = ["temperature_1", "temperature_2", "humidity", "pressure_qnh", "pressure_qfe", "co2"];
+// mdi:radio-tower (Pictogrammers, Apache License 2.0).
+const ICON_TOWER =
+  "M12,10A2,2 0 0,1 14,12C14,12.5 13.82,12.94 13.53,13.29L16.7,22H14.6L12,14.85L9.4,22H7.3L10.47,13.29C10.18,12.94 10,12.5 10,12A2,2 0 0,1 12,10M12,8A4,4 0 0,0 8,12C8,12.5 8.1,13 8.28,13.46L7.4,15.86C6.53,14.81 6,13.47 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12C18,13.47 17.47,14.81 16.6,15.86L15.72,13.46C15.9,13 16,12.5 16,12A4,4 0 0,0 12,8M12,4A8,8 0 0,0 4,12C4,14.36 5,16.5 6.64,17.94L5.92,19.94C3.54,18.11 2,15.23 2,12A10,10 0 0,1 12,2A10,10 0 0,1 22,12C22,15.23 20.46,18.11 18.08,19.94L17.36,17.94C19,16.5 20,14.36 20,12A8,8 0 0,0 12,4Z";
+
+function svg(tag, attrs) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, String(value));
+  return node;
+}
+
+// A round axis maximum (1, 2, 5, 10, 20, 50, ...).
+function niceMax(value) {
+  if (!(value > 0)) return 1;
+  const power = 10 ** Math.floor(Math.log10(value));
+  for (const step of [1, 2, 5, 10]) if (value <= step * power) return step * power;
+  return 10 * power;
+}
+
 const OWN_MARKER = "#own";
 
 class MeshComChatPanel extends HTMLElement {
@@ -890,6 +1095,7 @@ class MeshComChatPanel extends HTMLElement {
   disconnectedCallback() {
     clearTimeout(this._retry);
     clearInterval(this._stationTimer);
+    clearInterval(this._nodeTimer);
     this._stopSubscription();
     if (this._hass && this._onReady) {
       this._hass.connection.removeEventListener("ready", this._onReady);
@@ -1011,13 +1217,6 @@ class MeshComChatPanel extends HTMLElement {
     return view;
   }
 
-  _buildNodes() {
-    this._nodesView = el("div", "view");
-    this._nodesBody = el("div", "scroll");
-    this._nodesView.append(this._nodesBody);
-    return this._nodesView;
-  }
-
   _buildStations() {
     const t = this._t;
     this._stationsView = el("div", "view");
@@ -1058,9 +1257,12 @@ class MeshComChatPanel extends HTMLElement {
     this._nodesView.hidden = tab !== "nodes";
     this._stationsView.hidden = tab !== "stations";
     clearInterval(this._stationTimer);
+    clearInterval(this._nodeTimer);
     if (tab === "nodes") {
       this._nodesSignature = "";
       this._renderNodes();
+      this._loadNodeStatus();
+      this._nodeTimer = setInterval(() => this._loadNodeStatus(), DASH_REFRESH_MS);
     } else if (tab === "stations") {
       this._loadStations();
       this._stationTimer = setInterval(() => this._loadStations(), STATIONS_REFRESH_MS);
@@ -1120,6 +1322,7 @@ class MeshComChatPanel extends HTMLElement {
       this._showError(err);
     }
     if (this._tab === "stations") this._loadStations();
+    if (this._tab === "nodes") this._loadNodeStatus();
     this._openConversation(this._active);
   }
 
@@ -1540,38 +1743,635 @@ class MeshComChatPanel extends HTMLElement {
 
   // --- nodes ---------------------------------------------------------------------
 
+  // --- nodes dashboard -----------------------------------------------------------
+
+  _buildNodes() {
+    this._nodesView = el("div", "view");
+    this._nodesBody = el("div", "scroll");
+    this._nodeChips = el("div", "nodechips");
+    this._nodeDash = el("div", "dash");
+    this._nodesBody.append(this._nodeChips, this._nodeDash);
+    this._nodesView.append(this._nodesBody);
+    return this._nodesView;
+  }
+
+  // Values beyond the entity states (web pages, activity, neighbours).
+  async _loadNodeStatus() {
+    if (!this._entryId || this._tab !== "nodes" || !this._hass) return;
+    const entryId = this._entryId;
+    try {
+      const status = await this._hass.callWS({ type: "meshcom/chat/node_status", entry_id: entryId });
+      if (entryId !== this._entryId) return;
+      this._nodeStatus = status;
+      this._error = "";
+    } catch (err) {
+      this._showError(err);
+    }
+    await this._loadNodeHistory(entryId);
+    this._nodeVersion = (this._nodeVersion || 0) + 1;
+    this._renderNodes();
+  }
+
+  // Battery and channel use of the last 48 hours from the recorder (optional).
+  async _loadNodeHistory(entryId) {
+    const node = this._nodes.find((n) => n.entry_id === entryId);
+    if (!node) return;
+    const cached = this._nodeHistory;
+    if (cached && cached.entryId === entryId && Date.now() - cached.time < DASH_HISTORY_MS) return;
+    const ids = ["battery", "channel_rx", "channel_tx"].map((key) => this._entityOf(node, key)).filter(Boolean);
+    const result = { entryId, time: Date.now(), series: {} };
+    if (ids.length) {
+      try {
+        const data = await this._hass.callWS({
+          type: "history/history_during_period",
+          start_time: new Date(Date.now() - DASH_WINDOW_MS).toISOString(),
+          entity_ids: ids,
+          minimal_response: true,
+          no_attributes: true,
+          significant_changes_only: false,
+        });
+        for (const id of ids) {
+          const points = [];
+          for (const item of (data && data[id]) || []) {
+            const value = item.s === "" ? NaN : Number(item.s);
+            const time = item.lu !== undefined ? Number(item.lu) * 1000 : Date.parse(item.last_updated);
+            if (Number.isFinite(value) && Number.isFinite(time)) points.push([time, value]);
+          }
+          result.series[id] = points;
+        }
+      } catch (err) {
+        // The history is optional (recorder off or entity excluded).
+      }
+    }
+    this._nodeHistory = result;
+  }
+
+  _entityOf(node, key) {
+    const item = node.entities.find((entity) => entity.key === key);
+    return item ? item.entity_id : null;
+  }
+
+  _stateOf(node, key) {
+    const id = this._entityOf(node, key);
+    return id ? this._hass.states[id] || null : null;
+  }
+
+  _numberOf(node, key) {
+    const state = this._stateOf(node, key);
+    if (!state || state.state === "" || state.state === null) return null;
+    const value = Number(state.state);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  _fmt(value, digits = 0) {
+    return Number(value).toLocaleString(this._hass.language || undefined, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  }
+
+  _duration(seconds) {
+    const d = this._t.dash;
+    const total = Math.max(0, Math.floor(seconds));
+    const days = Math.floor(total / 86400);
+    const hours = Math.floor((total % 86400) / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    if (days) return d.days(days, hours);
+    if (hours) return d.hours(hours, minutes);
+    if (minutes) return d.mins(minutes);
+    return d.secs(total);
+  }
+
+  _agoOf(iso) {
+    const time = Date.parse(iso);
+    if (!Number.isFinite(time)) return "";
+    return this._t.ago(Math.max(0, Math.floor((Date.now() - time) / 60000)));
+  }
+
   _renderNodes() {
     if (!this._nodesBody || !this._hass || !this._loaded) return;
     const t = this._t;
     const states = this._hass.states;
-    const signature = JSON.stringify(
-      this._nodes.map((node) => node.entities.map((item) => {
-        const state = states[item.entity_id];
-        return state ? [state.state, state.attributes.latitude, state.attributes.longitude] : null;
-      }))
-    );
+    const signature = JSON.stringify([
+      this._entryId,
+      this._nodeVersion,
+      Math.floor(Date.now() / 60000),
+      this._nodes.map((node) =>
+        node.entities.map((item) => {
+          const state = states[item.entity_id];
+          return state ? [state.state, state.attributes.latitude, state.attributes.longitude] : null;
+        })
+      ),
+    ]);
     if (signature === this._nodesSignature) return;
     this._nodesSignature = signature;
     if (!this._nodes.length) {
-      this._nodesBody.replaceChildren(el("div", "empty", t.noNodes));
+      this._nodeChips.replaceChildren();
+      this._nodeDash.replaceChildren(el("div", "empty", t.noNodes));
       return;
     }
-    const cards = el("div", "cards");
-    for (const node of this._nodes) cards.append(this._renderNodeCard(node, t));
-    this._nodesBody.replaceChildren(cards);
+    this._renderNodeChips(t);
+    const node = this._node || this._nodes[0];
+    this._nodeDash.replaceChildren(...this._renderDashboard(node, t));
   }
 
-  _renderNodeCard(node, t) {
+  // One chip per node: status, callsign, access, battery.
+  _renderNodeChips(t) {
+    const chips = this._nodes.map((node) => {
+      const chip = el("button", node.entry_id === this._entryId ? "nodechip active" : "nodechip");
+      const active = this._stateOf(node, "active");
+      chip.append(el("span", `dot ${active && active.state === "on" ? "ok" : "off"}`));
+      chip.append(el("span", "call", node.callsign));
+      chip.append(el("span", "meta", String(node.access || "").toUpperCase()));
+      const battery = this._numberOf(node, "battery");
+      if (battery !== null) chip.append(el("span", "meta", `${Math.round(battery)} %`));
+      chip.addEventListener("click", () => {
+        if (node.entry_id === this._entryId) return;
+        this._nodeStatus = null;
+        this._selectNode(node.entry_id);
+      });
+      return chip;
+    });
+    this._nodeChips.replaceChildren(...chips);
+    this._nodeChips.hidden = this._nodes.length < 2;
+  }
+
+  _renderDashboard(node, t) {
+    const status = this._nodeStatus && this._nodeStatus.entry_id === node.entry_id ? this._nodeStatus : null;
+    return [
+      this._dashHead(node, status, t),
+      this._dashTiles(node, status, t),
+      ...this._dashCharts(node, status, t),
+      this._dashSensors(node, status, t),
+      this._dashNeighbours(status, t),
+      this._dashControls(node, t),
+    ].filter(Boolean);
+  }
+
+  _dashHead(node, status, t) {
+    const d = t.dash;
+    const web = status ? status.web : null;
+    const info = web ? web.info : null;
+    const card = el("div", "card dashhead");
+    const main = el("div", "headmain");
+    const icon = el("div", "headicon");
+    const svgIcon = svg("svg", { viewBox: "0 0 24 24", width: 26, height: 26 });
+    svgIcon.append(svg("path", { d: ICON_TOWER, fill: "currentColor" }));
+    icon.append(svgIcon);
+    const text = el("div", "headtext");
+    text.append(el("h2", null, node.callsign));
+    const firmware = this._stateOf(node, "firmware");
+    const sub = [
+      info && info.hardware,
+      firmware && firmware.state !== "unknown" && firmware.state !== "unavailable" ? firmware.state : null,
+      t.access[node.access] || node.access,
+    ].filter(Boolean);
+    text.append(el("div", "sub", sub.join(" \u00b7 ")));
+    if (info && info.frequency_mhz) {
+      const radio = [`${this._fmt(info.frequency_mhz, 3)} MHz`];
+      if (info.bandwidth_khz) radio.push(`BW ${info.bandwidth_khz} kHz`);
+      if (info.spreading_factor) radio.push(`SF ${info.spreading_factor}`);
+      if (info.coding_rate) radio.push(`CR 4/${info.coding_rate}`);
+      if (Number.isInteger(info.tx_power_dbm)) radio.push(`${info.tx_power_dbm} dBm`);
+      text.append(el("div", "sub", radio.join(" \u00b7 ")));
+    }
+    main.append(icon, text);
+    const pills = el("div", "pills");
+    const active = this._stateOf(node, "active");
+    const isActive = active && active.state === "on";
+    const lastPacket = this._stateOf(node, "last_packet");
+    const heard = lastPacket ? this._agoOf(lastPacket.state) : "";
+    pills.append(this._pill(isActive ? "ok" : "off", heard ? `${isActive ? d.active : d.inactive} \u00b7 ${heard}` : isActive ? d.active : d.inactive));
+    if (web && web.started) {
+      pills.append(this._pill("info", `${d.uptime} ${d.since(this._duration((Date.now() - Date.parse(web.started)) / 1000))}`));
+    }
+    if (info && info.server && d.server[info.server]) {
+      pills.append(this._pill(info.server === "connected" ? "ok" : info.server === "off" ? "off" : "warn", d.server[info.server]));
+    }
+    if (status && status.kiss_connected !== null && status.kiss_connected !== undefined) {
+      pills.append(this._pill(status.kiss_connected ? "ok" : "bad", d.kiss[String(status.kiss_connected)]));
+    }
+    if (web) {
+      if (web.ok) pills.append(this._pill("ok", d.web.ok));
+      else pills.append(this._pill(web.paused ? "off" : "warn", web.paused ? d.web.paused : d.web.down));
+    }
+    card.append(main, pills);
+    return card;
+  }
+
+  _pill(level, text) {
+    const pill = el("span", `pill ${level}`);
+    pill.append(el("span", `dot ${level}`), el("span", null, text));
+    return pill;
+  }
+
+  // Bar of coloured segments; values relative to ``total``.
+  _bar(segments, total) {
+    const bar = el("div", "bar");
+    const sum = total || segments.reduce((acc, seg) => acc + seg.value, 0);
+    if (sum <= 0) return bar;
+    for (const seg of segments) {
+      if (!(seg.value > 0)) continue;
+      const part = el("span");
+      part.style.width = `${Math.min(100, (seg.value / sum) * 100)}%`;
+      part.style.background = seg.color;
+      if (seg.title) part.title = seg.title;
+      bar.append(part);
+    }
+    return bar;
+  }
+
+  _tile(label, level, big, unit, sub, extra) {
+    const tile = el("div", "tile");
+    const head = el("div", "tilehead");
+    head.append(el("span", null, label), el("span", `dot ${level}`));
+    const value = el("div", "big", big);
+    if (unit) value.append(el("span", "unit", unit));
+    tile.append(head, value);
+    if (sub) tile.append(el("div", "tilesub", sub));
+    for (const item of extra || []) if (item) tile.append(item);
+    return tile;
+  }
+
+  _legend(items) {
+    const legend = el("div", "minilegend");
+    for (const item of items) {
+      const entry = el("span");
+      const swatch = el("i");
+      swatch.style.background = item.color;
+      entry.append(swatch, el("span", null, item.text));
+      legend.append(entry);
+    }
+    return legend;
+  }
+
+  _dashTiles(node, status, t) {
+    const d = t.dash;
+    const tiles = el("div", "tiles");
+    const web = status ? status.web : null;
+    const radio = web ? web.radio : null;
+    // Battery, with the course of the last 48 hours.
+    const battery = this._numberOf(node, "battery");
+    if (battery !== null) {
+      const voltage = this._numberOf(node, "battery_voltage");
+      const level = battery >= 50 ? "ok" : battery >= 20 ? "warn" : "bad";
+      const colour = LEVEL_COLORS[level];
+      const id = this._entityOf(node, "battery");
+      const points = this._nodeHistory && this._nodeHistory.entryId === node.entry_id ? this._nodeHistory.series[id] : null;
+      tiles.append(
+        this._tile(d.battery, level, this._fmt(battery), "%", voltage !== null ? `${this._fmt(voltage, 2)} V` : "", [
+          this._bar([{ value: battery, color: colour }], 100),
+          points && points.length > 1 ? this._sparkline(points, 0, 100, colour) : null,
+        ])
+      );
+    }
+    // Signal of the last received message.
+    const rssi = this._numberOf(node, "last_rssi");
+    if (rssi !== null) {
+      const snr = this._numberOf(node, "last_snr");
+      const level = rssi >= -100 ? "ok" : rssi >= -115 ? "warn" : "bad";
+      tiles.append(
+        this._tile(d.signal, level, String(Math.round(rssi)), "dBm", snr !== null ? `SNR ${this._fmt(snr, 1)} dB` : "", [
+          this._bar([{ value: Math.min(90, Math.max(0, rssi + 130)), color: LEVEL_COLORS[level] }], 90),
+        ])
+      );
+    }
+    // Channel use and queue (LoRa queue panel, only with the option).
+    if (radio) {
+      if (radio.rx_percent !== null && radio.tx_percent !== null) {
+        const used = radio.rx_percent + radio.tx_percent;
+        const level = used < 30 ? "ok" : used < 60 ? "warn" : "bad";
+        tiles.append(
+          this._tile(d.channel, level, this._fmt(used, 1), "%", `RX ${this._fmt(radio.rx_percent, 1)} % \u00b7 TX ${this._fmt(radio.tx_percent, 1)} %`, [
+            this._bar(
+              [
+                { value: radio.rx_percent, color: SERIES_COLORS.rx, title: "RX" },
+                { value: radio.tx_percent, color: SERIES_COLORS.tx, title: "TX" },
+                { value: Math.max(0, 100 - used), color: "var(--divider-color)" },
+              ],
+              100
+            ),
+          ])
+        );
+      }
+      const level =
+        radio.refuse_at && radio.queue_used >= radio.refuse_at ? "bad" : radio.slow_down_at && radio.queue_used >= radio.slow_down_at ? "warn" : "ok";
+      tiles.append(
+        this._tile(d.queue, level, String(radio.queue_used), `/ ${radio.queue_size}`, d.queueState[radio.state] || "", [
+          this._queueBar(radio),
+          this._legend(
+            PRIORITIES.filter((name) => radio.queue_by_priority[name]).map((name) => ({ color: PRIORITY_COLORS[name], text: `${name} ${radio.queue_by_priority[name]}` }))
+          ),
+        ])
+      );
+    } else if (web && !web.radio_enabled) {
+      const hint = el("div", "tile hint");
+      hint.append(el("div", "tilehead", d.channel), el("div", "tilesub", d.channelOff));
+      tiles.append(hint);
+    }
+    if (status) {
+      // Messages of the last 48 hours by kind, own ones by delivery state.
+      const activity = status.activity;
+      const sums = {};
+      for (const kind of ACTIVITY_KINDS) sums[kind] = (activity[kind] || []).reduce((a, b) => a + b, 0);
+      const received = sums.received_direct + sums.received_group + sums.received_all;
+      tiles.append(
+        this._tile(d.received, "info", this._fmt(received), "", ACTIVITY_KINDS.filter((k) => k !== "sent").map((k) => `${d.kinds[k]} ${sums[k]}`).join(" \u00b7 "), [
+          this._bar(ACTIVITY_KINDS.filter((k) => k !== "sent").map((k) => ({ value: sums[k], color: KIND_COLORS[k], title: d.kinds[k] }))),
+        ])
+      );
+      const delivery = status.delivery;
+      tiles.append(
+        this._tile(d.sent, delivery.failed ? "warn" : "ok", this._fmt(sums.sent), "", DELIVERY_STATES.filter((k) => delivery[k]).map((k) => `${d.delivery[k]} ${delivery[k]}`).join(" \u00b7 "), [
+          this._bar(DELIVERY_STATES.map((k) => ({ value: delivery[k], color: DELIVERY_COLORS[k], title: d.delivery[k] }))),
+        ])
+      );
+      const stations = status.stations;
+      tiles.append(
+        this._tile(d.stations, "info", String(stations.heard_24h), "", d.directCount(stations.direct), [
+          this._bar(
+            [
+              { value: stations.direct, color: DIRECT_COLOR },
+              { value: Math.max(0, stations.heard_24h - stations.direct), color: SERIES_COLORS.received },
+            ],
+            Math.max(stations.heard_24h, stations.direct)
+          ),
+        ])
+      );
+    }
+    return tiles;
+  }
+
+  // Queue like the node's own panel: one cell per slot, coloured by priority,
+  // marks where the node asks to slow down (QRS) and refuses (QRT).
+  _queueBar(radio) {
+    const wrap = el("div", "qwrap");
+    const cells = el("div", "qbar");
+    let filled = 0;
+    for (const name of PRIORITIES) {
+      for (let i = 0; i < (radio.queue_by_priority[name] || 0) && filled < radio.queue_size; i += 1) {
+        const cell = el("span");
+        cell.style.background = PRIORITY_COLORS[name];
+        cells.append(cell);
+        filled += 1;
+      }
+    }
+    for (; filled < radio.queue_size; filled += 1) cells.append(el("span", "free"));
+    wrap.append(cells);
+    for (const [mark, label] of [[radio.slow_down_at, "QRS"], [radio.refuse_at, "QRT"]]) {
+      if (!mark) continue;
+      const tick = el("span", "qtick", label);
+      tick.style.left = `${(mark / radio.queue_size) * 100}%`;
+      wrap.append(tick);
+    }
+    return wrap;
+  }
+
+  _sparkline(points, low, high, colour) {
+    const start = Date.now() - DASH_WINDOW_MS;
+    const box = svg("svg", { viewBox: "0 0 100 24", preserveAspectRatio: "none", class: "spark" });
+    const coords = points
+      .filter(([time]) => time >= start)
+      .map(([time, value]) => [((time - start) / DASH_WINDOW_MS) * 100, 22 - ((Math.min(high, Math.max(low, value)) - low) / (high - low)) * 20]);
+    if (coords.length) coords.push([100, coords[coords.length - 1][1]]);
+    box.append(svg("polyline", { points: coords.map((p) => p.join(",")).join(" "), fill: "none", stroke: colour, "stroke-width": 1.5, "vector-effect": "non-scaling-stroke" }));
+    return box;
+  }
+
+  // Line chart over the last 48 hours: series of [x 0..1, y].
+  _lineChart(title, series, yMax, unit, t, width) {
+    const d = t.dash;
+    const card = el("div", "card chart");
+    card.append(el("h3", null, title));
+    const height = 170;
+    const left = 34;
+    const bottom = 20;
+    const plotW = width - left - 8;
+    const plotH = height - bottom - 10;
+    const box = svg("svg", { viewBox: `0 0 ${width} ${height}`, class: "chartsvg", role: "img", "aria-label": title });
+    const top = yMax > 0 ? yMax : 1;
+    for (const [fraction, label] of [[0, "0"], [0.5, this._fmt(top / 2, top < 10 ? 1 : 0)], [1, this._fmt(top, top < 10 ? 1 : 0)]]) {
+      const y = 10 + plotH - fraction * plotH;
+      box.append(svg("line", { x1: left, x2: width - 8, y1: y, y2: y, class: fraction ? "grid" : "axis" }));
+      const text = svg("text", { x: left - 4, y: y + 4, "text-anchor": "end", class: "lbl" });
+      text.textContent = unit ? `${label}${unit}` : label;
+      box.append(text);
+    }
+    for (const [fraction, label] of [[0, "-48 h"], [0.5, "-24 h"], [1, d.now]]) {
+      const text = svg("text", { x: left + fraction * plotW, y: height - 4, "text-anchor": fraction === 0 ? "start" : fraction === 1 ? "end" : "middle", class: "lbl" });
+      text.textContent = label;
+      box.append(text);
+    }
+    let drawn = false;
+    for (const line of series) {
+      if (line.points.length < 2) continue;
+      drawn = true;
+      const coords = line.points.map(([x, y]) => `${(left + x * plotW).toFixed(1)},${(10 + plotH - (Math.min(y, top) / top) * plotH).toFixed(1)}`);
+      box.append(svg("polyline", { points: coords.join(" "), fill: "none", stroke: line.color, "stroke-width": 2, "stroke-linejoin": "round" }));
+    }
+    card.append(box);
+    if (!drawn) card.append(el("div", "tilesub", d.noHistory));
+    card.append(this._legend(series.map((line) => ({ color: line.color, text: line.name }))));
+    return card;
+  }
+
+  _dashCharts(node, status, t) {
+    const d = t.dash;
+    const charts = [];
+    // Drawn at about the size it is shown, so the labels stay readable:
+    // two charts side by side from 700 px, else one per row.
+    const available = (this._nodesBody && this._nodesBody.clientWidth) || 600;
+    const history = this._nodeHistory && this._nodeHistory.entryId === node.entry_id ? this._nodeHistory.series : null;
+    const rxId = this._entityOf(node, "channel_rx");
+    const txId = this._entityOf(node, "channel_tx");
+    const count = (status ? 1 : 0) + (history && rxId && txId ? 1 : 0);
+    const perRow = count > 1 && available >= 700 ? 2 : 1;
+    const width = Math.round(Math.max(300, Math.min(1200, (available - 32) / perRow - 32)));
+    if (status) {
+      const activity = status.activity;
+      const count = activity.hours.length;
+      const x = (i) => (count > 1 ? i / (count - 1) : 0);
+      const received = activity.hours.map((_, i) => [x(i), activity.received_direct[i] + activity.received_group[i] + activity.received_all[i]]);
+      const sent = activity.sent.map((value, i) => [x(i), value]);
+      const yMax = Math.max(1, ...received.map((p) => p[1]), ...sent.map((p) => p[1]));
+      charts.push(
+        this._lineChart(d.activity, [
+          { name: d.receivedLine, color: SERIES_COLORS.received, points: received },
+          { name: d.sentLine, color: SERIES_COLORS.sent, points: sent },
+        ], niceMax(yMax), "", t, width)
+      );
+    }
+    if (history && rxId && txId) {
+      const start = Date.now() - DASH_WINDOW_MS;
+      const toLine = (points) => {
+        const line = (points || []).filter(([time]) => time >= start).map(([time, value]) => [(time - start) / DASH_WINDOW_MS, value]);
+        if (line.length) line.push([1, line[line.length - 1][1]]);
+        return line;
+      };
+      const rx = toLine(history[rxId]);
+      const tx = toLine(history[txId]);
+      const yMax = Math.max(5, ...rx.map((p) => p[1]), ...tx.map((p) => p[1]));
+      charts.push(
+        this._lineChart(d.utilisation, [
+          { name: d.rxLine, color: SERIES_COLORS.rx, points: rx },
+          { name: d.txLine, color: SERIES_COLORS.tx, points: tx },
+        ], niceMax(yMax), " %", t, width)
+      );
+    }
+    if (!charts.length) return [];
+    const row = el("div", "charts");
+    row.append(...charts);
+    return [row];
+  }
+
+  // Sensor rows in groups; numeric ones with a small bar (fraction 0..1).
+  _dashSensors(node, status, t) {
+    const d = t.dash;
+    const rows = d.rows;
+    const web = status ? status.web : null;
+    const info = web ? web.info : null;
+    const gps = web ? web.gps : null;
+    const radio = web ? web.radio : null;
+    const groups = [];
+    if (radio) {
+      const list = [];
+      if (radio.rx_percent !== null) list.push([rows.rx, `${this._fmt(radio.rx_percent, 1)} %`, radio.rx_percent / 100, SERIES_COLORS.rx]);
+      if (radio.tx_percent !== null) list.push([rows.tx, `${this._fmt(radio.tx_percent, 1)} %`, radio.tx_percent / 100, SERIES_COLORS.tx]);
+      list.push([rows.queue, `${radio.queue_used} / ${radio.queue_size}`, radio.queue_used / radio.queue_size]);
+      if (radio.dropped !== null) list.push([rows.dropped, String(radio.dropped)]);
+      if (radio.duplicates !== null) list.push([rows.duplicates, d.dupOf(radio.duplicates, radio.new_ids)]);
+      if (radio.dedup_window_minutes) list.push([rows.dedup, d.minutes(radio.dedup_window_minutes)]);
+      groups.push([d.groups.radio, list]);
+    }
+    const statusRows = [];
+    const battery = this._numberOf(node, "battery");
+    if (battery !== null) statusRows.push([rows.battery, `${this._fmt(battery)} %`, battery / 100]);
+    const voltage = this._numberOf(node, "battery_voltage");
+    if (voltage !== null) statusRows.push([rows.voltage, `${this._fmt(voltage, 2)} V`]);
+    if (web && web.started) statusRows.push([rows.uptime, this._duration((Date.now() - Date.parse(web.started)) / 1000)]);
+    const lastPacket = this._stateOf(node, "last_packet");
+    if (lastPacket && this._agoOf(lastPacket.state)) statusRows.push([rows.lastPacket, this._agoOf(lastPacket.state)]);
+    if (info && Number.isInteger(info.wifi_rssi)) statusRows.push([rows.wifi, `${info.wifi_rssi} dBm`, Math.min(1, Math.max(0, (info.wifi_rssi + 90) / 60))]);
+    if (info && info.server && d.server[info.server]) {
+      const age = Number.isInteger(info.server_age_seconds) ? ` (${d.lastAnswer(this._duration(info.server_age_seconds))})` : "";
+      statusRows.push([rows.server, `${d.server[info.server]}${age}`]);
+    }
+    if (info && Number.isInteger(info.max_hop_text) && Number.isInteger(info.max_hop_pos)) statusRows.push([rows.hops, `${info.max_hop_text} / ${info.max_hop_pos}`]);
+    if (info && Number.isInteger(info.blocked_dropped)) statusRows.push([rows.blocked, String(info.blocked_dropped)]);
+    if (status) {
+      statusRows.push([rows.duplicatesTotal, String(status.counters.duplicates)]);
+      statusRows.push([rows.filtered, String(status.counters.filtered)]);
+    }
+    if (statusRows.length) groups.push([d.groups.status, statusRows]);
+    const altitude = this._stateOf(node, "altitude");
+    const gpsRows = [];
+    if (altitude && altitude.state !== "unknown" && altitude.state !== "unavailable") {
+      gpsRows.push([this._entityLabel(altitude, node), this._formatState(altitude)]);
+    }
+    if (gps && gps.enabled !== false) {
+      const list = gpsRows;
+      if (Number.isInteger(gps.satellites)) list.push([rows.satellites, `${gps.satellites} (${gps.fix ? d.fix : d.noFix})`, Math.min(1, gps.satellites / 12)]);
+      if (Number.isInteger(gps.next_beacon)) list.push([rows.nextBeacon, d.inMinutes(Math.round(gps.next_beacon / 60))]);
+      if (Number.isInteger(gps.beacon_interval)) list.push([rows.interval, d.everyMinutes(Math.round(gps.beacon_interval / 60))]);
+    }
+    if (gpsRows.length) groups.push([d.groups.gps, gpsRows]);
+    const environment = [];
+    for (const key of ENVIRONMENT_KEYS) {
+      const state = this._stateOf(node, key);
+      if (!state || state.state === "unknown" || state.state === "unavailable") continue;
+      environment.push([this._entityLabel(state, node), this._formatState(state)]);
+    }
+    if (environment.length) groups.push([d.groups.environment, environment]);
+    if (!groups.length) return null;
+    const card = el("div", "card sensors");
+    const grid = el("div", "sensorgrid");
+    for (const [title, list] of groups) {
+      const group = el("div", "sgroup");
+      group.append(el("h3", null, title));
+      for (const [label, value, fraction, colour] of list) {
+        const row = el("div", "srow");
+        row.append(el("span", "label", label), el("span", "value", value));
+        if (typeof fraction === "number" && Number.isFinite(fraction)) {
+          row.append(this._bar([{ value: Math.min(1, Math.max(0, fraction)), color: colour || SERIES_COLORS.received }], 1));
+        }
+        group.append(row);
+      }
+      grid.append(group);
+    }
+    card.append(grid);
+    return card;
+  }
+
+  _dashNeighbours(status, t) {
+    if (!status) return null;
+    const d = t.dash;
     const card = el("div", "card");
-    card.append(el("h2", null, node.callsign), el("div", "sub", t.access[node.access] || node.access));
+    card.append(el("h3", null, `${d.neighbours} (${status.neighbours.length})`));
+    if (!status.neighbours.length) {
+      card.append(el("div", "tilesub", d.noNeighbours));
+      return card;
+    }
+    const wrap = el("div", "tablewrap");
+    const table = el("table", "neighbours");
+    const head = el("tr");
+    for (const key of ["callsign", "snr", "hearsMe", "role", "hardware", "heard"]) head.append(el("th", key === "snr" ? "num" : null, d.columns[key]));
+    table.append(head);
+    for (const station of status.neighbours) {
+      const row = el("tr");
+      const call = el("td");
+      const button = el("button", "linkbutton", station.callsign);
+      button.addEventListener("click", () => {
+        this._setTab("stations");
+        this._pendingFocus = station.callsign;
+      });
+      call.append(button);
+      const snrTd = el("td", "num");
+      if (typeof station.snr === "number") {
+        snrTd.append(el("span", null, `${this._fmt(station.snr, 1)} dB`));
+        snrTd.append(this._bar([{ value: Math.min(32, Math.max(0, station.snr + 20)), color: station.snr >= 0 ? LEVEL_COLORS.ok : station.snr >= -10 ? LEVEL_COLORS.warn : LEVEL_COLORS.bad }], 32));
+      }
+      row.append(
+        call,
+        snrTd,
+        el("td", null, t.hearsMe(station.hears_me_snr)),
+        el("td", null, t.roles[station.relay_role] || ""),
+        el("td", null, station.hardware || ""),
+        el("td", null, station.direct_heard ? this._agoOf(station.direct_heard) : "")
+      );
+      table.append(row);
+    }
+    wrap.append(table);
+    card.append(wrap);
+    return card;
+  }
+
+  // Switches, then every entity of the node (as the tab showed before).
+  _dashControls(node, t) {
+    const d = t.dash;
+    const card = el("div", "card");
+    card.append(el("h3", null, d.controls));
+    for (const item of node.entities) {
+      if (item.domain !== "switch") continue;
+      const state = this._hass.states[item.entity_id];
+      if (!state) continue;
+      const row = el("div", "row");
+      row.append(el("span", "label", this._entityLabel(state, node)), this._entityValue(item, state, t));
+      card.append(row);
+    }
+    const details = el("details", "allentities");
+    details.append(el("summary", null, d.entities));
     for (const item of node.entities) {
       const state = this._hass.states[item.entity_id];
       if (!state) continue;
       const row = el("div", "row");
-      row.append(el("span", "label", this._entityLabel(state, node)));
-      row.append(this._entityValue(item, state, t));
-      card.append(row);
+      row.append(el("span", "label", this._entityLabel(state, node)), this._entityValue(item, state, t));
+      details.append(row);
     }
+    details.open = Boolean(this._entitiesOpen);
+    details.addEventListener("toggle", () => {
+      this._entitiesOpen = details.open;
+    });
+    card.append(details);
     return card;
   }
 
@@ -1635,6 +2435,12 @@ class MeshComChatPanel extends HTMLElement {
       this._showError(err);
     }
     this._renderStations();
+    if (this._pendingFocus) {
+      // Opened from a neighbour on the nodes tab.
+      const callsign = this._pendingFocus;
+      this._pendingFocus = null;
+      this._focusStation(callsign);
+    }
   }
 
   _renderStations() {

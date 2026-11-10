@@ -168,6 +168,47 @@
       },
       "station_pressure": {
         "name": "Air pressure"
+      },
+      "channel_rx": {
+        "name": "Channel use RX"
+      },
+      "channel_tx": {
+        "name": "Channel use TX"
+      },
+      "tx_queue": {
+        "name": "TX queue",
+        "state_attributes": {
+          "size": {
+            "name": "Size"
+          },
+          "crit": {
+            "name": "Critical"
+          },
+          "high": {
+            "name": "High"
+          },
+          "normal": {
+            "name": "Normal"
+          },
+          "low": {
+            "name": "Low"
+          },
+          "bg": {
+            "name": "Background"
+          },
+          "waiting_for_ack": {
+            "name": "Waiting for acknowledgement"
+          },
+          "slow_down_at": {
+            "name": "Slow down at"
+          },
+          "refuse_at": {
+            "name": "Refuse at"
+          },
+          "own_messages": {
+            "name": "Own messages"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -309,7 +350,8 @@
           "station_max": "Maximum station devices",
           "station_stale_days": "Remove station devices after (days)",
           "hide_foreign_groups": "Chat: only own groups",
-          "inactive_minutes": "Node inactive after (minutes)"
+          "inactive_minutes": "Node inactive after (minutes)",
+          "radio_stats": "Read radio statistics (LoRa queue)"
         },
         "data_description": {
           "groups": "Comma separated group numbers for the group select, e.g. 262, 26298.",
@@ -317,7 +359,8 @@
           "station_max": "Only in the mode \"One device per station\". Further stations are listed but get no device.",
           "station_stale_days": "A station device is removed when the station was not heard for this many days. It comes back when the station is heard again.",
           "hide_foreign_groups": "Hide messages to groups the node does not listen to (not in its group list and not configured above). Events and sensors are not affected.",
-          "inactive_minutes": "\"Active\" turns off when the node sent nothing for this long. The node beacons every 30 minutes by default; use more than twice its beacon interval."
+          "inactive_minutes": "\"Active\" turns off when the node sent nothing for this long. The node beacons every 30 minutes by default; use more than twice its beacon interval.",
+          "radio_stats": "LoRa queue fill level and channel use of the last 5 minutes, from the node's RX log page (web API). Off by default: the first request makes the node set aside memory for its RX log, which it keeps until restarted."
         }
       }
     },

@@ -418,6 +418,7 @@ async def test_options_flow(
         "station_stale_days": 7,
         "hide_foreign_groups": True,
         "inactive_minutes": 65,
+        "radio_stats": False,
     }
 
 

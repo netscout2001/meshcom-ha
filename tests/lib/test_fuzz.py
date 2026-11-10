@@ -53,7 +53,9 @@ from aiomeshcom.webapi import (
     parse_info_page,
     parse_mheard_page,
 )
+from aiomeshcom.webpages import parse_node_info, parse_position_page, parse_rxlog_page
 from tests.lib.mheard_html import Card, page
+from tests.lib.node_pages_html import info_page, position_page, rxlog_page
 
 FIXTURE = Path(__file__).parent / "fixtures" / "capture_2026-11-06.anon.jsonl"
 SAMPLES: list[dict[str, Any]] = [
@@ -287,6 +289,46 @@ def test_mheard_page_cards(cards: list[Card], cut: int) -> None:
     body = page(cards)
     _check_mheard(body)
     _check_mheard(body[: len(body) - cut])
+
+
+@given(st.text(max_size=600), st.integers(0, 3000))
+@FAST
+def test_node_pages_text(body: str, cut: int) -> None:
+    """Info, position and RX log parsers take any text without an error."""
+    for page_body in (info_page(), position_page(), rxlog_page()):
+        mixed = page_body[: max(0, len(page_body) - cut)] + body
+        info = parse_node_info(mixed)
+        assert info.uptime_seconds is None or 0 <= info.uptime_seconds <= 10 * 365 * 86400
+        assert info.hardware is None or info.hardware.isascii()
+        gps = parse_position_page(mixed)
+        assert gps is None or gps.satellites is None or 0 <= gps.satellites <= 64
+        radio = parse_rxlog_page(mixed)
+        if radio is not None:
+            assert 0 <= radio.queue_used <= radio.queue_size
+            assert radio.rx_percent is None or 0 <= radio.rx_percent <= 100
+
+
+_ATTR_VALUE = st.one_of(
+    st.integers(-(10**12), 10**12), st.text(alphabet="0123456789-x<>&", max_size=12)
+)
+
+
+@given(
+    st.dictionaries(
+        st.sampled_from(["ring", "p0", "p1", "p5", "rx", "tx", "int", "win", "bp", "drop", "dwin"]),
+        _ATTR_VALUE,
+        max_size=8,
+    )
+)
+@FAST
+def test_rxlog_attributes(values: dict[str, int | str]) -> None:
+    """Wild queue attributes: a consistent result or None."""
+    radio = parse_rxlog_page(rxlog_page(**values))
+    if radio is not None:
+        assert 0 <= radio.queue_used <= radio.queue_size <= 1000
+        assert radio.rx_percent is None or 0 <= radio.rx_percent <= 100
+        assert radio.tx_percent is None or 0 <= radio.tx_percent <= 100
+        assert radio.state in (None, "accepted", "slow_down", "refused")
 
 
 @given(st.text(max_size=300))

@@ -18,7 +18,6 @@ from aiomeshcom.webapi import (
     AUTH_LEGACY,
     MeshComWebClient,
     MHeardEntry,
-    NodeStatus,
     WebApiError,
     WebAuthError,
     WebConnectionError,
@@ -28,6 +27,7 @@ from aiomeshcom.webapi import (
     parse_mheard_page,
 )
 from tests.lib.mheard_html import Card, card, page
+from tests.lib.node_pages_html import position_page, rxlog_page
 
 PASSWORD = "Secret-Web-19chars"
 
@@ -131,6 +131,12 @@ class FakeNode:
         if request.query_string == "page=info":
             self.requests.append(request.path_qs)
             return self.page_info(request)
+        if request.query_string in ("page=position", "page=rxlog"):
+            self.requests.append(request.path_qs)
+            if not self.authorised(request):
+                return web.Response(text="<h1>Login</h1><form>password</form>")
+            body = position_page() if request.query_string == "page=position" else rxlog_page()
+            return web.Response(text=body)
         if request.query_string == "page=mheard":
             self.requests.append(request.path_qs)
             if not self.authorised(request):
@@ -475,7 +481,12 @@ async def test_overview_reads_info_page(
 ) -> None:
     """Settings, firmware and voltage come from one login session."""
     status = await client(session, server).get_overview()
-    assert status == NodeStatus(False, ["262", "26298"], "4.40a", 4.012, status.mheard)
+    assert (status.no_msg_all, status.groups, status.firmware, status.battery_voltage) == (
+        False,
+        ["262", "26298"],
+        "4.40a",
+        4.012,
+    )
     assert status.mheard is not None
     assert [e.callsign for e in status.mheard] == ["QR1ABC-12"]
     assert sum(r.startswith("/?login=") for r in node.requests) == 1
@@ -501,7 +512,12 @@ async def test_overview_without_info_page(
     original = node.info_page
     node.info_page = lambda: "<html>other firmware</html>"  # type: ignore[method-assign]
     status = await client(session, server).get_overview()
-    assert status == NodeStatus(False, ["262", "26298"], None, None, status.mheard)
+    assert (status.no_msg_all, status.groups, status.firmware, status.battery_voltage) == (
+        False,
+        ["262", "26298"],
+        None,
+        None,
+    )
     node.info_page = original  # type: ignore[method-assign]
 
 
@@ -699,3 +715,19 @@ def test_mheard_card_helper_matches_shape() -> None:
         < html.index("Last heard")
         < html.index("Gateway")
     )
+
+
+async def test_overview_node_pages(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """Position page always, the RX log page only when asked for (it costs node RAM)."""
+    status = await client(session, server).get_overview()
+    assert status.gps is not None
+    assert status.gps.satellites == 10
+    assert status.radio is None
+    assert "/?page=rxlog" not in node.requests
+    status = await client(session, server).get_overview(radio_stats=True)
+    assert status.radio is not None
+    assert status.radio.rx_percent == 11.4
+    assert "/?page=rxlog" in node.requests
+    assert status.info is not None

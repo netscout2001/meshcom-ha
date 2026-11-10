@@ -72,6 +72,7 @@ from .const import (
     CONF_KISS_PORT,
     CONF_LISTEN_PORT,
     CONF_NODE_ID,
+    CONF_RADIO_STATS,
     CONF_SEND_USERS,
     CONF_STATION_MAX,
     CONF_STATION_MODE,
@@ -80,6 +81,7 @@ from .const import (
     DEFAULT_HIDE_FOREIGN_GROUPS,
     DEFAULT_INACTIVE_MINUTES,
     DEFAULT_LISTEN_PORT,
+    DEFAULT_RADIO_STATS,
     DEFAULT_STATION_MAX,
     DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
@@ -498,6 +500,9 @@ class MeshComOptionsFlow(OptionsFlow):
                         CONF_HIDE_FOREIGN_GROUPS: bool(
                             user_input.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS)
                         ),
+                        CONF_RADIO_STATS: bool(
+                            user_input.get(CONF_RADIO_STATS, DEFAULT_RADIO_STATS)
+                        ),
                     }
                 )
         # Administrators may always transmit; only other users are offered.
@@ -556,6 +561,10 @@ class MeshComOptionsFlow(OptionsFlow):
                         unit_of_measurement="min",
                     )
                 ),
+                vol.Required(
+                    CONF_RADIO_STATS,
+                    default=options.get(CONF_RADIO_STATS, DEFAULT_RADIO_STATS),
+                ): bool,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
