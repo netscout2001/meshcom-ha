@@ -54,7 +54,8 @@ const TEXT = {
       kiss: { true: "KISS connected", false: "KISS disconnected" },
       web: { ok: "web API ok", down: "web API not reachable", paused: "web API paused (node inactive)" },
       battery: "Battery",
-      signal: "Last signal (packet)",
+      signalSnr: "SNR (last packet)",
+      signalRssi: "RSSI (last packet)",
       channel: "Channel use",
       channelOff: "Switch on \"Read radio statistics\" in the node's options to see channel use and queue.",
       queue: "TX queue",
@@ -184,7 +185,8 @@ const TEXT = {
       kiss: { true: "KISS verbunden", false: "KISS getrennt" },
       web: { ok: "Web-API ok", down: "Web-API nicht erreichbar", paused: "Web-API pausiert (Node inaktiv)" },
       battery: "Akku",
-      signal: "Letztes Signal (Paket)",
+      signalSnr: "SNR (letztes Paket)",
+      signalRssi: "RSSI (letztes Paket)",
       channel: "Kanalauslastung",
       channelOff: "F\u00fcr Kanalauslastung und Warteschlange in den Optionen des Nodes \"Funkstatistik lesen\" einschalten.",
       queue: "Sendewarteschlange",
@@ -2025,13 +2027,22 @@ class MeshComChatPanel extends HTMLElement {
         ])
       );
     }
-    // Signal of the last received message.
+    // Signal of the last packet received over the air. For LoRa the SNR
+    // says more than the RSSI: it can decode below the noise (SF 11 down to
+    // about -17.5 dB), and the RSSI includes the noise of the site.
     const rssi = this._numberOf(node, "last_rssi");
-    if (rssi !== null) {
-      const snr = this._numberOf(node, "last_snr");
+    const snr = this._numberOf(node, "last_snr");
+    if (snr !== null) {
+      const level = snr >= -5 ? "ok" : snr >= -12 ? "warn" : "bad";
+      tiles.append(
+        this._tile(d.signalSnr, level, this._fmt(snr, 1), "dB", rssi !== null ? `RSSI ${Math.round(rssi)} dBm` : "", [
+          this._bar([{ value: Math.min(32, Math.max(0, snr + 20)), color: LEVEL_COLORS[level] }], 32),
+        ])
+      );
+    } else if (rssi !== null) {
       const level = rssi >= -100 ? "ok" : rssi >= -115 ? "warn" : "bad";
       tiles.append(
-        this._tile(d.signal, level, String(Math.round(rssi)), "dBm", snr !== null ? `SNR ${this._fmt(snr, 1)} dB` : "", [
+        this._tile(d.signalRssi, level, String(Math.round(rssi)), "dBm", "", [
           this._bar([{ value: Math.min(90, Math.max(0, rssi + 130)), color: LEVEL_COLORS[level] }], 90),
         ])
       );
@@ -2328,7 +2339,7 @@ class MeshComChatPanel extends HTMLElement {
       const snrTd = el("td", "num");
       if (typeof station.snr === "number") {
         snrTd.append(el("span", null, `${this._fmt(station.snr, 1)} dB`));
-        snrTd.append(this._bar([{ value: Math.min(32, Math.max(0, station.snr + 20)), color: station.snr >= 0 ? LEVEL_COLORS.ok : station.snr >= -10 ? LEVEL_COLORS.warn : LEVEL_COLORS.bad }], 32));
+        snrTd.append(this._bar([{ value: Math.min(32, Math.max(0, station.snr + 20)), color: station.snr >= -5 ? LEVEL_COLORS.ok : station.snr >= -12 ? LEVEL_COLORS.warn : LEVEL_COLORS.bad }], 32));
       }
       row.append(
         call,

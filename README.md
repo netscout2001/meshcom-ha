@@ -233,7 +233,8 @@ them; the choice is shared with the node selector and remembered.
   inactive, running for (since the node's start), MeshCom server, KISS
   connection, web API.
 - **Tiles** with a status dot and a bar: battery (with its course over
-  48 hours), last signal (of the last received packet), channel use and TX queue (with the option "Read
+  48 hours), SNR of the last received packet (RSSI below it; for LoRa the
+  SNR tells more about the link), channel use and TX queue (with the option "Read
   radio statistics"), messages received and sent in the last 48 hours (by
   kind and by delivery state), stations heard and direct neighbours.
 - **Charts** of the last 48 hours: messages per hour (received, sent) and,
