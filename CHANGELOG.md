@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.9.3
+
+### Changed
+- Nodes dashboard: the signal tile is now "SNR (last packet)" with the RSSI below it. For LoRa the SNR tells more about the link than the RSSI (it decodes below the noise, at SF 11 down to about -17.5 dB). Status dot and bar follow the SNR: green from -5 dB, orange to -12 dB, red below; the neighbour table uses the same levels
+
 ## v0.9.2
 
 ### Changed
