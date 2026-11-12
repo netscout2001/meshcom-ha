@@ -16,6 +16,8 @@ from custom_components.meshcom.const import (
     EVENT_NEIGHBOUR_BACK,
     EVENT_NEIGHBOUR_LOST,
     EVENT_STATION_NEW,
+    STATION_NEW_BURST,
+    STATION_NEW_INTERVAL,
 )
 from custom_components.meshcom.node import StationInfo
 from custom_components.meshcom.stations import _dump_station, _parse_station
@@ -180,3 +182,35 @@ def test_lost_flag_stored() -> None:
     parsed = _parse_station(raw)
     assert parsed is not None
     assert parsed.lost is None
+
+
+async def test_station_new_limited(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Many invented callsigns at once do not flood automations."""
+    new = _events(hass, EVENT_STATION_NEW)
+    # 50 datagrams stay within the hub's per-source burst.
+    for number in range(50):
+        inject(
+            init_integration,
+            INCOMING_MESSAGE.replace(b"TST1-12", f"QA{number}X-1".encode()).replace(
+                b"40000ED4", f"{0x50000000 + number:08X}".encode()
+            ),
+        )
+    await hass.async_block_till_done()
+    node = init_integration.runtime_data.node
+    assert len(node.stations) == 50
+    assert len(new) == STATION_NEW_BURST
+    assert node.station_new_dropped == 50 - STATION_NEW_BURST
+    # The budget refills slowly.
+    freezer.tick(STATION_NEW_INTERVAL * 2)
+    async_fire_time_changed(hass)
+    inject(init_integration, INCOMING_MESSAGE.replace(b"40000ED4", b"6000AAAA"))
+    inject(
+        init_integration,
+        INCOMING_MESSAGE.replace(b"TST1-12", b"QB1NEW-1").replace(b"40000ED4", b"6000AAAB"),
+    )
+    await hass.async_block_till_done()
+    assert len(new) == STATION_NEW_BURST + 2

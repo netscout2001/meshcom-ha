@@ -344,6 +344,9 @@
     },
     "update_install_failed": {
       "message": "The node restarted with the old firmware; the new one was not installed."
+    },
+    "update_needs_secure_login": {
+      "message": "The node uses the unencrypted web login; Home Assistant does not run a firmware update over it. Update the node once with the web flasher or over USB."
     }
   },
   "services": {

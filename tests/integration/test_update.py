@@ -300,3 +300,15 @@ async def test_install_needs_admin(
     with pytest.raises(Unauthorized):
         await _install(hass, Context(user_id=hass_user.id))
     assert not [call for call in web_client.calls if call[0] == "update_action"]
+
+
+async def test_install_refused_with_plain_text_login(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """No update over the unencrypted login (the password would travel every poll)."""
+    await _setup(hass, mock_config_entry, web_client)
+    web_client.auth_method = "legacy"
+    with pytest.raises(HomeAssistantError) as err:
+        await _install(hass)
+    assert err.value.translation_key == "update_needs_secure_login"
+    assert not [call for call in web_client.calls if call[0] == "update_action"]
