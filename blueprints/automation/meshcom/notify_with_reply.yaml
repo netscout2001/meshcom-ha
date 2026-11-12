@@ -11,7 +11,9 @@ blueprint:
     Everything sent goes out on amateur radio under the node's callsign.
     Only choose a phone whose owner holds an amateur radio licence: the reply
     is sent by this automation, not checked against the users released in
-    the MeshCom options.
+    the MeshCom options. Only the chosen person can reply: a button press from
+    any other Home Assistant user (for example their own Companion app) is
+    ignored.
   domain: automation
   source_url: https://github.com/netscout2001/meshcom-ha/blob/main/blueprints/automation/meshcom/notify_with_reply.yaml
   input:
@@ -28,6 +30,15 @@ blueprint:
         device:
           filter:
             - integration: mobile_app
+    reply_person:
+      name: Person who may reply
+      description: >-
+        The person who uses the phone. Only a reply sent with this person's
+        Home Assistant user is transmitted. The person must have a user.
+      selector:
+        entity:
+          filter:
+            - domain: person
     direct_messages:
       name: Direct messages
       description: Notify about direct messages to the node.
@@ -69,6 +80,7 @@ triggers:
       entry_id: "{{ node_entry }}"
 
 variables:
+  reply_person: !input reply_person
   direct_messages: !input direct_messages
   broadcast: !input broadcast
   groups_input: !input groups
@@ -81,6 +93,10 @@ variables:
     {% if kind == 'direct' %}{{ msg.sender }}{% elif kind == 'broadcast' %}*{% else %}{{ msg.destination }}{% endif %}
 
 conditions:
+  # Only events of the integration itself: Home Assistant users can fire
+  # events from outside (for example with the Companion app webhook).
+  - condition: template
+    value_template: "{{ trigger.event.origin | string == 'LOCAL' }}"
   - condition: template
     value_template: >-
       {{ not msg.is_own and (
@@ -90,9 +106,11 @@ conditions:
          ) }}
 
 actions:
-  # Unique per run: a button press answers exactly this notification.
+  # Unique per run: a button press answers exactly this notification. The
+  # random part keeps the id out of the logbook (the run's context id is in it).
   - variables:
-      reply_action: "MESHCOM_REPLY_{{ context.id }}"
+      reply_action: "MESHCOM_REPLY_{{ context.id }}_{{ range(100000) | random }}{{ range(100000) | random }}{{ range(100000) | random }}"
+      reply_user: "{{ state_attr(reply_person, 'user_id') or '' }}"
   - domain: mobile_app
     type: notify
     device_id: !input notify_device
@@ -110,11 +128,17 @@ actions:
           behavior: textInput
           textInputButtonTitle: Send
           textInputPlaceholder: "Max. 150 bytes"
+  # A person without a Home Assistant user cannot reply.
+  - condition: template
+    value_template: "{{ reply_user != '' }}"
   - wait_for_trigger:
       - trigger: event
         event_type: mobile_app_notification_action
         event_data:
           action: "{{ reply_action }}"
+        # Only the chosen person's phone; other users' presses are ignored.
+        context:
+          user_id: "{{ reply_user }}"
     timeout: !input reply_timeout
     continue_on_timeout: false
   # The reply is never stored in a variable of its own: Home Assistant would
