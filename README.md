@@ -138,9 +138,10 @@ Leave it empty if the node has none (not recommended, see
 | Groups | Group numbers for the group select, in addition to the node's own groups |
 | Other users who may send | Non-admin users released for sending and for the MeshCom panel |
 | Chat: only own groups | On by default: messages to groups the node does not listen to stay out of the chat (events still fire) |
-| Stations | Off / Data only (default) / One device per station |
-| Maximum station devices | Default 50 |
-| Remove station devices after (days) | Default 7 |
+| Stations | Off / Data only (default) / Data only + devices for watched stations / One device per station |
+| Watched stations (max. 10) | Only in the mode "Data only + devices for watched stations": the callsigns that get a device. Offers the stations the node knows, direct neighbours first and marked "(MHeard)"; a callsign can also be typed in |
+| Maximum station devices | Default 50, only in the mode "One device per station" |
+| Remove station devices after (days) | Default 7, only in the mode "One device per station" |
 | Node inactive after (minutes) | Default 65: "Active" turns off when the node sent nothing for this long (the node beacons every 30 minutes by default) |
 | Read radio statistics (LoRa queue) | Off by default: reads the node's RX log page (web API) for channel use and TX queue of the last 5 minutes and adds three sensors. The first request makes the node set aside memory for its RX log, which it keeps until it restarts |
 | Neighbour lost after (hours) | Default 6: a direct neighbour counts as lost when the node has not received it directly for this long (fires "Direct neighbour lost", later "Direct neighbour back"). Needs the web password; 0 switches it off |
@@ -191,7 +192,36 @@ Changing the options reloads the node.
 | --- | --- |
 | Off | Only the count and the station select for direct messages |
 | Data only (default) | The attribute `stations` of "Stations heard": the 100 most recently heard stations with last heard, RSSI, SNR, hops, battery, position and `direct` (direct neighbour). Not written to the database. |
-| One device per station | A device per station (behind the own node) with position, last heard, battery, RSSI, SNR and hops, plus temperature, humidity and air pressure for stations that send weather values. Limited in number; removed after the configured days without a packet and back when heard again; can be deleted by hand. |
+| Data only + devices for watched stations | Like "Data only" (the list attribute and the panel keep all stations), plus a device for each of up to **10 watched stations** chosen in the options. Watched stations keep their device however long they are silent; taking a station off the list removes its device. |
+| One device per station | A device per station (behind the own node), for the first stations heard up to the set maximum. Removed after the configured days without a packet and back when heard again; can be deleted by hand. |
+
+A station device has position, last heard, battery, hops, and:
+
+| Entity | Meaning | Updated |
+| --- | --- | --- |
+| RSSI, SNR | How your node hears the station (its last packet) | with each packet |
+| SNR at the station | How the station hears your node (its MHeard entry, "hears me") | every 5 minutes (web API) |
+| Heard directly | On while the station is on your node's MHeard list | every 5 minutes, off 3 hours after it left the list |
+
+plus temperature, humidity and air pressure for stations that send weather
+values. RSSI, SNR and "SNR at the station" are recorded as long-term
+statistics, so a statistics graph card shows them over time:
+
+```yaml
+type: statistics-graph
+title: SNR of my neighbours
+chart_type: line
+period: hour
+stat_types: [mean, min, max]
+entities:
+  - sensor.qx1yz_12_snr
+  - sensor.qx1yz_12_snr_at_the_station
+```
+
+(The entity IDs depend on the callsign and the language at creation; look
+them up on the station's device page.) Values from packets only change when
+the station sends a packet: heartbeats are not passed on over UDP and KISS,
+so a station heard only by heartbeat gets its SNR from the MHeard list once.
 
 For every station the integration also keeps its weather values (temperature,
 humidity, air pressure QNH and QFE, if the station sends them) and the relays
@@ -281,8 +311,8 @@ message.
 The map tiles are loaded from OpenStreetMap (`tile.openstreetmap.org`) only
 while the Stations tab is open, so the OpenStreetMap servers see your IP
 address and the map area you look at. The panel itself loads no other code
-from outside. With the station mode "One device per station" the stations
-also appear on the Home Assistant map.
+from outside. With the station modes "One device per station" and "Data only + devices
+for watched stations" those stations also appear on the Home Assistant map.
 
 Administrators and the users released in the options may use the panel.
 

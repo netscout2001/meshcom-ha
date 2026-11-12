@@ -91,7 +91,17 @@ CONF_STATION_MODE: Final = "station_mode"
 STATION_MODE_OFF: Final = "off"
 STATION_MODE_DATA: Final = "data"
 STATION_MODE_ENTITIES: Final = "entities"
-STATION_MODES: Final = (STATION_MODE_OFF, STATION_MODE_DATA, STATION_MODE_ENTITIES)
+#: Like "data", plus a device for each watched station.
+STATION_MODE_WATCH: Final = "watch"
+STATION_MODES: Final = (
+    STATION_MODE_OFF,
+    STATION_MODE_DATA,
+    STATION_MODE_WATCH,
+    STATION_MODE_ENTITIES,
+)
+#: Options: callsigns that get a device in the "watch" mode.
+CONF_WATCHED_STATIONS: Final = "watched_stations"
+MAX_WATCHED_STATIONS: Final = 10
 DEFAULT_STATION_MODE: Final = STATION_MODE_DATA
 #: Options: at most this many station devices per node.
 CONF_STATION_MAX: Final = "station_max"

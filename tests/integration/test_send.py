@@ -414,6 +414,7 @@ async def test_options_flow(
         CONF_GROUPS: ["262", "26298"],
         CONF_SEND_USERS: [hass_read_only_user.id],
         "station_mode": "data",
+        "watched_stations": [],
         "station_max": 50,
         "station_stale_days": 7,
         "hide_foreign_groups": True,

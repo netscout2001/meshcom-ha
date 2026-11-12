@@ -28,14 +28,17 @@ from .const import (
     CONF_STATION_MAX,
     CONF_STATION_MODE,
     CONF_STATION_STALE_DAYS,
+    CONF_WATCHED_STATIONS,
     DEFAULT_STATION_MAX,
     DEFAULT_STATION_MODE,
     DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
     MAX_PATH,
     MAX_STATIONS,
+    MAX_WATCHED_STATIONS,
     STATION_CLEANUP_INTERVAL,
     STATION_MODE_ENTITIES,
+    STATION_MODE_WATCH,
     STATION_MODES,
     STATION_SAVE_DELAY,
     STATION_STORE_MAX_AGE,
@@ -51,6 +54,15 @@ def station_mode(entry: ConfigEntry) -> str:
     """The configured station mode."""
     mode = entry.options.get(CONF_STATION_MODE, DEFAULT_STATION_MODE)
     return mode if mode in STATION_MODES else DEFAULT_STATION_MODE
+
+
+def watched_stations(options: Mapping[str, Any]) -> list[str]:
+    """Valid watched callsigns from the options, at most ten, in order."""
+    raw = options.get(CONF_WATCHED_STATIONS, [])
+    if not isinstance(raw, list):
+        return []
+    callsigns = [item for item in raw if isinstance(item, str) and is_callsign(item)]
+    return list(dict.fromkeys(callsigns))[:MAX_WATCHED_STATIONS]
 
 
 def station_identifier(node_id: int, callsign: str) -> tuple[str, str]:
@@ -225,14 +237,28 @@ class StationStore:
 
 
 class StationDevices:
-    """Decides which stations get a device, and removes stale ones."""
+    """Decides which stations get a device, and removes stale ones.
+
+    "entities": the first stations heard get a device, removed when stale.
+    "watch": only the watched stations get a device, never removed for age.
+    """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, node: MeshComNode) -> None:
         self.hass = hass
         self.entry = entry
         self.node = node
-        self.enabled = station_mode(entry) == STATION_MODE_ENTITIES
-        self.max_devices: int = entry.options.get(CONF_STATION_MAX, DEFAULT_STATION_MAX)
+        mode = station_mode(entry)
+        self.watch_mode = mode == STATION_MODE_WATCH
+        self.enabled = mode in (STATION_MODE_ENTITIES, STATION_MODE_WATCH)
+        #: Watched callsigns (only used in the "watch" mode).
+        self.watched: frozenset[str] = (
+            frozenset(watched_stations(entry.options)) if self.watch_mode else frozenset()
+        )
+        self.max_devices: int = (
+            MAX_WATCHED_STATIONS
+            if self.watch_mode
+            else entry.options.get(CONF_STATION_MAX, DEFAULT_STATION_MAX)
+        )
         self.stale_after = timedelta(
             days=entry.options.get(CONF_STATION_STALE_DAYS, DEFAULT_STATION_STALE_DAYS)
         )
@@ -260,7 +286,7 @@ class StationDevices:
             keep = (
                 self.enabled
                 and station is not None
-                and now - station.last_heard < self.stale_after
+                and self._wanted(callsign, station, now)
                 and len(self.tracked) < self.max_devices
             )
             if keep:
@@ -271,9 +297,16 @@ class StationDevices:
             # Stations heard recently but without a device yet, newest first.
             for station in reversed(self.node.stations.values()):
                 self.async_station_heard(station.callsign, notify=False)
+        if self.enabled and not self.watch_mode:
             self.entry.async_on_unload(
                 async_track_time_interval(self.hass, self._cleanup, STATION_CLEANUP_INTERVAL)
             )
+
+    def _wanted(self, callsign: str, station: StationInfo, now: datetime) -> bool:
+        """Watched stations always; otherwise only while heard recently."""
+        if self.watch_mode:
+            return callsign in self.watched
+        return now - station.last_heard < self.stale_after
 
     @callback
     def async_station_heard(self, callsign: str, *, notify: bool = True) -> None:
@@ -281,7 +314,7 @@ class StationDevices:
         if not self.enabled or callsign in self.tracked or not is_callsign(callsign):
             return
         station = self.node.stations.get(callsign)
-        if station is None or dt_util.utcnow() - station.last_heard >= self.stale_after:
+        if station is None or not self._wanted(callsign, station, dt_util.utcnow()):
             return
         if len(self.tracked) >= self.max_devices:
             return

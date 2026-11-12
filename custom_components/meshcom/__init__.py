@@ -284,6 +284,8 @@ def _async_start_web(
 ) -> None:
     """Couple the web API polling to the node, then make first contact."""
 
+    applied: list[datetime | None] = [None]
+
     @callback
     def _apply_web_settings() -> None:
         # The HA filter follows the node's "No MSG All" switch.
@@ -294,8 +296,11 @@ def _async_start_web(
                 firmware=web.data.firmware,
                 battery_voltage=web.data.battery_voltage,
             )
-            if web.data.mheard is not None:
-                node.apply_mheard(web.data.mheard)
+            # Only a newly read list: after a failed poll the coordinator
+            # keeps the old one, whose ages would look fresh again.
+            if web.data.mheard is not None and web.data.fetched != applied[0]:
+                applied[0] = web.data.fetched
+                node.apply_mheard(web.data.mheard, read=web.data.fetched)
         _async_track_login_method(hass, entry, client)
 
     entry.async_on_unload(web.async_add_listener(_apply_web_settings))

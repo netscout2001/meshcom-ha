@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.11.0
+
+### Added
+- Station mode "Data only + devices for watched stations": the list attribute and the panel keep all stations, and up to 10 stations chosen in the options ("Watched stations") get a device. Watched stations are not removed when silent; the option offers the known stations, direct neighbours first, and takes typed callsigns
+- Station devices: sensor "SNR at the station" (how the station hears the own node, from the MHeard list) and binary sensor "Heard directly", both with history; also in the mode "One device per station"
+
+### Fixed
+- After a failed web poll (node away, connection error) the old MHeard list was applied again with its ages counted from the moment of the failure: stations looked freshly heard and a lost neighbour was never reported. Only a newly read list is applied now, with ages counted from when the node answered
+
 ## v0.10.1
 
 ### Security
