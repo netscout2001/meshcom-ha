@@ -400,7 +400,15 @@ back into the same conversation (to the sender, or into the group) with
 `meshcom.send_message`.
 
 The reply is sent by the automation under the node's callsign. Only choose a
-phone whose owner holds an amateur radio licence.
+phone whose owner holds an amateur radio licence, and choose that owner as
+**Person who may reply**: only a reply sent with this person's Home
+Assistant user is transmitted. Any Home Assistant user can fire events from
+their own Companion app; a button press from another user is ignored, and
+message events fired from outside do not start the blueprint. A person
+without a Home Assistant user gets the notification but cannot reply.
+
+After updating to v0.11.1, open the automation once and choose the person:
+the blueprint has a new required input.
 
 ### Node silent
 
@@ -577,8 +585,9 @@ Remaining risks you should know:
   authentication.
 - **Automations send without the per-user check.** The users released in the
   options apply to the panel, the dashboard entities and actions started by a
-  user. An automation (also the notify-with-reply blueprint) sends under the
-  node's callsign on its own; only give such automations to licensed people.
+  user. An automation sends under the node's callsign on its own; only give
+  such automations to licensed people. The notify-with-reply blueprint only
+  accepts the reply of the chosen person.
 - **A forged flood starves the real node.** The rate limit per sender
   address protects Home Assistant, but forged datagrams with the node's
   address use up the same budget, so real packets are dropped for as long

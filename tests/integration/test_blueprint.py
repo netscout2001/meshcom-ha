@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from homeassistant.components.automation.config import AUTOMATION_BLUEPRINT_SCHEMA
 from homeassistant.components.blueprint import models
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import Context, EventOrigin, HomeAssistant, ServiceCall
 from homeassistant.setup import async_setup_component
 from homeassistant.util.yaml import load_yaml_dict
 from pytest_homeassistant_custom_component.common import async_capture_events
@@ -26,6 +26,19 @@ BLUEPRINT = (
     Path(__file__).parents[2] / "blueprints" / "automation" / "meshcom" / "notify_with_reply.yaml"
 )
 ENTRY = "entry-1"
+PERSON = "person.operator"
+#: Context of the operator's phone (set up in the fixture).
+OPERATOR: dict[str, Context] = {}
+
+
+def _press(hass: HomeAssistant, data: dict[str, Any], context: Context | None = None) -> None:
+    """A button press in the Companion app (comes in from outside)."""
+    hass.bus.async_fire(
+        "mobile_app_notification_action",
+        data,
+        EventOrigin.remote,
+        context=context or OPERATOR["context"],
+    )
 
 
 async def _until(events: list[Any], count: int) -> None:
@@ -73,12 +86,16 @@ async def sent(hass: HomeAssistant) -> list[ServiceCall]:
                 "input": {
                     "node": ENTRY,
                     "notify_device": "phone-device",
+                    "reply_person": PERSON,
                     "groups": " 262, 20 ",
                     "reply_timeout": {"minutes": 5},
                 },
             }
         },
     )
+    user = await hass.auth.async_create_user("Operator")
+    OPERATOR["context"] = Context(user_id=user.id)
+    hass.states.async_set(PERSON, "home", {"user_id": user.id})
     config = inputs.async_substitute()
     config.pop("use_blueprint", None)
     # The phone: a device action in the blueprint, an event here.
@@ -116,9 +133,7 @@ async def test_direct_message_reply(hass: HomeAssistant, sent: list[ServiceCall]
     assert action["behavior"] == "textInput"
     assert note["data"]["tag"] == "meshcom-QA1ABC-12"
 
-    hass.bus.async_fire(
-        "mobile_app_notification_action", {"action": action["action"], "reply_text": " Hi back "}
-    )
+    _press(hass, {"action": action["action"], "reply_text": " Hi back "})
     await hass.async_block_till_done()
     assert len(sent) == 1
     assert sent[0].data == {
@@ -150,11 +165,9 @@ async def test_group_reply_and_filters(hass: HomeAssistant, sent: list[ServiceCa
     action = note["data"]["actions"][0]["action"]
 
     # Another phone's button does not answer this notification.
-    hass.bus.async_fire(
-        "mobile_app_notification_action", {"action": "SOMETHING_ELSE", "reply_text": "x"}
-    )
+    _press(hass, {"action": "SOMETHING_ELSE", "reply_text": "x"})
     # An empty answer sends nothing.
-    hass.bus.async_fire("mobile_app_notification_action", {"action": action, "reply_text": "  "})
+    _press(hass, {"action": action, "reply_text": "  "})
     await hass.async_block_till_done()
     assert sent == []
 
@@ -167,7 +180,7 @@ async def test_group_reply_sent(hass: HomeAssistant, sent: list[ServiceCall]) ->
     )
     await _until(notified, 1)
     action = notified[0].data["data"]["actions"][0]["action"]
-    hass.bus.async_fire("mobile_app_notification_action", {"action": action, "reply_text": "73"})
+    _press(hass, {"action": action, "reply_text": "73"})
     await hass.async_block_till_done()
     assert sent[0].data["destination"] == "20"
 
@@ -193,8 +206,53 @@ async def test_reply_stays_text(hass: HomeAssistant, sent: list[ServiceCall], re
     )
     await _until(notified, 1)
     action = notified[0].data["data"]["actions"][0]["action"]
-    hass.bus.async_fire("mobile_app_notification_action", {"action": action, "reply_text": reply})
+    _press(hass, {"action": action, "reply_text": reply})
     await hass.async_block_till_done()
     assert len(sent) == 1
     assert sent[0].data["message"] == reply
     assert sent[0].data["destination"] == "20"
+
+
+async def test_reply_only_by_chosen_person(hass: HomeAssistant, sent: list[ServiceCall]) -> None:
+    """Another user's press (own Companion app, same action id) sends nothing."""
+    notified = async_capture_events(hass, "test_notify")
+    hass.bus.async_fire("meshcom_message", _message())
+    await _until(notified, 1)
+    action = notified[0].data["data"]["actions"][0]["action"]
+    assert action.startswith("MESHCOM_REPLY_")
+    other = await hass.auth.async_create_user("Other")
+    _press(hass, {"action": action, "reply_text": "hijack"}, Context(user_id=other.id))
+    _press(hass, {"action": action, "reply_text": "no user"}, Context())
+    for _ in range(20):
+        await asyncio.sleep(0)
+    assert sent == []
+    # The run still waits for the operator.
+    _press(hass, {"action": action, "reply_text": "73"})
+    await hass.async_block_till_done()
+    assert [call.data["message"] for call in sent] == ["73"]
+
+
+async def test_message_event_from_outside_ignored(
+    hass: HomeAssistant, sent: list[ServiceCall]
+) -> None:
+    """A message event fired from outside (webhook) does not notify."""
+    notified = async_capture_events(hass, "test_notify")
+    hass.bus.async_fire("meshcom_message", _message(), EventOrigin.remote)
+    for _ in range(20):
+        await asyncio.sleep(0)
+    assert notified == []
+
+
+async def test_person_without_user_cannot_reply(
+    hass: HomeAssistant, sent: list[ServiceCall]
+) -> None:
+    """Without a user the notification comes, but no reply is waited for."""
+    hass.states.async_set(PERSON, "home", {})
+    notified = async_capture_events(hass, "test_notify")
+    hass.bus.async_fire("meshcom_message", _message())
+    await hass.async_block_till_done()
+    assert len(notified) == 1
+    action = notified[0].data["data"]["actions"][0]["action"]
+    _press(hass, {"action": action, "reply_text": "73"}, Context())
+    await hass.async_block_till_done()
+    assert sent == []

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.11.1
+
+### Security
+- Blueprint "notify with reply": the reply was accepted from any Home Assistant user who knew the notification's action id, and that id could be read from the logbook. Any user, also one not released for sending, can fire events from their own Companion app and could so send text on air under the node's callsign. The blueprint now has the required input **Person who may reply** and only accepts a button press from that person's user; the action id has a random part; message events fired from outside no longer start it. **Open the automation once after the update and choose the person.**
+
+### Development
+- Security review of the whole code base (static analysis, long fuzz runs, hostile node web server, independent review); the blueprint issue above was the only finding
+
 ## v0.11.0
 
 ### Added
