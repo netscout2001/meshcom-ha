@@ -36,6 +36,7 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.util import dt as dt_util
 
 from .aiomeshcom import (
     Packet,
@@ -78,6 +79,7 @@ from .const import (
     CONF_STATION_MAX,
     CONF_STATION_MODE,
     CONF_STATION_STALE_DAYS,
+    CONF_WATCHED_STATIONS,
     CONF_WEB_AUTH,
     DEFAULT_HIDE_FOREIGN_GROUPS,
     DEFAULT_INACTIVE_MINUTES,
@@ -88,6 +90,7 @@ from .const import (
     DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
     INACTIVE_MINUTES_RANGE,
+    MAX_WATCHED_STATIONS,
     NEIGHBOUR_LOST_HOURS_MAX,
     SETUP_WAIT_TIMEOUT,
     STATION_MAX_LIMIT,
@@ -96,7 +99,7 @@ from .const import (
 )
 from .hub import async_acquire_hub, async_release_hub
 from .migration import callsign_node_id
-from .stations import station_mode
+from .stations import station_mode, watched_stations
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -471,6 +474,34 @@ async def _async_validate_web(
     return {}, client.auth_method
 
 
+def _parse_watched(value: Any) -> tuple[list[str] | None, str | None]:
+    """Watched callsigns from the form, or None and an error key."""
+    if not isinstance(value, list):
+        return [], None
+    callsigns = list(dict.fromkeys(item.strip().upper() for item in value if isinstance(item, str)))
+    if not all(is_callsign(callsign) for callsign in callsigns):
+        return None, "invalid_watched"
+    if len(callsigns) > MAX_WATCHED_STATIONS:
+        return None, "too_many_watched"
+    return callsigns, None
+
+
+def _station_choices(entry: Any, selected: list[str]) -> list[SelectOptionDict]:
+    """Known stations for the watch list: direct neighbours first, then newest."""
+    runtime = getattr(entry, "runtime_data", None)
+    node = getattr(runtime, "node", None)
+    stations = list(reversed(node.stations.values())) if node is not None else []
+    now = dt_util.utcnow()
+    direct = [station.callsign for station in stations if station.is_direct(now)]
+    others = [station.callsign for station in stations if not station.is_direct(now)]
+    choices = [SelectOptionDict(value=call, label=f"{call} (MHeard)") for call in direct]
+    choices += [SelectOptionDict(value=call, label=call) for call in others]
+    known = set(direct) | set(others)
+    # Watched stations the node no longer remembers stay selectable.
+    choices += [SelectOptionDict(value=call, label=call) for call in selected if call not in known]
+    return choices
+
+
 def _parse_groups(value: str) -> list[str] | None:
     """Comma separated group numbers, or None if one is invalid."""
     groups = [part.strip() for part in value.split(",") if part.strip()]
@@ -487,14 +518,18 @@ class MeshComOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             groups = _parse_groups(user_input.get(CONF_GROUPS, ""))
+            watched, watched_error = _parse_watched(user_input.get(CONF_WATCHED_STATIONS, []))
             if groups is None:
                 errors[CONF_GROUPS] = "invalid_groups"
+            elif watched_error is not None:
+                errors[CONF_WATCHED_STATIONS] = watched_error
             else:
                 return self.async_create_entry(
                     data={
                         CONF_GROUPS: groups,
                         CONF_SEND_USERS: list(user_input.get(CONF_SEND_USERS, [])),
                         CONF_STATION_MODE: user_input[CONF_STATION_MODE],
+                        CONF_WATCHED_STATIONS: watched,
                         CONF_STATION_MAX: int(user_input[CONF_STATION_MAX]),
                         CONF_STATION_STALE_DAYS: int(user_input[CONF_STATION_STALE_DAYS]),
                         CONF_INACTIVE_MINUTES: int(
@@ -518,6 +553,7 @@ class MeshComOptionsFlow(OptionsFlow):
             if user.is_active and not user.system_generated and not user.is_admin
         ]
         options = self.config_entry.options
+        selected = watched_stations(options)
         schema = vol.Schema(
             {
                 vol.Optional(CONF_GROUPS, default=", ".join(options.get(CONF_GROUPS, []))): str,
@@ -537,6 +573,14 @@ class MeshComOptionsFlow(OptionsFlow):
                         options=list(STATION_MODES),
                         mode=SelectSelectorMode.LIST,
                         translation_key=CONF_STATION_MODE,
+                    )
+                ),
+                vol.Optional(CONF_WATCHED_STATIONS, default=selected): SelectSelector(
+                    SelectSelectorConfig(
+                        options=_station_choices(self.config_entry, selected),
+                        multiple=True,
+                        custom_value=True,
+                        mode=SelectSelectorMode.DROPDOWN,
                     )
                 ),
                 vol.Required(

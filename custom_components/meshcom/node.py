@@ -437,21 +437,23 @@ class MeshComNode:
             # The group select offers the node's groups.
             async_dispatcher_send(self.hass, signal_update(self.entry_id))
 
-    def apply_mheard(self, entries: list[MHeardEntry]) -> None:
+    def apply_mheard(self, entries: list[MHeardEntry], read: datetime | None = None) -> None:
         """Take over the stations the node heard directly (its MHeard list).
 
         Adds stations that send only heartbeats (UDP and KISS do not carry
         those) and the neighbour values. Values from packets win where both
         exist: positions are more precise there, signal values belong to the
-        last packet.
+        last packet. ``read`` is when the node answered; the ages count from
+        there.
         """
         now = dt_util.utcnow()
-        self.mheard_read = now
+        read = min(read or now, now)
+        self.mheard_read = read
         changed: list[str] = []
         for entry in entries:
             if entry.callsign == self.callsign:
                 continue
-            heard = now - timedelta(minutes=entry.age_minutes)
+            heard = read - timedelta(minutes=entry.age_minutes)
             station = self.stations.get(entry.callsign)
             before = None if station is None else _neighbour_values(station)
             if station is None:

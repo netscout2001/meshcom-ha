@@ -150,8 +150,10 @@ async def test_entities_mode_creates_devices(
         "station_battery",
         "station_rssi",
         "station_snr",
+        "station_hears_me_snr",
         "station_hops",
         "station_position",
+        "station_direct",
     }
     assert hass.states.get(entities["station_battery"]).state == "88"  # type: ignore[union-attr]
     assert hass.states.get(entities["station_rssi"]).state == "-97"  # type: ignore[union-attr]

@@ -10,7 +10,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
-from custom_components.meshcom.aiomeshcom.webapi import MHeardEntry
+from custom_components.meshcom.aiomeshcom.webapi import MHeardEntry, WebConnectionError
 from custom_components.meshcom.const import (
     CONF_NEIGHBOUR_LOST_HOURS,
     EVENT_NEIGHBOUR_BACK,
@@ -214,3 +214,50 @@ async def test_station_new_limited(
     )
     await hass.async_block_till_done()
     assert len(new) == STATION_NEW_BURST + 2
+
+
+async def test_failed_poll_does_not_refresh_list(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    web_client: FakeWebClient,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """After a failed poll the old MHeard list is not taken as new again.
+
+    Its ages would count from now: stations would look freshly heard and
+    a lost neighbour would never be reported.
+    """
+    lost = _events(hass, EVENT_NEIGHBOUR_LOST)
+    await _setup(hass, mock_config_entry, **{CONF_NEIGHBOUR_LOST_HOURS: 1})
+    web_client.mheard = [NEIGHBOUR]
+    await _poll(hass, mock_config_entry)
+    node = mock_config_entry.runtime_data.node
+    heard = node.stations["QR1ABC-12"].direct_heard
+    freezer.tick(timedelta(hours=2))
+    web_client.error = WebConnectionError("gone")
+    await _poll(hass, mock_config_entry)
+    assert node.stations["QR1ABC-12"].direct_heard == heard
+    await _minute(hass, freezer)
+    # The list is not fresh: no judgement, no event (node may be away).
+    assert lost == []
+    # The node answers again without the station: now it is lost.
+    web_client.error = None
+    web_client.mheard = []
+    await _poll(hass, mock_config_entry)
+    await _minute(hass, freezer)
+    assert [event["callsign"] for event in lost] == ["QR1ABC-12"]
+
+
+async def test_mheard_ages_count_from_read_time(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """Ages count from when the node answered, never from the future."""
+    node = init_integration.runtime_data.node
+    read = dt_util.utcnow() - timedelta(minutes=10)
+    node.apply_mheard([MHeardEntry(callsign="QR1ABC-12", age_minutes=5)], read=read)
+    assert node.stations["QR1ABC-12"].direct_heard == read - timedelta(minutes=5)
+    assert node.mheard_read == read
+    later = dt_util.utcnow() + timedelta(hours=1)
+    node.apply_mheard([], read=later)
+    assert node.mheard_read is not None
+    assert node.mheard_read <= dt_util.utcnow()

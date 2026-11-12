@@ -35,6 +35,7 @@ from .aiomeshcom.webpages import RadioStats
 from .const import (
     STATION_ATTRIBUTE_LIMIT,
     STATION_MODE_DATA,
+    STATION_MODE_WATCH,
     signal_new_station,
     signal_station_weather,
     signal_update,
@@ -216,6 +217,15 @@ STATION_SENSORS: tuple[MeshComStationSensorDescription, ...] = (
         value_fn=lambda station: station.snr,
     ),
     MeshComStationSensorDescription(
+        # How the station hears the own node (its MHeard entry, web API).
+        key="station_hears_me_snr",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda station: station.hears_me_snr,
+    ),
+    MeshComStationSensorDescription(
         key="station_hops",
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -388,7 +398,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors."""
     node = entry.runtime_data.node
-    with_list = station_mode(entry) == STATION_MODE_DATA
+    with_list = station_mode(entry) in (STATION_MODE_DATA, STATION_MODE_WATCH)
     async_add_entities(
         MeshComStationsHeardSensor(node, description, with_list=with_list)
         if description.key == "stations_heard"
