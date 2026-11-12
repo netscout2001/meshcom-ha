@@ -22,7 +22,7 @@ from .aiomeshcom.webapi import (
     WebDowngradeError,
     WebThrottledError,
 )
-from .aiomeshcom.webpages import GpsInfo, NodeInfo, RadioStats
+from .aiomeshcom.webpages import GpsInfo, NodeInfo, RadioStats, UpdateStatus
 from .const import DOMAIN, ISSUE_WEB_DOWNGRADE
 
 if TYPE_CHECKING:
@@ -50,6 +50,8 @@ class WebData:
     info: NodeInfo | None = None
     gps: GpsInfo | None = None
     radio: RadioStats | None = None
+    #: Built-in firmware update (firmware with /austatus); None otherwise.
+    update: UpdateStatus | None = None
     #: When the node answered (uptime and server age refer to this time).
     fetched: datetime | None = None
 
@@ -136,6 +138,7 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             info=status.info,
             gps=status.gps,
             radio=status.radio,
+            update=status.update,
             fetched=dt_util.utcnow(),
         )
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.10.0
+
+### Added
+- Notify entity "Message": send with the standard action `notify.send_message`, to the recipient chosen in the recipient selects; a title is put in front of the text; same checks as every send (#42)
+- Device triggers on the node's device: message received, direct message received, group message received, own message delivered, own message not delivered, station heard for the first time, direct neighbour lost, direct neighbour back (#43)
+- Events `meshcom_station_new`, `meshcom_neighbour_lost` and `meshcom_neighbour_back`; option "Neighbour lost after (hours)" (default 6, 0 = off). Neighbours are only judged while the MHeard list is fresh; the state is kept over a restart (#44)
+- Update entity "Firmware" for firmware with the built-in update (ESP32): installed and newest release as the node reports them, release link, download progress; Install (administrators only) lets the node download and then install the release (#45)
+
 ## v0.9.3
 
 ### Changed

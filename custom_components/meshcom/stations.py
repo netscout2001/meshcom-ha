@@ -141,6 +141,7 @@ def _parse_station(raw: Any) -> StationInfo | None:
         it_hears=_number(raw.get("it_hears"), int, 0, 999),
         neighbours=_number(raw.get("neighbours"), int, 0, 999),
         gateway=gateway if isinstance(gateway, bool) else None,
+        lost=lost if isinstance(lost := raw.get("lost"), bool) else None,
     )
 
 
@@ -170,6 +171,7 @@ def _dump_station(station: StationInfo) -> dict[str, Any]:
         "it_hears": station.it_hears,
         "neighbours": station.neighbours,
         "gateway": station.gateway,
+        "lost": station.lost,
     }
 
 

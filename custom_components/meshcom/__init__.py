@@ -31,11 +31,13 @@ from .const import (
     CONF_HIDE_FOREIGN_GROUPS,
     CONF_INACTIVE_MINUTES,
     CONF_LISTEN_PORT,
+    CONF_NEIGHBOUR_LOST_HOURS,
     CONF_NODE_ID,
     CONF_RADIO_STATS,
     CONF_WEB_AUTH,
     DEFAULT_HIDE_FOREIGN_GROUPS,
     DEFAULT_INACTIVE_MINUTES,
+    DEFAULT_NEIGHBOUR_LOST_HOURS,
     DEFAULT_RADIO_STATS,
     DOMAIN,
     ISSUE_WEB_LEGACY_LOGIN,
@@ -56,10 +58,12 @@ PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.DEVICE_TRACKER,
+    Platform.NOTIFY,
     Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.TEXT,
+    Platform.UPDATE,
 ]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -106,15 +110,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: MeshComConfigEntry) ->
 
 async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> bool:
     """Set up a MeshCom node from a config entry."""
-    node = MeshComNode(
-        hass,
-        entry.entry_id,
-        entry.data[CONF_CALLSIGN],
-        entry.data[CONF_NODE_ID],
-        active_timeout=timedelta(
-            minutes=int(entry.options.get(CONF_INACTIVE_MINUTES, DEFAULT_INACTIVE_MINUTES))
-        ),
-    )
+    node = _create_node(hass, entry)
     hub: UdpHub | None = None
     kiss: KissLink | None = None
     if entry.data.get(CONF_ACCESS, ACCESS_UDP) == ACCESS_KISS:
@@ -207,9 +203,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
 
     _async_start_web(hass, entry, node, client, web)
 
-    # Time-based states ("active", "heard within 24 h") need a periodic refresh.
+    # Time-based states ("active", "heard within 24 h", lost neighbours) need
+    # a periodic refresh.
     @callback
     def _refresh(_now: datetime) -> None:
+        if node.check_neighbours():
+            store.async_schedule_save(node)
         async_dispatcher_send(hass, signal_update(entry.entry_id))
 
     entry.async_on_unload(async_track_time_interval(hass, _refresh, timedelta(minutes=1)))
@@ -223,6 +222,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     if kiss is not None:
         kiss.async_start()
     return True
+
+
+def _create_node(hass: HomeAssistant, entry: MeshComConfigEntry) -> MeshComNode:
+    """The node state with the timing options of the entry."""
+    options = entry.options
+    node = MeshComNode(
+        hass,
+        entry.entry_id,
+        entry.data[CONF_CALLSIGN],
+        entry.data[CONF_NODE_ID],
+        active_timeout=timedelta(
+            minutes=int(options.get(CONF_INACTIVE_MINUTES, DEFAULT_INACTIVE_MINUTES))
+        ),
+    )
+    # The neighbour watch is off with 0 hours.
+    hours = int(options.get(CONF_NEIGHBOUR_LOST_HOURS, DEFAULT_NEIGHBOUR_LOST_HOURS))
+    node.neighbour_lost_after = timedelta(hours=hours) if hours > 0 else None
+    return node
 
 
 async def _async_register_panel_safely(hass: HomeAssistant) -> None:

@@ -72,6 +72,11 @@
       "message": {
         "default": "mdi:message-draw"
       }
+    },
+    "notify": {
+      "notify": {
+        "default": "mdi:message-arrow-right"
+      }
     }
   },
   "services": {

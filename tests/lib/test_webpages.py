@@ -8,9 +8,11 @@ from aiomeshcom.webpages import (
     GpsInfo,
     NodeInfo,
     RadioStats,
+    UpdateStatus,
     parse_node_info,
     parse_position_page,
     parse_rxlog_page,
+    parse_update_status,
 )
 from tests.lib.node_pages_html import info_page, position_page, rxlog_page
 
@@ -148,3 +150,86 @@ def test_rxlog_page_clamps_and_checks() -> None:
     assert stats.queue_by_priority["normal"] == 0
     assert parse_rxlog_page("") is None
     assert parse_rxlog_page(info_page()) is None
+
+
+# --- firmware update state (/austatus) ----------------------------------------
+
+_UPDATE: dict[str, object] = {
+    "st": "busy",
+    "job": "download",
+    "run": "v4.40a.11.07",
+    "avail": "v4.40a.11.20",
+    "newer": 1,
+    "inst": 1,
+    "staged": "",
+    "err": "",
+    "pct": 42,
+    "phone": 0,
+    "sbok": 1,
+}
+
+
+def test_parse_update_status() -> None:
+    """The known shape gives all values."""
+    status = parse_update_status(_UPDATE)
+    assert status == UpdateStatus(
+        running="v4.40a.11.07",
+        available="v4.40a.11.20",
+        newer=True,
+        installable=True,
+        staged=None,
+        state="busy",
+        job="download",
+        percent=42,
+        error=None,
+        safeboot_ok=True,
+        phone=False,
+    )
+
+
+def test_parse_update_status_error_code() -> None:
+    """Only the code of an error is kept; odd codes are dropped."""
+    status = parse_update_status({**_UPDATE, "st": "fail", "err": "lowheap_phone 41234"})
+    assert status is not None
+    assert status.error == "lowheap_phone"
+    status = parse_update_status({**_UPDATE, "err": "<b>x</b>"})
+    assert status is not None
+    assert status.error is None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"run": ""},
+        {"run": "v4<script>"},
+        {"st": "weird"},
+        {"st": []},
+        {"job": {"a": 1}},
+        {"job": "flash"},
+        {"newer": True},
+        {"inst": 2},
+        {"sbok": "1"},
+        {"phone": None},
+        {"pct": 101},
+        {"pct": -1},
+        {"pct": True},
+        {"pct": "5"},
+    ],
+)
+def test_parse_update_status_rejects(change: dict[str, object]) -> None:
+    """Anything outside the known shape gives None."""
+    assert parse_update_status({**_UPDATE, **change}) is None
+
+
+def test_parse_update_status_not_an_object() -> None:
+    """A list or a string is no update state."""
+    assert parse_update_status([1, 2]) is None
+    assert parse_update_status("ok") is None
+
+
+def test_parse_update_status_bad_tags() -> None:
+    """An invalid available or staged tag is unknown, not an error."""
+    status = parse_update_status({**_UPDATE, "avail": "x" * 40, "staged": "v4.40a.11.20"})
+    assert status is not None
+    assert status.available is None
+    assert status.staged == "v4.40a.11.20"

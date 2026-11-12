@@ -7,6 +7,7 @@ import hmac
 import secrets
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from typing import Any
 
 import aiohttp
 import pytest
@@ -63,6 +64,12 @@ class FakeNode:
     battery: str = "4.012V (96%) max 4.240V"
     #: Stations on the MHeard page.
     mheard: list[Card] = field(default_factory=lambda: [Card("QR1ABC-12")])
+    #: ``/austatus`` JSON; None: firmware without the built-in update (it
+    #: answers with its info page).
+    update: dict[str, Any] | None = None
+    #: Update actions received with the X-MC header, and their answer.
+    actions: list[str] = field(default_factory=list)
+    action_ok: bool = True
 
     def info_page(self) -> str:
         """``/?page=info`` (sub_page_info in web_functions.cpp), padded past 4 KiB."""
@@ -182,6 +189,28 @@ class FakeNode:
             return web.json_response({"returncode": 2, name: ""}, status=422)
         return web.json_response({"returncode": 0, name: self.params[name]})
 
+    async def austatus(self, request: web.Request) -> web.Response:
+        self.requests.append(request.path_qs)
+        if not self.authorised(request):
+            return web.Response(status=401, text="Unauthorized")
+        if self.update is None:
+            return web.Response(text=self.info_page())
+        return web.json_response(self.update)
+
+    async def callfunction(self, request: web.Request) -> web.Response:
+        self.requests.append(request.path_qs)
+        if not self.authorised(request):
+            return web.Response(status=401, text="Unauthorized")
+        name = request.query_string
+        if self.mode == "server_error":
+            return web.Response(status=500)
+        if request.headers.get("X-MC") != "1":
+            return web.json_response({"ok": False, "err": "forbidden"}, status=403)
+        self.actions.append(name)
+        if self.update is None or not self.action_ok:
+            return web.json_response({name: "failed"}, status=422)
+        return web.json_response({name: "ok"})
+
     async def setparam(self, request: web.Request) -> web.Response:
         self.requests.append(request.path_qs)
         if not self.authorised(request):
@@ -202,6 +231,8 @@ async def server(node: FakeNode) -> AsyncGenerator[TestServer]:
     app.router.add_get("/", node.dispatch)
     app.router.add_get("/getparam/", node.getparam)
     app.router.add_get("/setparam/", node.setparam)
+    app.router.add_get("/austatus", node.austatus)
+    app.router.add_get("/callfunction/", node.callfunction)
     test_server = TestServer(app)
     await test_server.start_server()
     yield test_server
@@ -731,3 +762,84 @@ async def test_overview_node_pages(
     assert status.radio.rx_percent == 11.4
     assert "/?page=rxlog" in node.requests
     assert status.info is not None
+
+
+UPDATE_STATUS: dict[str, Any] = {
+    "st": "ok",
+    "job": "check",
+    "run": "v4.40a.11.07",
+    "avail": "v4.40a.11.20",
+    "newer": 1,
+    "inst": 1,
+    "staged": "",
+    "err": "",
+    "pct": 0,
+    "phone": 0,
+    "guard": 0,
+    "sbok": 1,
+    "mode": "notify",
+    "chan": "prod",
+    "etaS": 0,
+    "ifree": 120000,
+    "iblk": 60000,
+    "sbwhy": "ok",
+    "up": 3600,
+    "img": "0123abcd",
+}
+
+
+async def test_overview_update_status(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """The update state comes with the poll; older firmware has none."""
+    status = await client(session, server).get_overview()
+    assert status.update is None
+    assert "/austatus" in node.requests
+    node.update = dict(UPDATE_STATUS)
+    status = await client(session, server).get_overview()
+    assert status.update is not None
+    assert status.update.running == "v4.40a.11.07"
+    assert status.update.available == "v4.40a.11.20"
+    assert status.update.newer
+    assert status.update.staged is None
+    assert status.update.error is None
+    assert node.headers_ok
+
+
+async def test_update_actions(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """Download and install are sent with the X-MC header; only these two."""
+    web = client(session, server)
+    node.update = dict(UPDATE_STATUS)
+    assert await web.update_action("updinstall")
+    assert await web.update_action("updapply")
+    assert node.actions == ["updinstall", "updapply"]
+    node.action_ok = False
+    assert not await web.update_action("updinstall")
+    with pytest.raises(ValueError, match="not allowed"):
+        await web.update_action("otaupdate")
+    status = await web.get_update_status()
+    assert status is not None
+    assert status.running == "v4.40a.11.07"
+    node.update = None
+    assert await web.get_update_status() is None
+
+
+async def test_update_needs_login(session: aiohttp.ClientSession, server: TestServer) -> None:
+    """Without the password the node answers 401."""
+    web = client(session, server, password=None)
+    with pytest.raises(WebAuthError):
+        await web.get_update_status()
+    with pytest.raises(WebAuthError):
+        await web.update_action("updinstall")
+
+
+async def test_update_action_unexpected_status(
+    session: aiohttp.ClientSession, server: TestServer, node: FakeNode
+) -> None:
+    """Any other answer than 200 or 422 is a connection error."""
+    node.update = dict(UPDATE_STATUS)
+    node.mode = "server_error"
+    with pytest.raises(WebConnectionError):
+        await client(session, server).update_action("updinstall")

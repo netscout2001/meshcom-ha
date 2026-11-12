@@ -42,6 +42,11 @@ RATE_LIMIT_BURST: Final = 60.0
 EVENT_MESSAGE: Final = f"{DOMAIN}_message"
 EVENT_MESSAGE_SENT: Final = f"{DOMAIN}_message_sent"
 EVENT_DELIVERY: Final = f"{DOMAIN}_delivery_update"
+#: A station was heard for the first time.
+EVENT_STATION_NEW: Final = f"{DOMAIN}_station_new"
+#: A direct neighbour was not heard directly for the set time / is back.
+EVENT_NEIGHBOUR_LOST: Final = f"{DOMAIN}_neighbour_lost"
+EVENT_NEIGHBOUR_BACK: Final = f"{DOMAIN}_neighbour_back"
 
 
 def signal_update(entry_id: str) -> str:
@@ -102,6 +107,14 @@ DEFAULT_INACTIVE_MINUTES: Final = 65
 CONF_RADIO_STATS: Final = "radio_stats"
 DEFAULT_RADIO_STATS: Final = False
 INACTIVE_MINUTES_RANGE: Final = (10, 1440)
+#: Options: a direct neighbour counts as lost after this many hours without
+#: direct reception (0: off).
+CONF_NEIGHBOUR_LOST_HOURS: Final = "neighbour_lost_hours"
+DEFAULT_NEIGHBOUR_LOST_HOURS: Final = 6
+NEIGHBOUR_LOST_HOURS_MAX: Final = 168
+#: Neighbours are only judged while the MHeard list was read this recently
+#: (the node or its web access may be away).
+MHEARD_FRESH: Final = timedelta(minutes=15)
 STATION_STALE_DAYS_LIMIT: Final = 90
 #: Stations in the "stations" attribute (data mode), newest first.
 STATION_ATTRIBUTE_LIMIT: Final = 100

@@ -31,9 +31,13 @@ from .const import (
     DIRECT_WINDOW,
     EVENT_DELIVERY,
     EVENT_MESSAGE,
+    EVENT_NEIGHBOUR_BACK,
+    EVENT_NEIGHBOUR_LOST,
+    EVENT_STATION_NEW,
     MAX_PATH,
     MAX_PENDING_ACKS,
     MAX_STATIONS,
+    MHEARD_FRESH,
     NODE_ACTIVE_TIMEOUT,
     PENDING_ACK_TIMEOUT,
     STATIONS_WINDOW,
@@ -78,6 +82,9 @@ class StationInfo:
     it_hears: int | None = None
     neighbours: int | None = None
     gateway: bool | None = None
+    #: Direct neighbour not heard directly for the set time. None: not yet
+    #: judged (stored before this existed); judged silently the first time.
+    lost: bool | None = None
 
     def is_direct(self, now: datetime) -> bool:
         """True while the node's MHeard list has the station (heard directly)."""
@@ -115,6 +122,10 @@ class MeshComNode:
         self.last_packet: datetime | None = None
         #: "Active" turns off after this time without packets (option).
         self.active_timeout = active_timeout
+        #: A direct neighbour is lost after this time (None: not watched).
+        self.neighbour_lost_after: timedelta | None = None
+        #: When the MHeard list was last read.
+        self.mheard_read: datetime | None = None
         self.position: PositionPacket | None = None
         self.telemetry: TelemetryPacket | None = None
         self.firmware: Firmware | None = None
@@ -192,7 +203,10 @@ class MeshComNode:
         return False
 
     def _station(self, callsign: str, now: datetime) -> StationInfo:
-        station = self.stations.pop(callsign, None) or StationInfo(callsign, now)
+        station = self.stations.pop(callsign, None)
+        if station is None:
+            station = StationInfo(callsign, now)
+            self._fire_station_new(callsign, now)
         station.last_heard = now
         self.stations[callsign] = station
         self._touched = callsign
@@ -423,6 +437,7 @@ class MeshComNode:
         last packet.
         """
         now = dt_util.utcnow()
+        self.mheard_read = now
         changed: list[str] = []
         for entry in entries:
             if entry.callsign == self.callsign:
@@ -431,12 +446,14 @@ class MeshComNode:
             station = self.stations.get(entry.callsign)
             before = None if station is None else _neighbour_values(station)
             if station is None:
-                station = StationInfo(entry.callsign, heard)
+                station = StationInfo(entry.callsign, heard, lost=False)
                 self.stations[entry.callsign] = station
+                self._fire_station_new(entry.callsign, heard)
             elif heard > station.last_heard + timedelta(minutes=1):
                 station.last_heard = heard
                 self.stations.move_to_end(entry.callsign)
             _take_mheard(station, entry, heard)
+            self._judge_back(station, now)
             if _neighbour_values(station) != before:
                 changed.append(entry.callsign)
         while len(self.stations) > MAX_STATIONS:
@@ -450,6 +467,68 @@ class MeshComNode:
             async_dispatcher_send(self.hass, signal_station(self.entry_id, callsign))
             if self.station_listener is not None:
                 self.station_listener(callsign)
+
+    def _fire_station_new(self, callsign: str, heard: datetime) -> None:
+        self.hass.bus.async_fire(
+            EVENT_STATION_NEW,
+            {
+                "entry_id": self.entry_id,
+                "node": self.callsign,
+                "callsign": callsign,
+                "heard": heard.isoformat(),
+            },
+        )
+
+    def _fire_neighbour(self, event: str, station: StationInfo) -> None:
+        self.hass.bus.async_fire(
+            event,
+            {
+                "entry_id": self.entry_id,
+                "node": self.callsign,
+                "callsign": station.callsign,
+                "direct_heard": station.direct_heard.isoformat() if station.direct_heard else None,
+                "rssi": station.rssi,
+                "snr": station.snr,
+            },
+        )
+
+    def _judge_back(self, station: StationInfo, now: datetime) -> None:
+        """A lost neighbour heard directly again is back."""
+        lost_after = self.neighbour_lost_after
+        if (
+            lost_after is None
+            or station.direct_heard is None
+            or now - station.direct_heard >= lost_after
+        ):
+            return
+        if station.lost is True:
+            self._fire_neighbour(EVENT_NEIGHBOUR_BACK, station)
+        station.lost = False
+
+    @callback
+    def check_neighbours(self, now: datetime | None = None) -> bool:
+        """Mark direct neighbours lost; True if anything changed (to be stored).
+
+        Only judged while the MHeard list is fresh: a node that is away (or
+        whose web access fails) would otherwise lose all its neighbours.
+        """
+        lost_after = self.neighbour_lost_after
+        now = now or dt_util.utcnow()
+        if lost_after is None or self.mheard_read is None or now - self.mheard_read > MHEARD_FRESH:
+            return False
+        changed = False
+        for station in list(self.stations.values()):
+            if station.direct_heard is None or station.lost is True:
+                continue
+            gone = now - station.direct_heard >= lost_after
+            if station.lost is None:
+                station.lost = gone  # first judgement: no event for old stations
+                changed = True
+            elif gone:
+                station.lost = True
+                changed = True
+                self._fire_neighbour(EVENT_NEIGHBOUR_LOST, station)
+        return changed
 
     def is_filtered(self, packet: TextMessagePacket) -> bool:
         """With "No MSG All" on the node, show only the node's groups and own DMs.
@@ -495,6 +574,7 @@ def _neighbour_values(station: StationInfo) -> tuple[object, ...]:
         station.rssi,
         station.snr,
         station.firmware,
+        station.lost,
     )
 
 

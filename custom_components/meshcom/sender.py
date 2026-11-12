@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
 
-from .aiomeshcom import InvalidOutgoingError, build_text_message
+from .aiomeshcom import DestinationKind, InvalidOutgoingError, build_text_message
 from .aiomeshcom.builder import validate_text_message
 from .const import (
     CONF_SEND_USERS,
@@ -33,6 +33,7 @@ from .const import (
 
 if TYPE_CHECKING:
     from . import MeshComConfigEntry
+    from .node import MeshComNode
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,6 +77,18 @@ async def async_check_send_permission(
     if user.is_admin or user_id in allowed_users:
         return
     raise Unauthorized(context=context, config_entry_id=entry_id, permission="send")
+
+
+def compose_destination(node: MeshComNode) -> str:
+    """Recipient chosen in the node's recipient selects (button and notify)."""
+    if node.compose_kind is DestinationKind.BROADCAST:
+        return "*"
+    target = (
+        node.compose_group if node.compose_kind is DestinationKind.GROUP else node.compose_station
+    )
+    if not target:
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="no_recipient")
+    return target
 
 
 def allowed_users(options: dict[str, object]) -> list[str]:

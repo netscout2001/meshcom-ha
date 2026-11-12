@@ -14,7 +14,12 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.meshcom.aiomeshcom.webapi import MHeardEntry, NodeStatus
-from custom_components.meshcom.aiomeshcom.webpages import GpsInfo, NodeInfo, RadioStats
+from custom_components.meshcom.aiomeshcom.webpages import (
+    GpsInfo,
+    NodeInfo,
+    RadioStats,
+    UpdateStatus,
+)
 from custom_components.meshcom.const import (
     CONF_CALLSIGN,
     CONF_LISTEN_PORT,
@@ -59,6 +64,11 @@ class FakeWebClient:
         self.gps: GpsInfo | None = None
         self.radio: RadioStats | None = None
         self.radio_requested = False
+        #: Built-in firmware update; None: firmware without it.
+        self.update: UpdateStatus | None = None
+        #: Answers of get_update_status in order (the last one repeats).
+        self.update_script: list[UpdateStatus | Exception] = []
+        self.action_results: dict[str, bool] = {"updinstall": True, "updapply": True}
         self.open = False
         self.error: WebApiError | None = None
         self.calls: list[tuple[str, ...]] = []
@@ -111,7 +121,27 @@ class FakeWebClient:
             info=self.info,
             gps=self.gps,
             radio=self.radio if radio_stats else None,
+            update=self.update,
         )
+
+    async def get_update_status(self) -> UpdateStatus | None:
+        """State of the built-in update, scripted per call."""
+        self.calls.append(("get_update_status",))
+        self._raise()
+        if self.update_script:
+            item = (
+                self.update_script.pop(0) if len(self.update_script) > 1 else self.update_script[0]
+            )
+            if isinstance(item, Exception):
+                raise item
+            self.update = item
+        return self.update
+
+    async def update_action(self, action: str) -> bool:
+        """Download or install request."""
+        self.calls.append(("update_action", action))
+        self._raise()
+        return self.action_results.get(action, False)
 
     async def get_param(self, name: str) -> str:
         """Read one parameter."""
