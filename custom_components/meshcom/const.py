@@ -44,6 +44,10 @@ EVENT_MESSAGE_SENT: Final = f"{DOMAIN}_message_sent"
 EVENT_DELIVERY: Final = f"{DOMAIN}_delivery_update"
 #: A station was heard for the first time.
 EVENT_STATION_NEW: Final = f"{DOMAIN}_station_new"
+#: At most this many "station new" events at once, then one per interval:
+#: spoofed datagrams with invented callsigns must not flood automations.
+STATION_NEW_BURST: Final = 30
+STATION_NEW_INTERVAL: Final = timedelta(minutes=2)
 #: A direct neighbour was not heard directly for the set time / is back.
 EVENT_NEIGHBOUR_LOST: Final = f"{DOMAIN}_neighbour_lost"
 EVENT_NEIGHBOUR_BACK: Final = f"{DOMAIN}_neighbour_back"

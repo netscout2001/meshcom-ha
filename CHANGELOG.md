@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.10.1
+
+### Security
+- "Station heard for the first time" events are limited (30 at once, then one every 2 minutes): spoofed datagrams with invented callsigns can no longer flood automations; dropped events are counted in the diagnostics
+- The firmware update is refused while the node uses the unencrypted web login (the password would be sent with every status request during the update)
+
+### Development
+- Security review of the whole integration: static analysis (bandit, semgrep rule sets for Python, JavaScript and secrets, detect-secrets over the git history), long fuzz runs, a hostile node web server (oversized and gzip-bomb answers, redirects, trickled answers, broken UTF-8, cookie floods, manipulated update state) against the web client; no further findings
+
 ## v0.10.0
 
 ### Added

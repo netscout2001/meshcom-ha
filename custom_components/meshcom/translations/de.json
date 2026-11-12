@@ -344,6 +344,9 @@
     },
     "update_install_failed": {
       "message": "Der Node ist mit der alten Firmware neu gestartet; die neue wurde nicht installiert."
+    },
+    "update_needs_secure_login": {
+      "message": "Der Node nutzt den unverschlüsselten Web-Login; darüber führt Home Assistant kein Firmware-Update aus. Den Node einmal per Web-Flasher oder USB aktualisieren."
     }
   },
   "services": {

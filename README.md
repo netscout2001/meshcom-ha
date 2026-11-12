@@ -169,7 +169,7 @@ Changing the options reloads the node.
 | Allow sending (switch) | Kill switch: off blocks every transmission through this node. Anyone may switch it off; only administrators switch it back on |
 | No MSG All (switch) | The node's setting, read and written via the web API (administrators only). Not polled while the node is inactive |
 | Message (notify) | Send with the standard action `notify.send_message`, to the recipient chosen in the recipient selects (all by default). A title is put in front of the text. Same checks as every send (kill switch, who may send, rate limit) |
-| Firmware (update) | Firmware with the built-in update only (ESP32 boards; the node's `/austatus` page): installed and newest release as the node reports them, with a link to the release. **Install** (administrators only) lets the node download the release and then install it; the node restarts. Installing needs a board with Safeboot partition; while a phone is connected by Bluetooth the node may lack memory for the download |
+| Firmware (update) | Firmware with the built-in update only (ESP32 boards; the node's `/austatus` page): installed and newest release as the node reports them, with a link to the release. **Install** (administrators only) lets the node download the release and then install it; the node restarts. Not offered over the unencrypted web login. Installing needs a board with Safeboot partition; while a phone is connected by Bluetooth the node may lack memory for the download |
 | Channel use RX, Channel use TX, TX queue | Only with the option "Read radio statistics": share of the last 5 minutes the channel was busy receiving / sending, and frames waiting to be sent (attributes: size, per priority, waiting for acknowledgement, slow-down and refuse levels, state of own messages) |
 
 **When a node is switched off**, Home Assistant notices it at different speeds:
@@ -325,7 +325,7 @@ like `:ack12` or `{123`) are refused.
 | `meshcom_message` | Every received or own text message (`sender`, `destination`, `destination_kind`, `text`, `to_me`, `is_own`, `via_server`, `path`, `rssi`, `snr`, `msg_id`) |
 | `meshcom_message_sent` | A message sent from Home Assistant (with the context of the user or automation) |
 | `meshcom_delivery_update` | Delivery status of your own messages (`msg_id`, `status`, `from`) |
-| `meshcom_station_new` | A station heard for the first time (`callsign`, `heard`) |
+| `meshcom_station_new` | A station heard for the first time (`callsign`, `heard`); at most 30 at once, then one every 2 minutes |
 | `meshcom_neighbour_lost` | A direct neighbour not received directly for the time set in the options (`callsign`, `direct_heard`, `rssi`, `snr`) |
 | `meshcom_neighbour_back` | A lost neighbour received directly again (same fields) |
 

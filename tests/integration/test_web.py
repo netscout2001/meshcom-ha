@@ -497,6 +497,7 @@ async def test_diagnostics_hide_password(
         "groups": 2,
         "firmware_read": True,
         "battery_voltage_read": True,
+        "update_supported": False,
     }
 
 

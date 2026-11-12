@@ -20,6 +20,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import MeshComConfigEntry
 from .aiomeshcom.webapi import (
+    AUTH_LEGACY,
     UPDATE_DOWNLOAD,
     UPDATE_INSTALL,
     WebApiError,
@@ -174,6 +175,12 @@ class MeshComFirmwareUpdate(CoordinatorEntity[MeshComWebCoordinator], UpdateEnti
         ):
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="update_not_possible"
+            )
+        if self.coordinator.client.auth_method == AUTH_LEGACY:
+            # The plain-text login would send the password every few seconds
+            # while the update runs.
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="update_needs_secure_login"
             )
         self._installing = True
         self._progress = 0

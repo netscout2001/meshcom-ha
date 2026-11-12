@@ -39,6 +39,7 @@ async def async_get_config_entry_diagnostics(
             "groups": len(runtime.web.data.groups) if runtime.web.data else None,
             "firmware_read": bool(runtime.web.data and runtime.web.data.firmware),
             "battery_voltage_read": bool(runtime.web.data and runtime.web.data.battery_voltage),
+            "update_supported": bool(runtime.web.data and runtime.web.data.update),
         },
         "node": {
             "active": node.active,
@@ -55,5 +56,9 @@ async def async_get_config_entry_diagnostics(
             "stations_heard_24h": node.stations_heard(),
             "station_mode": station_mode(entry),
             "station_devices": len(runtime.stations.tracked),
+            "station_new_events_dropped": node.station_new_dropped,
+            "neighbour_watch_hours": (
+                node.neighbour_lost_after.total_seconds() / 3600 if node.neighbour_lost_after else 0
+            ),
         },
     }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -40,11 +41,15 @@ from .const import (
     MHEARD_FRESH,
     NODE_ACTIVE_TIMEOUT,
     PENDING_ACK_TIMEOUT,
+    STATION_NEW_BURST,
+    STATION_NEW_INTERVAL,
     STATIONS_WINDOW,
     signal_station,
     signal_station_weather,
     signal_update,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -126,6 +131,10 @@ class MeshComNode:
         self.neighbour_lost_after: timedelta | None = None
         #: When the MHeard list was last read.
         self.mheard_read: datetime | None = None
+        #: Budget of "station new" events (token bucket) and dropped events.
+        self._new_tokens = float(STATION_NEW_BURST)
+        self._new_refilled: datetime | None = None
+        self.station_new_dropped = 0
         self.position: PositionPacket | None = None
         self.telemetry: TelemetryPacket | None = None
         self.firmware: Firmware | None = None
@@ -469,6 +478,21 @@ class MeshComNode:
                 self.station_listener(callsign)
 
     def _fire_station_new(self, callsign: str, heard: datetime) -> None:
+        now = dt_util.utcnow()
+        if self._new_refilled is not None:
+            refill = (now - self._new_refilled) / STATION_NEW_INTERVAL
+            self._new_tokens = min(float(STATION_NEW_BURST), self._new_tokens + refill)
+        self._new_refilled = now
+        if self._new_tokens < 1:
+            if self.station_new_dropped == 0:
+                _LOGGER.warning(
+                    "%s: many new stations at once; further 'station new' events are "
+                    "limited (spoofed datagrams?)",
+                    self.callsign,
+                )
+            self.station_new_dropped += 1
+            return
+        self._new_tokens -= 1
         self.hass.bus.async_fire(
             EVENT_STATION_NEW,
             {
