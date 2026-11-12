@@ -42,12 +42,15 @@ from .errors import MeshComError
 from .webpages import (
     POSITION_PAGE,
     RXLOG_PAGE,
+    UPDATE_STATUS_PATH,
     GpsInfo,
     NodeInfo,
     RadioStats,
+    UpdateStatus,
     parse_node_info,
     parse_position_page,
     parse_rxlog_page,
+    parse_update_status,
 )
 
 #: Parameters the client may read.
@@ -72,6 +75,12 @@ _INFO_MAX_BYTES: Final = 32 * 1024
 #: are not needed.
 _RXLOG_MAX_BYTES: Final = 8 * 1024
 _MHEARD_MAX_ENTRIES: Final = 128
+#: The update status is a JSON object of about 400 bytes.
+_UPDATE_MAX_BYTES: Final = 2048
+#: Firmware update actions of the node (they need the ``X-MC: 1`` header).
+UPDATE_DOWNLOAD: Final = "updinstall"
+UPDATE_INSTALL: Final = "updapply"
+_UPDATE_ACTIONS: Final = frozenset({UPDATE_DOWNLOAD, UPDATE_INSTALL})
 _MHEARD_CARD_RE: Final = re.compile(
     r'<label class="cardlabel"><a href="https://aprs\.fi/\?call=[^"]{1,40}" target="_blank">'
     r"([^<]{1,40})</a>"
@@ -292,6 +301,8 @@ class MeshComWebClient:
         pages = [INFO_PAGE, MHEARD_PAGE, POSITION_PAGE]
         if radio_stats:
             pages.append(RXLOG_PAGE)
+        # Firmware without the update route answers with its info page.
+        pages.append(UPDATE_STATUS_PATH)
         answers = await self._fetch(
             ["/getparam/?nomsgall", "/getparam/?setgrc", *pages],
             pages=frozenset(pages),
@@ -299,6 +310,7 @@ class MeshComWebClient:
                 INFO_PAGE: _INFO_MAX_BYTES,
                 MHEARD_PAGE: _MHEARD_MAX_BYTES,
                 RXLOG_PAGE: _RXLOG_MAX_BYTES,
+                UPDATE_STATUS_PATH: _UPDATE_MAX_BYTES,
             },
         )
         no_msg_all = _value("nomsgall", *answers[0])
@@ -312,6 +324,7 @@ class MeshComWebClient:
         mheard_body = bodies[MHEARD_PAGE]
         position_body = bodies[POSITION_PAGE]
         rxlog_body = bodies.get(RXLOG_PAGE)
+        update_body = bodies[UPDATE_STATUS_PATH]
         return NodeStatus(
             no_msg_all == "on",
             groups,
@@ -321,7 +334,34 @@ class MeshComWebClient:
             info=parse_node_info(info_body) if info_body else None,
             gps=parse_position_page(position_body) if position_body else None,
             radio=parse_rxlog_page(rxlog_body) if rxlog_body else None,
+            update=_update_status(update_body) if update_body else None,
         )
+
+    async def get_update_status(self) -> UpdateStatus | None:
+        """State of the built-in firmware update; None if the node has none."""
+        ((status, body),) = await self._fetch(
+            [UPDATE_STATUS_PATH],
+            pages=frozenset({UPDATE_STATUS_PATH}),
+            limits={UPDATE_STATUS_PATH: _UPDATE_MAX_BYTES},
+        )
+        if status == 401:
+            raise WebAuthError("login required")
+        return _update_status(body) if status == 200 else None
+
+    async def update_action(self, action: str) -> bool:
+        """Start a firmware update step; True if the node accepted it.
+
+        ``updinstall`` downloads the release the node found and stages it,
+        ``updapply`` installs the staged image and restarts the node.
+        """
+        if action not in _UPDATE_ACTIONS:
+            raise ValueError(f"update action not allowed: {action}")
+        ((status, body),) = await self._fetch([f"/callfunction/?{action}"])
+        if status == 401:
+            raise WebAuthError("login required")
+        if status not in (200, 422):
+            raise WebConnectionError(f"HTTP {status}")
+        return status == 200 and _json_field(body, action) == "ok"
 
     # --- public API ------------------------------------------------------------
 
@@ -367,6 +407,8 @@ class NodeStatus:
     gps: GpsInfo | None = None
     #: LoRa queue and channel use (RX log page, only when enabled).
     radio: RadioStats | None = None
+    #: Built-in firmware update; None if the firmware has none.
+    update: UpdateStatus | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -551,6 +593,14 @@ def _parse_json(body: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise WebConnectionError("invalid JSON")
     return data
+
+
+def _update_status(body: str) -> UpdateStatus | None:
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return None
+    return parse_update_status(data)
 
 
 def _json_field(body: str, key: str) -> str | None:

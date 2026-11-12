@@ -45,5 +45,10 @@ Out of scope (please report to the respective project):
   LAN can send packets to Home Assistant and to the node. The integration
   validates every packet strictly, but it cannot prove who sent it.
 - Transmitting on amateur radio is restricted to administrators by default.
+- A firmware update is only started on request (Install) and only by
+  administrators or automations. Home Assistant never chooses the image: the
+  node downloads the release it found on the firmware project's release page
+  and checks it itself. The integration can call only the two update steps
+  (download, install) and no other node function.
 - Node secrets (WLAN password, web password, BT PIN) are never read, logged or
   included in diagnostics.

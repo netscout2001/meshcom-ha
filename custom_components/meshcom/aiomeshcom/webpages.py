@@ -264,3 +264,95 @@ def parse_rxlog_page(body: str) -> RadioStats | None:
         dedup_window_minutes=(_attr(values, "dwin", 10**5) or None) if window_done else None,
         window_age_seconds=_attr(values, "age", 10**7) if window_done else None,
     )
+
+
+# --- firmware update (/austatus, firmware 4.40a with the built-in update) ---------
+
+#: JSON route of the node's built-in firmware update. Older firmware has no
+#: such route: it answers 404 or with its info page, which is not JSON.
+UPDATE_STATUS_PATH: Final = "/austatus"
+#: Release tags such as "v4.40a.11.07"; "local" for a build without a tag.
+_TAG_RE: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,22}")
+_ERROR_RE: Final = re.compile(r"[a-z0-9_]{1,23}")
+_UPDATE_STATES: Final = frozenset({"idle", "busy", "ok", "fail"})
+_UPDATE_JOBS: Final = frozenset({"none", "check", "download", "stagelan"})
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateStatus:
+    """State of the node's built-in firmware update."""
+
+    #: Tag of the running firmware, e.g. "v4.40a.11.07" ("local": no tag).
+    running: str
+    #: Newest release the node found; None before its first check.
+    available: str | None
+    #: The node rates ``available`` as newer than the running firmware.
+    newer: bool
+    #: The release has an image for this board.
+    installable: bool
+    #: Tag of the image downloaded and ready to install; None if none.
+    staged: str | None
+    #: "idle", "busy", "ok" or "fail" (of the last job).
+    state: str
+    #: "none", "check", "download" or "stagelan".
+    job: str
+    #: Download progress 0..100 while a download runs.
+    percent: int
+    #: Error code of the last failed job, e.g. "lowheap_phone"; None if none.
+    error: str | None
+    #: The board can install (Safeboot partition present and usable).
+    safeboot_ok: bool
+    #: A phone is connected by Bluetooth (the download may lack memory).
+    phone: bool
+
+
+def _tag(value: object) -> str | None:
+    if isinstance(value, str) and _TAG_RE.fullmatch(value):
+        return value
+    return None
+
+
+def _flag(value: object) -> bool | None:
+    if value in (0, 1) and not isinstance(value, bool):
+        return value == 1
+    return None
+
+
+def parse_update_status(data: object) -> UpdateStatus | None:
+    """The JSON object of ``/austatus``; None if it does not have the known shape."""
+    if not isinstance(data, dict):
+        return None
+    running = _tag(data.get("run"))
+    state = data.get("st")
+    job = data.get("job")
+    flags = {key: _flag(data.get(key)) for key in ("newer", "inst", "sbok", "phone")}
+    percent = data.get("pct")
+    if (
+        running is None
+        or not isinstance(state, str)
+        or state not in _UPDATE_STATES
+        or not isinstance(job, str)
+        or job not in _UPDATE_JOBS
+        or any(value is None for value in flags.values())
+        or not isinstance(percent, int)
+        or isinstance(percent, bool)
+        or not 0 <= percent <= 100
+    ):
+        return None
+    # The code may be followed by details ("lowheap_phone 41234"); only the
+    # code is kept.
+    raw_error = data.get("err")
+    code = raw_error.split(" ", 1)[0] if isinstance(raw_error, str) else ""
+    return UpdateStatus(
+        running=running,
+        available=_tag(data.get("avail")),
+        newer=bool(flags["newer"]),
+        installable=bool(flags["inst"]),
+        staged=_tag(data.get("staged")),
+        state=str(state),
+        job=str(job),
+        percent=percent,
+        error=code if _ERROR_RE.fullmatch(code) else None,
+        safeboot_ok=bool(flags["sbok"]),
+        phone=bool(flags["phone"]),
+    )

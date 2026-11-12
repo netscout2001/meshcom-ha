@@ -263,6 +263,16 @@
       "clear": {
         "name": "Clear message"
       }
+    },
+    "notify": {
+      "notify": {
+        "name": "Message"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
     }
   },
   "exceptions": {
@@ -316,6 +326,24 @@
     },
     "rate_limited_node": {
       "message": "The node limits sending; try again in a moment."
+    },
+    "update_not_possible": {
+      "message": "No firmware update can be installed on this node right now."
+    },
+    "update_rejected": {
+      "message": "The node did not start the firmware update (code: {error}). Try again later."
+    },
+    "update_failed": {
+      "message": "The node could not download the firmware (code: {error})."
+    },
+    "update_phone": {
+      "message": "The node has too little memory for the download while a phone is connected by Bluetooth. Disconnect the phone and try again."
+    },
+    "update_timeout": {
+      "message": "The firmware update did not finish in time. Check the node."
+    },
+    "update_install_failed": {
+      "message": "The node restarted with the old firmware; the new one was not installed."
     }
   },
   "services": {
@@ -351,7 +379,8 @@
           "station_stale_days": "Remove station devices after (days)",
           "hide_foreign_groups": "Chat: only own groups",
           "inactive_minutes": "Node inactive after (minutes)",
-          "radio_stats": "Read radio statistics (LoRa queue)"
+          "radio_stats": "Read radio statistics (LoRa queue)",
+          "neighbour_lost_hours": "Neighbour lost after (hours)"
         },
         "data_description": {
           "groups": "Comma separated group numbers for the group select, e.g. 262, 26298.",
@@ -360,7 +389,8 @@
           "station_stale_days": "A station device is removed when the station was not heard for this many days. It comes back when the station is heard again.",
           "hide_foreign_groups": "Hide messages to groups the node does not listen to (not in its group list and not configured above). Events and sensors are not affected.",
           "inactive_minutes": "\"Active\" turns off when the node sent nothing for this long. The node beacons every 30 minutes by default; use more than twice its beacon interval.",
-          "radio_stats": "LoRa queue fill level and channel use of the last 5 minutes, from the node's RX log page (web API). Off by default: the first request makes the node set aside memory for its RX log, which it keeps until restarted."
+          "radio_stats": "LoRa queue fill level and channel use of the last 5 minutes, from the node's RX log page (web API). Off by default: the first request makes the node set aside memory for its RX log, which it keeps until restarted.",
+          "neighbour_lost_hours": "A direct neighbour (the node received it directly, see its MHeard list) counts as lost when the node has not received it directly for this long; then the \"Neighbour lost\" trigger fires, and \"Neighbour back\" when it is received directly again. Needs the web password. 0 switches it off."
         }
       }
     },
@@ -393,6 +423,18 @@
         "data": "Data only (list attribute)",
         "entities": "One device per station"
       }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "message_received": "Message received",
+      "direct_message_received": "Direct message received",
+      "group_message_received": "Group message received",
+      "message_delivered": "Own message delivered",
+      "delivery_failed": "Own message not delivered",
+      "station_new": "Station heard for the first time",
+      "neighbour_lost": "Direct neighbour lost",
+      "neighbour_back": "Direct neighbour back"
     }
   }
 }

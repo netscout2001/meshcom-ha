@@ -71,6 +71,7 @@ from .const import (
     CONF_KISS_PASSWORD,
     CONF_KISS_PORT,
     CONF_LISTEN_PORT,
+    CONF_NEIGHBOUR_LOST_HOURS,
     CONF_NODE_ID,
     CONF_RADIO_STATS,
     CONF_SEND_USERS,
@@ -81,11 +82,13 @@ from .const import (
     DEFAULT_HIDE_FOREIGN_GROUPS,
     DEFAULT_INACTIVE_MINUTES,
     DEFAULT_LISTEN_PORT,
+    DEFAULT_NEIGHBOUR_LOST_HOURS,
     DEFAULT_RADIO_STATS,
     DEFAULT_STATION_MAX,
     DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
     INACTIVE_MINUTES_RANGE,
+    NEIGHBOUR_LOST_HOURS_MAX,
     SETUP_WAIT_TIMEOUT,
     STATION_MAX_LIMIT,
     STATION_MODES,
@@ -503,6 +506,9 @@ class MeshComOptionsFlow(OptionsFlow):
                         CONF_RADIO_STATS: bool(
                             user_input.get(CONF_RADIO_STATS, DEFAULT_RADIO_STATS)
                         ),
+                        CONF_NEIGHBOUR_LOST_HOURS: int(
+                            user_input.get(CONF_NEIGHBOUR_LOST_HOURS, DEFAULT_NEIGHBOUR_LOST_HOURS)
+                        ),
                     }
                 )
         # Administrators may always transmit; only other users are offered.
@@ -565,6 +571,18 @@ class MeshComOptionsFlow(OptionsFlow):
                     CONF_RADIO_STATS,
                     default=options.get(CONF_RADIO_STATS, DEFAULT_RADIO_STATS),
                 ): bool,
+                vol.Required(
+                    CONF_NEIGHBOUR_LOST_HOURS,
+                    default=options.get(CONF_NEIGHBOUR_LOST_HOURS, DEFAULT_NEIGHBOUR_LOST_HOURS),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=NEIGHBOUR_LOST_HOURS_MAX,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="h",
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

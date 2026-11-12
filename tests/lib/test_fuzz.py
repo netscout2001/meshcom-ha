@@ -53,7 +53,12 @@ from aiomeshcom.webapi import (
     parse_info_page,
     parse_mheard_page,
 )
-from aiomeshcom.webpages import parse_node_info, parse_position_page, parse_rxlog_page
+from aiomeshcom.webpages import (
+    parse_node_info,
+    parse_position_page,
+    parse_rxlog_page,
+    parse_update_status,
+)
 from tests.lib.mheard_html import Card, page
 from tests.lib.node_pages_html import info_page, position_page, rxlog_page
 
@@ -363,3 +368,33 @@ def test_clean_text_removes_everything_unwanted(value: str) -> None:
     cleaned, changed = clean_text(value)
     assert not contains_unwanted(cleaned)
     assert changed == (cleaned != value)
+
+
+# --- firmware update state (/austatus) ------------------------------------------
+
+_UPDATE_SAMPLE: dict[str, Any] = {
+    "st": "ok",
+    "job": "check",
+    "run": "v4.40a.11.07",
+    "avail": "v4.40a.11.20",
+    "newer": 1,
+    "inst": 1,
+    "staged": "",
+    "err": "",
+    "pct": 0,
+    "phone": 0,
+    "sbok": 1,
+}
+
+
+@given(st.dictionaries(st.sampled_from(sorted(_UPDATE_SAMPLE)), _hostile, max_size=5))
+@FAST
+def test_update_status_mutated(changes: dict[str, Any]) -> None:
+    """Any value in any field: None or a status with only safe values."""
+    status = parse_update_status({**_UPDATE_SAMPLE, **changes})
+    if status is None:
+        return
+    for tag in (status.running, status.available, status.staged):
+        assert tag is None or (tag.isascii() and "<" not in tag and len(tag) <= 23)
+    assert status.error is None or status.error.replace("_", "").isalnum()
+    assert 0 <= status.percent <= 100

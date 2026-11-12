@@ -419,6 +419,7 @@ async def test_options_flow(
         "hide_foreign_groups": True,
         "inactive_minutes": 65,
         "radio_stats": False,
+        "neighbour_lost_hours": 6,
     }
 
 

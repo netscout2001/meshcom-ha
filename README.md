@@ -143,6 +143,7 @@ Leave it empty if the node has none (not recommended, see
 | Remove station devices after (days) | Default 7 |
 | Node inactive after (minutes) | Default 65: "Active" turns off when the node sent nothing for this long (the node beacons every 30 minutes by default) |
 | Read radio statistics (LoRa queue) | Off by default: reads the node's RX log page (web API) for channel use and TX queue of the last 5 minutes and adds three sensors. The first request makes the node set aside memory for its RX log, which it keeps until it restarts |
+| Neighbour lost after (hours) | Default 6: a direct neighbour counts as lost when the node has not received it directly for this long (fires "Direct neighbour lost", later "Direct neighbour back"). Needs the web password; 0 switches it off |
 
 Changing the options reloads the node.
 
@@ -167,6 +168,8 @@ Changing the options reloads the node.
 | Recipient type, Group, Station (selects), Message (text), Send, Clear (buttons) | Compose and send from a dashboard |
 | Allow sending (switch) | Kill switch: off blocks every transmission through this node. Anyone may switch it off; only administrators switch it back on |
 | No MSG All (switch) | The node's setting, read and written via the web API (administrators only). Not polled while the node is inactive |
+| Message (notify) | Send with the standard action `notify.send_message`, to the recipient chosen in the recipient selects (all by default). A title is put in front of the text. Same checks as every send (kill switch, who may send, rate limit) |
+| Firmware (update) | Firmware with the built-in update only (ESP32 boards; the node's `/austatus` page): installed and newest release as the node reports them, with a link to the release. **Install** (administrators only) lets the node download the release and then install it; the node restarts. Installing needs a board with Safeboot partition; while a phone is connected by Bluetooth the node may lack memory for the download |
 | Channel use RX, Channel use TX, TX queue | Only with the option "Read radio statistics": share of the last 5 minutes the channel was busy receiving / sending, and frames waiting to be sent (attributes: size, per priority, waiting for acknowledgement, slow-down and refuse levels, state of own messages) |
 
 **When a node is switched off**, Home Assistant notices it at different speeds:
@@ -322,6 +325,19 @@ like `:ack12` or `{123`) are refused.
 | `meshcom_message` | Every received or own text message (`sender`, `destination`, `destination_kind`, `text`, `to_me`, `is_own`, `via_server`, `path`, `rssi`, `snr`, `msg_id`) |
 | `meshcom_message_sent` | A message sent from Home Assistant (with the context of the user or automation) |
 | `meshcom_delivery_update` | Delivery status of your own messages (`msg_id`, `status`, `from`) |
+| `meshcom_station_new` | A station heard for the first time (`callsign`, `heard`) |
+| `meshcom_neighbour_lost` | A direct neighbour not received directly for the time set in the options (`callsign`, `direct_heard`, `rssi`, `snr`) |
+| `meshcom_neighbour_back` | A lost neighbour received directly again (same fields) |
+
+All events carry `entry_id` and `node`.
+
+### Device triggers
+
+The node's device offers triggers for automations made in the UI (no YAML
+needed): message received, direct message received, group message received,
+own message delivered, own message not delivered (`failed` or `rejected`),
+station heard for the first time, direct neighbour lost, direct neighbour
+back. The event data is available as `trigger.event.data`.
 
 Message text is untrusted data from the radio. Use it as data only; never
 feed it into templates that are executed, commands or scripts.
@@ -330,8 +346,13 @@ feed it into templates that are executed, commands or scripts.
 
 - **UDP and KISS are push:** every packet updates the entities immediately.
 - **Web API** (No MSG All, groups, firmware, battery voltage, MHeard list,
-  info and position page, RX log page with the option): read every 5
-  minutes with one login, and right after a change from Home Assistant.
+  info and position page, firmware update state, RX log page with the
+  option): read every 5 minutes with one login, and right after a change
+  from Home Assistant. While a firmware update runs, its state is read
+  every 5 seconds (download) and every 10 seconds (restart).
+- **Lost neighbours** are judged every minute, only while the MHeard list
+  is at most 15 minutes old (a node that is away does not lose its
+  neighbours).
 - "Active" turns off when the node sent nothing for 65 minutes (beacons
   come every 30 minutes by default).
 
@@ -367,6 +388,36 @@ automation:
         data:
           message: "MeshCom node QX1YZ-12 has been silent since {{ states('sensor.meshcom_qx1yz_12_last_packet') }}"
 ```
+
+### Neighbour lost
+
+With the device trigger (Settings → Automations → Create → Device →
+the MeshCom node → "Direct neighbour lost"), or in YAML:
+
+```yaml
+automation:
+  - alias: MeshCom neighbour lost
+    triggers:
+      - trigger: event
+        event_type: meshcom_neighbour_lost
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          message: "{{ trigger.event.data.callsign }} not received directly since {{ trigger.event.data.direct_heard }}"
+```
+
+### Send with the notify action
+
+```yaml
+action: notify.send_message
+target:
+  entity_id: notify.meshcom_qx1yz_12_message
+data:
+  message: "Garage open"
+```
+
+The message goes to the recipient chosen in the node's recipient selects;
+use `meshcom.send_message` to name the recipient in the automation.
 
 ### Your own automations
 
@@ -427,6 +478,9 @@ presence of a mobile node ("Active"), a map of heard stations, switching
   counted and not shown in the chat.
 - A temperature of exactly 0.0 °C is reported as unknown (the node sends 0
   for "no value").
+- **Firmware update:** only firmware with the built-in update offers it
+  (ESP32; not nRF52 boards such as RAK or T-Echo). Home Assistant shows what
+  the node found; it does not look for releases itself.
 - HACS installs releases, not the newest commit.
 
 ## Troubleshooting
