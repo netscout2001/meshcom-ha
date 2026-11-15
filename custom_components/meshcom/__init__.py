@@ -169,23 +169,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     activity = ActivityLog(hass, entry.entry_id)
     await activity.async_load()
 
-    @callback
-    def _message(packet: TextMessagePacket, own: bool, when: datetime) -> None:
-        activity.add(_activity_kind(packet, own), when)
-        # Foreign groups stay out of the history (they would also push own
-        # messages out of the size-limited store).
-        if (
-            not own
-            and entry.options.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS)
-            and is_foreign_group(
-                conversation_of(packet, own=own), own_groups(node.node_groups, entry.options)
-            )
-        ):
-            return
-        chat.async_add_packet(packet, own=own, now=when)
-
-    node.message_listener = _message
-    node.delivery_listener = chat.async_set_status
+    _connect_chat(entry, node, chat, activity)
 
     entry.runtime_data = MeshComRuntime(
         node=node,
@@ -376,6 +360,31 @@ async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> 
         if not others:
             async_unregister_panel(hass)
     return unloaded
+
+
+def _connect_chat(
+    entry: MeshComConfigEntry, node: MeshComNode, chat: ChatHistory, activity: ActivityLog
+) -> None:
+    """Feed messages, delivery states and echoes of the node into the chat."""
+
+    @callback
+    def _message(packet: TextMessagePacket, own: bool, when: datetime) -> None:
+        activity.add(_activity_kind(packet, own), when)
+        # Foreign groups stay out of the history (they would also push own
+        # messages out of the size-limited store).
+        if (
+            not own
+            and entry.options.get(CONF_HIDE_FOREIGN_GROUPS, DEFAULT_HIDE_FOREIGN_GROUPS)
+            and is_foreign_group(
+                conversation_of(packet, own=own), own_groups(node.node_groups, entry.options)
+            )
+        ):
+            return
+        chat.async_add_packet(packet, own=own, now=when)
+
+    node.message_listener = _message
+    node.delivery_listener = chat.async_set_status
+    node.echo_listener = chat.async_add_echo
 
 
 def _activity_kind(packet: TextMessagePacket, own: bool) -> str:

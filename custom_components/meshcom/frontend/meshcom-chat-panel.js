@@ -30,6 +30,8 @@ const TEXT = {
     viaServer: "via server",
     via: "via",
     newMessages: "New messages",
+    echo: (n) => (n > 1 ? `heard back ${n}\u00d7` : "heard back"),
+    echoTitle: "Your message came back over the mesh. The path shows how far it got.",
     jump: (n) => (n ? `${n} new` : "Latest"),
     status: {
       sent: "sent",
@@ -161,6 +163,8 @@ const TEXT = {
     viaServer: "\u00fcber Server",
     via: "via",
     newMessages: "Neue Nachrichten",
+    echo: (n) => (n > 1 ? `${n}\u00d7 zur\u00fcckgeh\u00f6rt` : "zur\u00fcckgeh\u00f6rt"),
+    echoTitle: "Deine Nachricht kam \u00fcber das Mesh zur\u00fcck. Der Pfad zeigt, wie weit sie gekommen ist.",
     jump: (n) => (n ? `${n} neu` : "Neueste"),
     status: {
       sent: "gesendet",
@@ -384,6 +388,8 @@ const STYLE = `
 .msg.own .sender { color: inherit; }
 .msg .text { white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; }
 .msg .status { font-size: 11px; opacity: .75; text-align: right; margin-top: 2px; }
+.msg .echo { font-size: 11px; opacity: .75; text-align: right; margin-top: 2px; }
+.msg .echo .via { font-size: inherit; color: inherit; text-decoration: underline dotted; }
 .divider { display: flex; align-items: center; gap: 10px; font-size: 12px; margin: 6px 0; }
 .divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid currentColor; }
 .divider.new { color: var(--warning-color, #ff9800); font-weight: bold; }
@@ -1381,6 +1387,11 @@ class MeshComChatPanel extends HTMLElement {
       if (target) {
         target.status = event.status.status;
         this._render();
+      }    } else if (event.echo) {
+      const target = [...this._messages].reverse().find((m) => m.own && m.id === event.echo.id);
+      if (target && Array.isArray(event.echo.echoes)) {
+        target.echoes = event.echo.echoes;
+        this._render();
       }
     }
   }
@@ -1646,7 +1657,28 @@ class MeshComChatPanel extends HTMLElement {
     if (message.own && message.status) {
       box.append(el("div", "status", t.status[message.status] || t.status.unknown));
     }
+    const echoes = message.own && Array.isArray(message.echoes) ? message.echoes : [];
+    if (echoes.length) box.append(this._renderEcho(echoes, t));
     return box;
+  }
+
+  // Own message heard back over the mesh: the newest echo, its path and signal.
+  _renderEcho(echoes, t) {
+    const echo = echoes[echoes.length - 1];
+    const line = el("div", "echo", t.echo(echoes.length));
+    line.title = t.echoTitle;
+    const path = Array.isArray(echo.path) ? echo.path : [];
+    if (path.length > 1) {
+      const via = el("button", "linkbutton via", `${t.via} ${path.join(" > ")}`);
+      via.title = t.showPath;
+      via.addEventListener("click", () => this._showRoute(path));
+      line.append(" \u00b7 ", via);
+    }
+    const tail = [];
+    if (echo.via_server) tail.push(t.viaServer);
+    if (echo.rssi !== null && echo.rssi !== undefined) tail.push(`${echo.rssi} dBm / ${echo.snr} dB`);
+    if (tail.length) line.append(` \u00b7 ${tail.join(" \u00b7 ")}`);
+    return line;
   }
 
   _isNearBottom() {

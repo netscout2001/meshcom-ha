@@ -720,3 +720,203 @@ async def test_stations_tab_off_and_refused(
     client = await hass_ws_client(hass)
     result = await _call(client, type="meshcom/chat/stations", entry_id=init_integration.entry_id)
     assert result["result"] == {"stations": [], "mode": "off"}
+
+
+# --- own messages heard back over the mesh -------------------------------------
+
+
+def echo(
+    msg_id: str = "63CF32D4",
+    text: str = "Test2{724",
+    dst: str = "QX1YZ-9",
+    src: str = "QX1YZ-12,RLY1-12,RLY2-12",
+    src_type: str = "lora",
+) -> bytes:
+    """The own message as another node relays it back."""
+    return datagram(
+        src_type=src_type,
+        type="msg",
+        src=src,
+        dst=dst,
+        msg=text,
+        msg_id=msg_id,
+        firmware=40,
+        fw_sub="a",
+        rssi=-129,
+        snr=-16,
+        hw_id=3,
+        lora_mod=8,
+        max_hop=4,
+    )
+
+
+async def test_echo_attached_to_own_message(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    hass_ws_client: WebSocketGenerator,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """An own message relayed back is shown at the sent message, not as incoming."""
+    events: list[Any] = []
+    hass.bus.async_listen("meshcom_message", events.append)
+    client = await hass_ws_client(hass)
+    result = await _call(client, type="meshcom/chat/subscribe", entry_id=init_integration.entry_id)
+    inject(init_integration, OWN_MESSAGE)
+    await client.receive_json()
+    await hass.async_block_till_done()
+    events.clear()
+
+    # Long after the node's and the integration's duplicate filters forgot it.
+    freezer.tick(timedelta(minutes=17))
+    inject(init_integration, echo())
+    event = await client.receive_json()
+    assert event["id"] == result["id"]
+    pushed = event["event"]["echo"]
+    assert pushed["id"] == "63CF32D4"
+    assert pushed["echoes"][0]["path"] == ["QX1YZ-12", "RLY1-12", "RLY2-12"]
+    assert pushed["echoes"][0]["rssi"] == -129
+    assert pushed["echoes"][0]["snr"] == -16
+
+    # A second path within seconds is recorded too (duplicate filter skipped).
+    inject(init_integration, echo(src="QX1YZ-12,RLY3-12"))
+    await client.receive_json()
+    await hass.async_block_till_done()
+
+    node = init_integration.runtime_data.node
+    chat = init_integration.runtime_data.chat
+    assert [m.own for m in chat.messages] == [True]
+    assert [e["path"][-1] for e in chat.messages[0].echoes] == ["RLY2-12", "RLY3-12"]
+    assert node.echoes_heard == 2
+    assert node.messages_received == 0
+    assert events == []
+
+    history = await _call(client, type="meshcom/chat/history", entry_id=init_integration.entry_id)
+    assert len(history["result"]["messages"][0]["echoes"]) == 2
+
+
+async def test_echo_over_kiss_matched_by_text(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """Without the real message id (KISS), addressee and text decide."""
+    inject(init_integration, OWN_MESSAGE)
+    inject(init_integration, echo(msg_id="00000007"))
+    chat = init_integration.runtime_data.chat
+    assert len(chat.messages) == 1
+    assert len(chat.messages[0].echoes) == 1
+
+
+async def test_echo_prefers_same_id(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
+    """Two own messages with the same text: the echo goes to the one with its id."""
+    inject(init_integration, OWN_MESSAGE)
+    inject(
+        init_integration,
+        OWN_MESSAGE.replace(b"63CF32D4", b"63CF32D5"),
+    )
+    inject(init_integration, echo())
+    chat = init_integration.runtime_data.chat
+    assert [len(m.echoes) for m in chat.messages] == [1, 0]
+
+
+async def test_echo_limited(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
+    """At most a few echoes are kept per message."""
+    inject(init_integration, OWN_MESSAGE)
+    for n in range(8):
+        inject(init_integration, echo(src=f"QX1YZ-12,RLY{n}-12"))
+    echoes = init_integration.runtime_data.chat.messages[0].echoes
+    assert len(echoes) == 5
+    assert echoes[-1]["path"][-1] == "RLY7-12"
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "minutes"),
+    [
+        ({"text": "anders"}, 1),
+        ({"dst": "QX1YZ-7"}, 1),
+        ({}, 121),
+    ],
+)
+async def test_echo_not_matched_shown_as_before(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+    kwargs: dict[str, str],
+    minutes: int,
+) -> None:
+    """Without a matching own message the packet is handled like any other."""
+    inject(init_integration, OWN_MESSAGE)
+    freezer.tick(timedelta(minutes=minutes))
+    inject(init_integration, echo(msg_id="40000999", **kwargs))
+    await hass.async_block_till_done()
+    chat = init_integration.runtime_data.chat
+    assert chat.messages[0].echoes == []
+    assert init_integration.runtime_data.node.echoes_heard == 0
+
+
+async def test_foreign_station_not_an_echo(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """Same text from another station is a normal message."""
+    inject(init_integration, OWN_MESSAGE)
+    inject(init_integration, echo(msg_id="40000998", src="QX1YZ-9,RLY1-12", dst="QX1YZ-12"))
+    chat = init_integration.runtime_data.chat
+    assert chat.messages[0].echoes == []
+    assert [m.own for m in chat.messages] == [True, False]
+
+
+async def test_stored_echoes_validated(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, hass_storage: dict[str, Any]
+) -> None:
+    """Echoes from the file are checked like everything else."""
+    good_echo = {
+        "time": "2026-11-06T10:17:00+00:00",
+        "path": ["QX1YZ-12", "RLY1-12"],
+        "rssi": -129,
+        "snr": -16,
+        "via_server": False,
+    }
+    base = {
+        "id": "63CF32D4",
+        "conversation": "dm:QX1YZ-9",
+        "sender": "QX1YZ-12",
+        "destination": "QX1YZ-9",
+        "text": "Test2",
+        "time": "2026-11-06T10:00:00+00:00",
+        "own": True,
+        "status": "sent",
+    }
+    echoes = [
+        good_echo,
+        {**good_echo, "path": ["<img>"]},
+        {**good_echo, "path": []},
+        {**good_echo, "time": "soon"},
+        {**good_echo, "time": "2026-11-06T10:17:00"},
+        {**good_echo, "rssi": "x", "snr": True, "via_server": "yes"},
+        "nope",
+    ]
+    key = f"{DOMAIN}.chat.{mock_config_entry.entry_id}"
+    hass_storage[key] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": key,
+        "data": {
+            "messages": [
+                {**base, "echoes": echoes},
+                {**base, "echoes": "x"},
+                {**base, "own": False, "status": None, "echoes": [good_echo]},
+                {**base, "echoes": [good_echo] * 9},
+            ]
+        },
+    }
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    messages = list(mock_config_entry.runtime_data.chat.messages)
+    first = messages[0].echoes
+    assert len(first) == 2
+    assert first[0] == good_echo
+    assert first[1]["rssi"] is None
+    assert first[1]["snr"] is None
+    assert first[1]["via_server"] is False
+    assert messages[1].echoes == []
+    assert messages[2].echoes == []  # only own messages have echoes
+    assert len(messages[3].echoes) == 5

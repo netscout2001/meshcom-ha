@@ -255,7 +255,11 @@ shows it on the map. Conversations with new
 messages show a badge with their number (read state is kept per browser);
 when you open one, it starts at a "New messages" line, and a button jumps to
 the newest message. Delivery of your direct messages is shown (sent,
-delivered, rejected). The last 500 messages per node are stored.
+delivered, rejected). When the mesh relays one of your own messages back to
+the node, it is not shown as an incoming message: the sent message gets a
+line "heard back" with the path and signal of that echo, so you see how far
+it got (up to 5 echoes per message, within 2 hours of sending). The last 500
+messages per node are stored.
 
 **Nodes**: a dashboard of the selected node. With more than one node, a
 row of chips at the top (status, callsign, access, battery) switches between

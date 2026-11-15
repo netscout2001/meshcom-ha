@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.11.2
+
+### Fixed
+- An own message that the mesh relayed back to the node appeared in the chat as an incoming message from yourself. The node forgets the id of a sent message after a while (its duplicate filter has no fixed time window; with much traffic it is well under half an hour) and then passes the echo on as new. Such an echo now belongs to the sent message: the panel shows "heard back" with its path and signal under it, so you see how far the message got. It no longer counts as a received message and fires no `meshcom_message` event. Matched by addressee, text and (over UDP) message id, within 2 hours of sending; anything that does not match is handled as before
+- Diagnostics: number of echoes of own messages heard
+
 ## v0.11.1
 
 ### Security
