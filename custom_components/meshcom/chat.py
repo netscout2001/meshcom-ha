@@ -16,7 +16,7 @@ import logging
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -37,6 +37,13 @@ _MAX_STORED_TEXT = 300
 
 #: Most hops kept for the "via" line.
 _MAX_PATH = 12
+
+#: How long an own message can come back as an echo over the mesh. The node
+#: forgets the id of a message after some time (its dedup ring has no ageing,
+#: the window depends on the traffic) and then passes the echo on as new.
+ECHO_WINDOW = timedelta(hours=2)
+#: Echoes kept per own message.
+MAX_ECHOES = 5
 
 #: Delivery states shown in the panel.
 STATUS_SENT = "sent"
@@ -71,6 +78,9 @@ class ChatMessage:
     status: str | None = None
     #: Originator and relays, as the node reported them ("via A > B > C").
     path: list[str] = field(default_factory=list)
+    #: Own messages only: the message heard back over the mesh, newest last.
+    #: Each entry: time, path, rssi, snr, via_server.
+    echoes: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         """JSON-serialisable form."""
@@ -122,6 +132,47 @@ def _valid_conversation(value: Any) -> bool:
     return False
 
 
+def _valid_path(raw_path: Any) -> list[str]:
+    if (
+        isinstance(raw_path, list)
+        and len(raw_path) <= _MAX_PATH
+        and all(isinstance(hop, str) and is_callsign(hop) for hop in raw_path)
+    ):
+        return list(raw_path)
+    return []
+
+
+def _number(value: Any, kinds: type | tuple[type, ...]) -> Any:
+    return value if isinstance(value, kinds) and not isinstance(value, bool) else None
+
+
+def _parse_echo(raw: Any) -> dict[str, Any] | None:
+    """A stored echo, or None if anything about it is off."""
+    if not isinstance(raw, Mapping) or not isinstance(raw.get("time"), str):
+        return None
+    parsed_time = dt_util.parse_datetime(raw["time"])
+    if parsed_time is None or parsed_time.tzinfo is None:
+        return None
+    path = _valid_path(raw.get("path"))
+    if not path:
+        return None
+    return {
+        "time": parsed_time.isoformat(),
+        "path": path,
+        "rssi": _number(raw.get("rssi"), int),
+        "snr": _number(raw.get("snr"), (int, float)),
+        "via_server": raw.get("via_server") is True,
+    }
+
+
+def _parse_echoes(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    # Bounded before parsing; a file with thousands of entries is not walked.
+    echoes = [echo for item in raw[: MAX_ECHOES * 4] if (echo := _parse_echo(item)) is not None]
+    return echoes[-MAX_ECHOES:]
+
+
 def _parse(raw: Any) -> ChatMessage | None:
     """A stored message, or None if anything about it is off."""
     if not isinstance(raw, Mapping):
@@ -154,14 +205,6 @@ def _parse(raw: Any) -> ChatMessage | None:
     rssi = raw.get("rssi")
     snr = raw.get("snr")
     status = raw.get("status")
-    raw_path = raw.get("path")
-    path = (
-        list(raw_path)
-        if isinstance(raw_path, list)
-        and len(raw_path) <= _MAX_PATH
-        and all(isinstance(hop, str) and is_callsign(hop) for hop in raw_path)
-        else []
-    )
     return ChatMessage(
         id=msg_id,
         conversation=raw["conversation"],
@@ -171,11 +214,17 @@ def _parse(raw: Any) -> ChatMessage | None:
         time=parsed_time.isoformat(),
         own=raw["own"],
         via_server=raw.get("via_server") is True,
-        rssi=rssi if isinstance(rssi, int) and not isinstance(rssi, bool) else None,
-        snr=snr if isinstance(snr, (int, float)) and not isinstance(snr, bool) else None,
+        rssi=_number(rssi, int),
+        snr=_number(snr, (int, float)),
         status=status if isinstance(status, str) and status in _STATUSES else None,
-        path=path,
+        path=_valid_path(raw.get("path")),
+        echoes=_parse_echoes(raw.get("echoes")) if raw["own"] is True else [],
     )
+
+
+def _sent_after(message: ChatMessage, limit: datetime) -> bool:
+    sent = dt_util.parse_datetime(message.time)
+    return sent is not None and sent.tzinfo is not None and sent >= limit
 
 
 class ChatHistory:
@@ -255,6 +304,41 @@ class ChatHistory:
         self.messages.append(message)
         self._store.async_delay_save(self._data, CHAT_SAVE_DELAY)
         self._notify("message", message.as_dict())
+
+    @callback
+    def async_add_echo(self, packet: TextMessagePacket, now: datetime) -> bool:
+        """Attach an own message heard back over the mesh. False if none matches.
+
+        The packet carries the node's callsign as originator. It matches the
+        newest own message with the same addressee and text sent within
+        ECHO_WINDOW; one with the same message id is preferred. Over KISS the
+        message id is a local counter, so text and addressee decide there.
+        """
+        limit = now - ECHO_WINDOW
+        msg_id = str(packet.msg_id)
+        candidates = [
+            message
+            for message in reversed(self.messages)
+            if message.own
+            and message.sender == packet.path.originator
+            and message.destination == packet.destination
+            and message.text == packet.text
+            and _sent_after(message, limit)
+        ]
+        if not candidates:
+            return False
+        target = next((m for m in candidates if m.id == msg_id), candidates[0])
+        echo = {
+            "time": now.isoformat(),
+            "path": [packet.path.originator, *packet.path.relays][:_MAX_PATH],
+            "rssi": packet.radio.rssi,
+            "snr": packet.radio.snr,
+            "via_server": packet.source_type is SourceType.UDP,
+        }
+        target.echoes = [*target.echoes, echo][-MAX_ECHOES:]
+        self._store.async_delay_save(self._data, CHAT_SAVE_DELAY)
+        self._notify("echo", {"id": target.id, "echoes": list(target.echoes)})
+        return True
 
     @callback
     def async_set_status(self, msg_id: str, status: str) -> None:

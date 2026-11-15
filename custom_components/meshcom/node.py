@@ -153,6 +153,9 @@ class MeshComNode:
         #: Chat history hooks: (packet, own, time) and (msg id, status).
         self.message_listener: Callable[[TextMessagePacket, bool, datetime], None] | None = None
         self.delivery_listener: Callable[[str, str], None] | None = None
+        #: Own message heard back over the mesh: (packet, time) -> matched.
+        self.echo_listener: Callable[[TextMessagePacket, datetime], bool] | None = None
+        self.echoes_heard = 0
         self._touched: str | None = None
         self._seen: OrderedDict[tuple[str, int], datetime] = OrderedDict()
         self.duplicates = 0
@@ -306,9 +309,21 @@ class MeshComNode:
             station.snr = packet.radio.snr
 
     def _handle_message(self, packet: TextMessagePacket, now: datetime) -> None:
+        is_own = packet.source_type is SourceType.NODE
+        # An own message relayed back by the mesh: the node passes it on as
+        # new once its dedup ring has forgotten the id. It belongs to the
+        # sent message (shown there), not into the chat as an incoming one.
+        # Checked before the duplicate filter, so every path is recorded.
+        if (
+            not is_own
+            and packet.path.originator == self.callsign
+            and self.echo_listener is not None
+            and self.echo_listener(packet, now)
+        ):
+            self.echoes_heard += 1
+            return
         if self._is_duplicate("msg", packet.msg_id.value):
             return
-        is_own = packet.source_type is SourceType.NODE
         # Direct messages between other stations are heard too. They are
         # passed on as events but do not count as messages for this node.
         to_me = (

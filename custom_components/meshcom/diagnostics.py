@@ -50,6 +50,7 @@ async def async_get_config_entry_diagnostics(
             "messages_received": node.messages_received,
             "messages_sent": node.messages_sent,
             "duplicates_dropped": node.duplicates,
+            "own_echoes_heard": node.echoes_heard,
             "stations_known": len(node.stations),
             "filter_active": node.filter_active,
             "messages_filtered": node.messages_filtered,
