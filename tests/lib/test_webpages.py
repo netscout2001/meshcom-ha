@@ -55,6 +55,25 @@ def test_node_info_server(server: str, state: str | None, age: int | None) -> No
     assert (info.server, info.server_age_seconds) == (state, age)
 
 
+@pytest.mark.parametrize("gateway_setting", ["on", "off"])
+def test_node_info_server_gateway_label(gateway_setting: str) -> None:
+    """4.40a.11.14 calls the line "Gateway:"; the Settings row is not mistaken for it."""
+    info = parse_node_info(
+        info_page(
+            server="Internet meshcom.example, no response for 95 s",
+            server_label="Gateway",
+            gateway_setting=gateway_setting,
+        )
+    )
+    assert (info.server, info.server_age_seconds) == ("lost", 95)
+
+
+def test_node_info_server_label_missing() -> None:
+    """Without the line in the Network cell, the Settings row gives nothing."""
+    page = info_page(server_label="Uplink", gateway_setting="off")
+    assert parse_node_info(page).server is None
+
+
 def test_node_info_never_reads_network_details() -> None:
     """WLAN name, BSSID and IP address are not part of the result."""
     text = repr(parse_node_info(info_page()))

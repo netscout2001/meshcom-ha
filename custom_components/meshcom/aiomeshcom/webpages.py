@@ -46,7 +46,9 @@ _BLOCKED_RE: Final = re.compile(
 )
 # "Server: <path> <host>, connected (last rx 10 s)<br>" and its other forms
 # (gw_link_status.cpp). Only the state and the age are taken, not the host.
-_SERVER_RE: Final = re.compile(r"Server: ([^<]{0,120})<br>")
+# 4.40a.11.14 renamed the label to "Gateway:". The match is tied to the start
+# of the Network cell: the Settings cell above has its own "Gateway: on<br>".
+_SERVER_RE: Final = re.compile(r"<tr><td>Network</td><td>(?:Server|Gateway): ([^<]{0,120})<br>")
 _SERVER_STATES: Final = (
     (re.compile(r".*, connected \(last rx (\d{1,9}) s\)"), "connected"),
     (re.compile(r".*, no response for (\d{1,9}) s"), "lost"),

@@ -22,8 +22,13 @@ def info_page(
     hardware: str = "TBEAM_AXP2101",
     wifi: bool = True,
     blocked: str = "none (dropped 0)",
+    server_label: str = "Server",
+    gateway_setting: str = "on",
 ) -> str:
-    """sub_page_info(), the rows the integration reads plus their neighbours."""
+    """sub_page_info(), the rows the integration reads plus their neighbours.
+
+    server_label: "Server" up to 4.40a.11.07, "Gateway" from 4.40a.11.14.
+    """
     rows = [
         "<tr><td>Firmware</td><td>Meshcom 4.40a<br>(build: Nov  8 2026 / 01:51:18)"
         "<br>(flash-version 20260724)</td></tr>",
@@ -32,9 +37,9 @@ def info_page(
         f"<tr><td>Hardware</td><td>{hardware}</td></tr>",
         "<tr><td>UTC offset</td><td>1.0 [GPS]</td></tr>",
         "<tr><td>Battery</td><td>4.157V (96%) max 4.200V, full</td></tr>",
-        "<tr><td>Settings</td><td>Gateway: on<br>Mesh: on<br></td></tr>",
+        f"<tr><td>Settings</td><td>Gateway: {gateway_setting}<br>Mesh: on<br></td></tr>",
         "<tr><td>Network</td><td>"
-        f"Server: {server}<br>ext UDP: on<br>net console: off<br>KISS/TCP: off<br>"
+        f"{server_label}: {server}<br>ext UDP: on<br>net console: off<br>KISS/TCP: off<br>"
         "KISS TX: off<br>KISS RxMeta: off<br>KISS Auth: off<br></td></tr>",
         "<tr><td>Mesh settings</td><td>max_hop_text: 4<br>max_hop_pos: 2<br></td></tr>",
         "<tr><td>Country</td><td>EU8</td></tr>",
