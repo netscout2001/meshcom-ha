@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.11.3
+
+### Fixed
+- Firmware 4.40a.11.14 renamed the line "Server:" on the node's info page to "Gateway:". The MeshCom server connection sensor then showed unknown. Both labels are read now; the match is tied to the Network section, so the "Gateway: on/off" setting above it is not mistaken for the connection state
+
 ## v0.11.2
 
 ### Fixed
