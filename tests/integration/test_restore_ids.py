@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.common import (
     mock_restore_cache_with_extra_data,
 )
 
+from custom_components.meshcom.aiomeshcom.webapi import WebApiError
 from custom_components.meshcom.const import (
     CONF_ACCESS,
     CONF_CALLSIGN,
@@ -216,6 +217,45 @@ async def test_web_firmware_and_voltage(
     await init_integration.runtime_data.web.async_refresh()
     await hass.async_block_till_done()
     assert hass.states.get(f"{PREFIX}battery_voltage").state == "unknown"  # type: ignore[union-attr]
+
+
+async def test_battery_level_from_web_and_beacon(
+    hass: HomeAssistant, init_integration: MockConfigEntry, web_client: FakeWebClient
+) -> None:
+    """The info page's level wins while it is newer; a later beacon takes over."""
+    battery = f"{PREFIX}battery"
+    inject(init_integration, OWN_POSITION)  # batt=96
+    await hass.async_block_till_done()
+    assert hass.states.get(battery).state == "96"  # type: ignore[union-attr]
+
+    web = init_integration.runtime_data.web
+    web_client.battery_percent = 94
+    await web.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(battery).state == "94"  # type: ignore[union-attr]
+
+    # The web API fails from now on: its last read stays, a newer beacon counts.
+    web_client.error = WebApiError("down")
+    await web.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(battery).state == "94"  # type: ignore[union-attr]
+    later = OWN_POSITION.replace(b'"batt": 96', b'"batt": 91').replace(b"63CF32D3", b"63CF32D4")
+    inject(init_integration, later)
+    await hass.async_block_till_done()
+    assert hass.states.get(battery).state == "91"  # type: ignore[union-attr]
+
+    # Web back: the fresh read wins again.
+    web_client.error = None
+    web_client.battery_percent = 90
+    await web.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(battery).state == "90"  # type: ignore[union-attr]
+
+    # No battery on the page (USB): the beacon value is shown.
+    web_client.battery_percent = None
+    await web.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(battery).state == "91"  # type: ignore[union-attr]
 
 
 # --- node id migration (config entry 1.1 -> 1.2) --------------------------------

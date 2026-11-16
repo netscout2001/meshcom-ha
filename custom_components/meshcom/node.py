@@ -142,6 +142,11 @@ class MeshComNode:
         #: and battery voltage (packets carry only the percentage).
         self.web_firmware: str | None = None
         self.battery_voltage: float | None = None
+        #: Battery level from the info page and when that page was read.
+        self.web_battery_percent: int | None = None
+        self.web_battery_read: datetime | None = None
+        #: When the node's own position (with its battery level) arrived.
+        self.position_received: datetime | None = None
         self.last_message: ReceivedMessage | None = None
         #: RSSI and SNR of the last packet received over the air.
         self.last_radio: tuple[int | None, float | None] = (None, None)
@@ -261,6 +266,7 @@ class MeshComNode:
             return
         if packet.source_type is SourceType.NODE:
             self.position = packet
+            self.position_received = now
             # KISS frames carry no firmware version; keep what is known.
             if packet.firmware.minor is not None:
                 self.firmware = packet.firmware
@@ -451,6 +457,35 @@ class MeshComNode:
         if changed:
             # The group select offers the node's groups.
             async_dispatcher_send(self.hass, signal_update(self.entry_id))
+
+    @callback
+    def apply_web_battery(self, percent: int | None, read: datetime | None) -> None:
+        """Take over the battery level from the info page and when it was read."""
+        changed = percent != self.web_battery_percent
+        self.web_battery_percent = percent
+        self.web_battery_read = read if percent is not None else None
+        if changed:
+            async_dispatcher_send(self.hass, signal_update(self.entry_id))
+
+    @property
+    def battery_level(self) -> int | None:
+        """The node's battery level in percent, the newer of two sources.
+
+        The info page (web API, read every poll) and the node's own position
+        beacon (sent at its position interval) carry the same value. The
+        page is usually newer; without the web API, or once its polls fail
+        and the last read gets older than a beacon, the beacon counts.
+        """
+        beacon = self.position.battery if self.position else None
+        web = self.web_battery_percent
+        if web is None:
+            return beacon
+        if beacon is None:
+            return web
+        web_read, beacon_read = self.web_battery_read, self.position_received
+        if web_read is not None and beacon_read is not None and beacon_read > web_read:
+            return beacon
+        return web
 
     def apply_mheard(self, entries: list[MHeardEntry], read: datetime | None = None) -> None:
         """Take over the stations the node heard directly (its MHeard list).

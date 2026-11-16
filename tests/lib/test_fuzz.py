@@ -50,6 +50,7 @@ from aiomeshcom.text import clean_text, contains_unwanted
 from aiomeshcom.webapi import (
     WebConnectionError,
     parse_groups,
+    parse_info_battery_percent,
     parse_info_page,
     parse_mheard_page,
 )
@@ -238,6 +239,8 @@ def _check_info(body: str) -> None:
     firmware, voltage = parse_info_page(body)
     assert firmware is None or (len(firmware) <= 6 and firmware.isascii())
     assert voltage is None or 0 < voltage < 10
+    percent = parse_info_battery_percent(body)
+    assert percent is None or 0 <= percent <= 100
 
 
 def _check_mheard(body: str) -> None:

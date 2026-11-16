@@ -24,6 +24,7 @@ from aiomeshcom.webapi import (
     WebConnectionError,
     WebDowngradeError,
     WebThrottledError,
+    parse_info_battery_percent,
     parse_info_page,
     parse_mheard_page,
 )
@@ -571,6 +572,25 @@ async def test_overview_without_info_page(
 def test_parse_info_page(body: str, expected: tuple[str | None, float | None]) -> None:
     """Only the fixed shapes of the firmware are accepted."""
     assert parse_info_page(body) == expected
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("<tr><td>Battery</td><td>8.271V (94%) max 8.400V</td></tr>", 94),
+        ("<td>Battery</td><td>4.157V (100%) max 4.200V", 100),
+        ("<td>Battery</td><td>6.500V (0%) max 8.400V", 0),
+        ("<td>Battery</td><td>USB (no battery)</td>", None),
+        ("<td>Battery</td><td>0.000V (0%)</td>", None),
+        ("<td>Battery</td><td>4.157V (101%)</td>", None),
+        ("<td>Battery</td><td>4.157V (-5%)</td>", None),
+        ("<td>Battery</td><td>4.157V (9999%)</td>", None),
+        ("", None),
+    ],
+)
+def test_parse_info_battery_percent(body: str, expected: int | None) -> None:
+    """The level the node shows next to the voltage; only the fixed shape."""
+    assert parse_info_battery_percent(body) == expected
 
 
 # --- MHeard page -------------------------------------------------------------------

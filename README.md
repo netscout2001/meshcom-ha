@@ -154,7 +154,8 @@ Changing the options reloads the node.
 
 | Entity | Notes |
 | --- | --- |
-| Battery, Altitude | From the node's beacon; altitude disabled by default |
+| Battery | From the node's info page with the web API, otherwise from its own beacon; the newer of the two counts |
+| Altitude | From the node's beacon; disabled by default |
 | Battery voltage | From the node's info page (web password needed if one is set); unknown on USB power |
 | Last message, Last sender, Last message time | Messages to you, your groups and to all; kept over a restart |
 | Messages received, Messages sent | Counters; continue over a restart |

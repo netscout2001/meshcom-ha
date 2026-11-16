@@ -280,6 +280,7 @@ def _async_start_web(
                 firmware=web.data.firmware,
                 battery_voltage=web.data.battery_voltage,
             )
+            node.apply_web_battery(web.data.battery_percent, web.data.fetched)
             # Only a newly read list: after a failed poll the coordinator
             # keeps the old one, whose ages would look fresh again.
             if web.data.mheard is not None and web.data.fetched != applied[0]:

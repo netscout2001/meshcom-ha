@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.11.4
+
+### Fixed
+- The battery level sensor only followed the node's own position beacon, which the node sends at its position interval. After a change (for example a new maximum voltage for a 2S battery) it could show an old level for a long time while the battery voltage was already current. With the web API set up, the level now comes from the node's info page as well, read on every poll; it is the same value the node beacons. Whichever was received last counts, so without the web API, or while its polls fail, the beacon value is used as before
+
 ## v0.11.3
 
 ### Fixed
