@@ -57,6 +57,8 @@ class FakeWebClient:
         self.groups = ["262", "26298"]
         self.firmware: str | None = "4.40a"
         self.battery_voltage: float | None = 4.012
+        #: Battery level on the info page; None leaves the beacon value alone.
+        self.battery_percent: int | None = None
         #: MHeard list of the node; None: page unreadable.
         self.mheard: list[MHeardEntry] | None = None
         #: Info page, position page and LoRa queue values.
@@ -122,6 +124,7 @@ class FakeWebClient:
             gps=self.gps,
             radio=self.radio if radio_stats else None,
             update=self.update,
+            battery_percent=self.battery_percent,
         )
 
     async def get_update_status(self) -> UpdateStatus | None:

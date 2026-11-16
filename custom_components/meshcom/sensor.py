@@ -85,7 +85,7 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
         device_class=SensorDeviceClass.BATTERY,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda node: node.position.battery if node.position else None,
+        value_fn=lambda node: node.battery_level,
         restore=True,
     ),
     MeshComSensorDescription(

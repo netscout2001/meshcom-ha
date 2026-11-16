@@ -44,6 +44,7 @@ class WebData:
     #: From the node's info page; None if unknown.
     firmware: str | None = None
     battery_voltage: float | None = None
+    battery_percent: int | None = None
     #: Stations heard directly (MHeard page); None if unreadable.
     mheard: list[MHeardEntry] | None = None
     #: Further values of the info page, GPS state, LoRa queue (if enabled).
@@ -134,6 +135,7 @@ class MeshComWebCoordinator(DataUpdateCoordinator[WebData]):
             groups=status.groups,
             firmware=status.firmware,
             battery_voltage=status.battery_voltage,
+            battery_percent=status.battery_percent,
             mheard=status.mheard,
             info=status.info,
             gps=status.gps,

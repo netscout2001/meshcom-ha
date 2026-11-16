@@ -62,7 +62,7 @@ _MAX_RESPONSE_BYTES: Final = 4096
 #: HTML page with firmware and battery; both rows are in its first kilobyte.
 INFO_PAGE: Final = "/?page=info"
 _INFO_FIRMWARE_RE: Final = re.compile(r"<td>Firmware</td><td>Meshcom (\d\.\d{2}) *([a-z]{0,2})<br>")
-_INFO_BATTERY_RE: Final = re.compile(r"<td>Battery</td><td>(\d{1,2}\.\d{3})V \(\d{1,3}%\)")
+_INFO_BATTERY_RE: Final = re.compile(r"<td>Battery</td><td>(\d{1,2}\.\d{3})V \((\d{1,3})%\)")
 #: HTML page of the stations the node heard directly in the last 3 hours
 #: (firmware 4.40a). One card of about 1.5 kB per station; the node lists up
 #: to 128. A longer page is cut; the cut card is ignored.
@@ -321,6 +321,7 @@ class MeshComWebClient:
         }
         info_body = bodies[INFO_PAGE]
         firmware, voltage = parse_info_page(info_body) if info_body else (None, None)
+        percent = parse_info_battery_percent(info_body) if info_body else None
         mheard_body = bodies[MHEARD_PAGE]
         position_body = bodies[POSITION_PAGE]
         rxlog_body = bodies.get(RXLOG_PAGE)
@@ -335,6 +336,7 @@ class MeshComWebClient:
             gps=parse_position_page(position_body) if position_body else None,
             radio=parse_rxlog_page(rxlog_body) if rxlog_body else None,
             update=_update_status(update_body) if update_body else None,
+            battery_percent=percent,
         )
 
     async def get_update_status(self) -> UpdateStatus | None:
@@ -409,6 +411,8 @@ class NodeStatus:
     radio: RadioStats | None = None
     #: Built-in firmware update; None if the firmware has none.
     update: UpdateStatus | None = None
+    #: Battery level in percent as the node computes it; None without battery.
+    battery_percent: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -457,6 +461,21 @@ def parse_info_page(body: str) -> tuple[str | None, float | None]:
         if 0 < value < 10:
             voltage = value
     return firmware, voltage
+
+
+def parse_info_battery_percent(body: str) -> int | None:
+    """Battery level from the node's info page, the same value it beacons.
+
+    ``<td>Battery</td><td>8.271V (94%)``; None without battery (USB) or if
+    the row looks different.
+    """
+    if (match := _INFO_BATTERY_RE.search(body)) is None:
+        return None
+    value = float(match.group(1))
+    percent = int(match.group(2))
+    if not 0 < value < 10 or percent > 100:
+        return None
+    return percent
 
 
 _FRAMES: Final = {"Text message": "text", "Position": "position", "Heartbeat (HEY)": "heartbeat"}
