@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_HOST
@@ -154,12 +155,21 @@ class KissLink:
 
     async def async_send_text(self, destination: str, text: str) -> None:
         """Send through the node; errors become Home Assistant errors."""
+        direct = is_callsign(destination)
+        await self._async_guarded(
+            lambda connection: connection.send_text(destination, text, direct=direct)
+        )
+
+    async def async_send_control(self, destination: str, text: str) -> None:
+        """Send a signed remote-management command through the node."""
+        await self._async_guarded(lambda connection: connection.send_control(destination, text))
+
+    async def _async_guarded(self, send: Callable[[KissConnection], Awaitable[object]]) -> None:
         connection = self._connection
         if connection is None or not self.connected:
             raise HomeAssistantError(translation_domain=DOMAIN, translation_key="kiss_offline")
-        direct = is_callsign(destination)
         try:
-            await connection.send_text(destination, text, direct=direct)
+            await send(connection)
         except KissSendError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,

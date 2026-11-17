@@ -28,7 +28,7 @@ import secrets
 from dataclasses import dataclass
 from typing import Any, Final
 
-from .builder import validate_text_message
+from .builder import validate_rm_message, validate_text_message
 from .callsign import BROADCAST, is_callsign
 from .const import FEET_TO_METERS
 from .errors import InvalidOutgoingError, InvalidPacketError
@@ -470,15 +470,26 @@ class KissDecoder:
 
 
 def build_kiss_message(
-    own_callsign: str, destination: str, text: str, sequence: int | None = None
+    own_callsign: str,
+    destination: str,
+    text: str,
+    sequence: int | None = None,
+    *,
+    control: bool = False,
 ) -> bytes:
     """A KISS frame that makes the node send ``text`` to ``destination``.
 
     ``sequence`` (1-999) is appended to direct messages as ``{nn``; the node
     maps the acknowledgement back to it. The node accepts the frame only if
-    the source is its own callsign.
+    the source is its own callsign. ``control`` frames are signed
+    remote-management commands; only those may start with ``RM1``.
     """
-    validate_text_message(destination, text)
+    if control:
+        if sequence is not None:
+            raise InvalidOutgoingError("sequence")
+        validate_rm_message(destination, text)
+    else:
+        validate_text_message(destination, text)
     if not is_callsign(own_callsign):
         raise InvalidOutgoingError("callsign")
     addressee = "" if destination == BROADCAST else destination

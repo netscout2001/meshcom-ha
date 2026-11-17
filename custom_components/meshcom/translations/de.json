@@ -25,7 +25,11 @@
         "description": "Gib das Web-Passwort des Nodes ein oder lass das Feld leer, wenn der Node keines hat.",
         "data": {
           "password": "Web-Passwort",
-          "kiss_password": "Node-Passwort (--passwd)"
+          "kiss_password": "Node-Passwort (--passwd)",
+          "node_password": "Node-Passwort (--passwd)"
+        },
+        "data_description": {
+          "node_password": "Wird für den Konsolen-Reiter gebraucht. Leer lassen, um es zu entfernen."
         }
       },
       "udp": {
@@ -76,7 +80,8 @@
       "invalid_kiss_password": "Das Node-Passwort hat 1 bis 14 ASCII-Zeichen.",
       "kiss_auth_required": "Der Node verlangt sein Passwort (--passwd).",
       "invalid_kiss_auth": "Der Node hat das Passwort abgelehnt.",
-      "kiss_cannot_connect": "Die KISS-Schnittstelle ist nicht erreichbar. Prüfe --kiss on, die Adresse und ob schon ein anderer KISS-Client verbunden ist."
+      "kiss_cannot_connect": "Die KISS-Schnittstelle ist nicht erreichbar. Prüfe --kiss on, die Adresse und ob schon ein anderer KISS-Client verbunden ist.",
+      "remote_is_own_node": "Das ist der Node, mit dem Home Assistant verbunden ist."
     },
     "abort": {
       "already_configured": "Dieser Node ist bereits eingerichtet.",
@@ -212,6 +217,18 @@
       },
       "station_hears_me_snr": {
         "name": "SNR bei Gegenstation"
+      },
+      "rm_battery": {
+        "name": "Akku"
+      },
+      "rm_uptime": {
+        "name": "Laufzeit"
+      },
+      "rm_firmware": {
+        "name": "Firmware"
+      },
+      "rm_last_answer": {
+        "name": "Letzte Antwort"
       }
     },
     "binary_sensor": {
@@ -223,6 +240,9 @@
       },
       "station_direct": {
         "name": "Direkt gehört"
+      },
+      "rm_reachable": {
+        "name": "Letzten Befehl beantwortet"
       }
     },
     "device_tracker": {
@@ -239,6 +259,21 @@
       },
       "no_msg_all": {
         "name": "No MSG All"
+      },
+      "rm_gps": {
+        "name": "GPS"
+      },
+      "rm_track": {
+        "name": "Track"
+      },
+      "rm_display": {
+        "name": "Display"
+      },
+      "rm_gateway": {
+        "name": "Gateway"
+      },
+      "rm_mesh": {
+        "name": "Mesh"
       }
     },
     "select": {
@@ -255,6 +290,14 @@
       },
       "station": {
         "name": "Station"
+      },
+      "rm_led": {
+        "name": "LED",
+        "state": {
+          "on": "An",
+          "off": "Aus",
+          "flash": "Blinken"
+        }
       }
     },
     "text": {
@@ -268,6 +311,18 @@
       },
       "clear": {
         "name": "Nachricht leeren"
+      },
+      "rm_status": {
+        "name": "Status abfragen"
+      },
+      "rm_sendpos": {
+        "name": "Position senden"
+      },
+      "rm_sendtrack": {
+        "name": "Track-Bake senden"
+      },
+      "rm_reboot": {
+        "name": "Neustart"
       }
     },
     "notify": {
@@ -278,6 +333,11 @@
     "update": {
       "firmware": {
         "name": "Firmware"
+      }
+    },
+    "number": {
+      "rm_txpower": {
+        "name": "Sendeleistung"
       }
     }
   },
@@ -353,6 +413,27 @@
     },
     "update_needs_secure_login": {
       "message": "Der Node nutzt den unverschlüsselten Web-Login; darüber führt Home Assistant kein Firmware-Update aus. Den Node einmal per Web-Flasher oder USB aktualisieren."
+    },
+    "rm_unknown": {
+      "message": "Dieser fernverwaltete Node ist nicht eingerichtet."
+    },
+    "rm_no_answer": {
+      "message": "Der Node hat nicht geantwortet. Er ist vielleicht außer Reichweite, die Fernwartung ist aus oder das Passwort stimmt nicht."
+    },
+    "rm_refused": {
+      "message": "Der Node hat den Befehl abgelehnt: {reason}"
+    },
+    "rm_counter_exhausted": {
+      "message": "Der Befehlszähler ist aufgebraucht; entferne den Node und füge ihn neu hinzu."
+    },
+    "console_invalid_command": {
+      "message": "Gib einen Konsolenbefehl ein, der mit -- beginnt."
+    },
+    "console_confirm": {
+      "message": "Dieser Befehl muss bestätigt werden ({risk})."
+    },
+    "console_not_connected": {
+      "message": "Die Konsole ist nicht verbunden."
     }
   },
   "services": {
@@ -449,6 +530,44 @@
       "station_new": "Station zum ersten Mal gehört",
       "neighbour_lost": "Direkter Nachbar verloren",
       "neighbour_back": "Direkter Nachbar wieder da"
+    }
+  },
+  "config_subentries": {
+    "remote_node": {
+      "initiate_flow": {
+        "user": "Fernverwalteter Node"
+      },
+      "entry_type": "Fernverwalteter Node",
+      "step": {
+        "user": {
+          "title": "Fernverwalteter Node",
+          "description": "Einen anderen Node über LoRa durch diesen hier verwalten (Fernwartung RM1 der Firmware). Am Ziel-Node muss die Fernwartung eingeschaltet und ein Passwort (--passwd) gesetzt sein. Das Passwort bleibt in Home Assistant; dieser Node erfährt es nie.",
+          "data": {
+            "callsign": "Rufzeichen mit SSID",
+            "password": "Passwort dieses Nodes (--passwd)"
+          },
+          "data_description": {
+            "password": "Höchstens 14 Zeichen. Damit werden Befehle signiert und Antworten geprüft."
+          }
+        },
+        "reconfigure": {
+          "title": "Passwort von {node}",
+          "description": "Gib das aktuelle Passwort (--passwd) des verwalteten Nodes ein.",
+          "data": {
+            "password": "Passwort dieses Nodes (--passwd)"
+          }
+        }
+      },
+      "error": {
+        "invalid_callsign": "Kein gültiges Rufzeichen.",
+        "remote_is_own_node": "Das ist der Node, mit dem Home Assistant verbunden ist.",
+        "invalid_kiss_password": "Das Node-Passwort hat 1 bis 14 ASCII-Zeichen."
+      },
+      "abort": {
+        "already_configured": "Dieser Node wird bereits verwaltet.",
+        "too_many_remote_nodes": "Über einen Node lassen sich höchstens 10 Nodes verwalten.",
+        "reconfigure_successful": "Das Passwort wurde geändert."
+      }
     }
   }
 }

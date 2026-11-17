@@ -9,7 +9,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, Platform
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import Context, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -23,6 +23,7 @@ from .activity import ActivityLog
 from .aiomeshcom import DestinationKind, TextMessagePacket
 from .aiomeshcom.webapi import AUTH_HMAC, AUTH_LEGACY, MeshComWebClient, WebApiError
 from .chat import ChatHistory, conversation_of, is_foreign_group, own_groups
+from .console import ConsoleSession
 from .const import (
     ACCESS_KISS,
     ACCESS_UDP,
@@ -50,6 +51,8 @@ from .kiss_link import KissLink
 from .migration import async_migrate_entry as _async_migrate_entry
 from .node import MeshComNode
 from .panel import async_register_panel, async_unregister_panel
+from .remote import RemoteManager
+from .sender import async_send_control
 from .services import async_setup_services
 from .stations import StationDevices, StationStore
 from .websocket import async_register_websocket
@@ -59,6 +62,7 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.DEVICE_TRACKER,
     Platform.NOTIFY,
+    Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
@@ -85,6 +89,9 @@ class MeshComRuntime:
     chat: ChatHistory
     activity: ActivityLog
     options: dict[str, Any]
+    console: ConsoleSession
+    remote: RemoteManager
+    subentries: frozenset[str]
 
     def send_datagram(self, data: bytes) -> None:
         """Send to this node's external UDP port."""
@@ -171,6 +178,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
 
     _connect_chat(entry, node, chat, activity)
 
+    remote, console = await _async_setup_remote(hass, entry, node)
+
     entry.runtime_data = MeshComRuntime(
         node=node,
         hub=hub,
@@ -182,6 +191,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         chat=chat,
         activity=activity,
         options=dict(entry.options),
+        console=console,
+        remote=remote,
+        subentries=frozenset(entry.subentries),
     )
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
@@ -206,6 +218,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
     if kiss is not None:
         kiss.async_start()
     return True
+
+
+async def _async_setup_remote(
+    hass: HomeAssistant, entry: MeshComConfigEntry, node: MeshComNode
+) -> tuple[RemoteManager, ConsoleSession]:
+    """Remote management of other nodes and the own node's console."""
+
+    async def _send_control(destination: str, text: str, context: Context | None) -> None:
+        await async_send_control(hass, entry, destination, text, context)
+
+    remote = RemoteManager(hass, entry, entry.data[CONF_CALLSIGN], _send_control)
+    await remote.async_load()
+    node.rm_listener = remote.handle_packet
+    console = ConsoleSession(hass, entry)
+    entry.async_on_unload(console.async_disconnect)
+    return remote, console
 
 
 def _create_node(hass: HomeAssistant, entry: MeshComConfigEntry) -> MeshComNode:
@@ -338,8 +366,12 @@ async def _async_first_web_contact(
 
 async def _async_options_updated(hass: HomeAssistant, entry: MeshComConfigEntry) -> None:
     """Reload when the options change (station mode, groups, ...)."""
-    # Data updates (pinning the login method) need no reload.
-    if dict(entry.options) != entry.runtime_data.options:
+    # Data updates (pinning the login method) need no reload; added or
+    # removed remote nodes do.
+    if (
+        dict(entry.options) != entry.runtime_data.options
+        or frozenset(entry.subentries) != entry.runtime_data.subentries
+    ):
         hass.config_entries.async_schedule_reload(entry.entry_id)
 
 
@@ -352,6 +384,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> 
         await entry.runtime_data.store.async_save_now(entry.runtime_data.node)
         await entry.runtime_data.chat.async_save_now()
         await entry.runtime_data.activity.async_save_now()
+        await entry.runtime_data.remote.async_save_now()
         entry.runtime_data.chat.async_close()
         others = [
             other
@@ -402,6 +435,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> 
     await StationStore(hass, entry.entry_id).async_remove()
     await ChatHistory(hass, entry.entry_id).async_remove()
     await ActivityLog(hass, entry.entry_id).async_remove()
+    await RemoteManager(hass, entry, entry.data[CONF_CALLSIGN], _no_send).async_remove()
+
+
+async def _no_send(_destination: str, _text: str, _context: Context | None) -> None:
+    """Placeholder sender of a manager that is only used to delete its store."""
 
 
 async def async_remove_config_entry_device(

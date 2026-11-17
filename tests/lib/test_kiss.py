@@ -709,3 +709,20 @@ def test_set_keepalive_tolerates_missing_options() -> None:
     sock = Strict()
     set_keepalive(sock)  # type: ignore[arg-type]
     assert (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1) in sock.calls
+
+
+async def test_send_control(server: asyncio.Server, fake: FakeKissNode) -> None:
+    connection = KissConnection("127.0.0.1", OWN, "geheim", print, port=_port(server))
+    await connection.connect()
+    task = asyncio.create_task(connection.run())
+    frame = "RM1 6 status 5c3dfef3b6d97ae8"
+    await connection.send_control("TST1-12", frame)
+    assert parse_ax25(fake.received[-1][1:]).info == b":TST1-12  :" + frame.encode()
+    fake.tx_status = TxStatus.TX_OFF
+    with pytest.raises(KissSendError):
+        await connection.send_control("TST1-12", frame)
+    await connection.close()
+    with pytest.raises(KissConnectionError):
+        await task
+    with pytest.raises(KissConnectionError):
+        await connection.send_control("TST1-12", frame)

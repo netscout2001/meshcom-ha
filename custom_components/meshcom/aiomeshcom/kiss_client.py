@@ -238,29 +238,41 @@ class KissConnection:
         The node does not echo messages from a KISS client, so the returned
         packet (with the node's message id) stands in for the echo.
         """
-        if self._writer is None:
-            raise KissConnectionError("not connected")
         async with self._send_lock:
             sequence = self._next_sequence() if direct else None
             frame = build_kiss_message(self.callsign, destination, text, sequence)
-            loop = asyncio.get_running_loop()
-            self._tx_waiter = loop.create_future()
-            try:
-                self._writer.write(frame)
-                await self._writer.drain()
-                async with asyncio.timeout(TX_RESULT_TIMEOUT):
-                    result = await self._tx_waiter
-            except TimeoutError as err:
-                raise KissSendError(None) from err
-            except OSError as err:  # pragma: no cover - write to a reset socket
-                raise KissConnectionError(type(err).__name__) from err
-            finally:
-                self._tx_waiter = None
+            result = await self._transmit(frame)
         if not result.ok or result.msg_id is None:
             raise KissSendError(result.status)
         packet = own_message_packet(self.callsign, destination, text, sequence, result.msg_id)
         self._on_packet(packet)
         return packet
+
+    async def send_control(self, destination: str, text: str) -> None:
+        """Send a signed remote-management command (no sequence, no own echo)."""
+        async with self._send_lock:
+            frame = build_kiss_message(self.callsign, destination, text, control=True)
+            result = await self._transmit(frame)
+        if not result.ok:
+            raise KissSendError(result.status)
+
+    async def _transmit(self, frame: bytes) -> KissTxResult:
+        """Write one frame and wait for the node's TX result (caller holds the lock)."""
+        if self._writer is None:
+            raise KissConnectionError("not connected")
+        loop = asyncio.get_running_loop()
+        self._tx_waiter = loop.create_future()
+        try:
+            self._writer.write(frame)
+            await self._writer.drain()
+            async with asyncio.timeout(TX_RESULT_TIMEOUT):
+                return await self._tx_waiter
+        except TimeoutError as err:
+            raise KissSendError(None) from err
+        except OSError as err:  # pragma: no cover - write to a reset socket
+            raise KissConnectionError(type(err).__name__) from err
+        finally:
+            self._tx_waiter = None
 
     async def close(self) -> None:
         """Close the connection."""

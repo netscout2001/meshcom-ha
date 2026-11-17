@@ -17,6 +17,7 @@ from .const import signal_new_station, signal_update
 from .entity import MeshComEntity, MeshComStationEntity
 from .kiss_link import KissLink
 from .node import MeshComNode
+from .remote_entity import async_add_remote_entities
 
 PARALLEL_UPDATES = 0
 
@@ -27,6 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up binary sensors."""
+    async_add_remote_entities(hass, entry, async_add_entities, "binary_sensor")
     runtime = entry.runtime_data
     entities: list[BinarySensorEntity] = [MeshComActiveSensor(runtime.node, "active")]
     if runtime.kiss is not None:

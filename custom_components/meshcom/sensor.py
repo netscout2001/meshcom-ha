@@ -43,6 +43,7 @@ from .const import (
 from .coordinator import MeshComWebCoordinator
 from .entity import MeshComEntity, MeshComStationEntity, node_device_info
 from .node import MeshComNode, StationInfo
+from .remote_entity import async_add_remote_entities
 from .stations import station_mode
 
 # One update at a time is plenty: values come from pushed packets.
@@ -397,6 +398,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up sensors."""
+    async_add_remote_entities(hass, entry, async_add_entities, "sensor")
     node = entry.runtime_data.node
     with_list = station_mode(entry) in (STATION_MODE_DATA, STATION_MODE_WATCH)
     async_add_entities(

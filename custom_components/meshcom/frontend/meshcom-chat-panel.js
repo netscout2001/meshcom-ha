@@ -11,7 +11,7 @@
 const TEXT = {
   en: {
     title: "MeshCom",
-    tabs: { chat: "Chat", nodes: "Nodes", stations: "Stations" },
+    tabs: { chat: "Chat", nodes: "Nodes", stations: "Stations", console: "Console" },
     filters: { all: "All", unread: "Unread", dm: "DMs", group: "Groups", other: "Other" },
     all: "All",
     group: "Group",
@@ -141,10 +141,35 @@ const TEXT = {
     ago: (min) => (min < 1 ? "just now" : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.floor(min / 60)} h ago` : `${Math.floor(min / 1440)} d ago`),
     on: "On",
     off: "Off",
+    console: {
+      connect: "Connect",
+      disconnect: "Disconnect",
+      send: "Send",
+      placeholder: "--info",
+      hint: "Opens only on demand and closes when you leave this tab or after 10 minutes without a command. The output can contain secrets (BT PIN, WLAN name): do not share screenshots unchecked.",
+      openAccess: "The node has no password (--passwd): anyone on the network can open its console. Set one with --passwd.",
+      states: {
+        disconnected: "Not connected",
+        connecting: "Connecting \u2026",
+        connected: "Connected",
+        closed_by_node: "Closed by the node (other login or restart)",
+        idle_timeout: "Closed after 10 minutes without a command",
+        refused: "The net console is off. Switch on \"net console\" in the node's web setup or \"Remote Netconsole\" in the app.",
+        unreachable: "The node does not answer. Check its address and the network.",
+        auth_failed: "Wrong password. Change the node password under Reconfigure.",
+        auth_required: "The node asks for a password. Enter the node password under Reconfigure.",
+        protocol_error: "Unexpected answer from the node.",
+      },
+      confirm: {
+        unreachable: "This command can take the node off the network. Send it anyway?",
+        credentials: "This command changes a password. After --passwd, update the stored node password under Reconfigure. Send it anyway?",
+        identity: "This command changes the call sign, country or transmit power. Send it anyway?",
+      },
+    },
   },
   de: {
     title: "MeshCom",
-    tabs: { chat: "Chat", nodes: "Nodes", stations: "Stationen" },
+    tabs: { chat: "Chat", nodes: "Nodes", stations: "Stationen", console: "Konsole" },
     filters: { all: "Alle", unread: "Ungelesen", dm: "DMs", group: "Gruppen", other: "Sonstige" },
     all: "Alle",
     group: "Gruppe",
@@ -274,6 +299,31 @@ const TEXT = {
     ago: (min) => (min < 1 ? "gerade eben" : min < 60 ? `vor ${min} min` : min < 1440 ? `vor ${Math.floor(min / 60)} h` : `vor ${Math.floor(min / 1440)} d`),
     on: "An",
     off: "Aus",
+    console: {
+      connect: "Verbinden",
+      disconnect: "Trennen",
+      send: "Senden",
+      placeholder: "--info",
+      hint: "\u00d6ffnet sich nur auf Wunsch und schlie\u00dft, wenn du den Reiter verl\u00e4sst oder 10 Minuten lang kein Befehl kommt. Die Ausgabe kann Geheimnisse enthalten (BT-PIN, WLAN-Name): Screenshots nicht ungepr\u00fcft teilen.",
+      openAccess: "Der Node hat kein Passwort (--passwd): Jeder im Netz kann seine Konsole \u00f6ffnen. Setze eines mit --passwd.",
+      states: {
+        disconnected: "Nicht verbunden",
+        connecting: "Verbinde \u2026",
+        connected: "Verbunden",
+        closed_by_node: "Vom Node beendet (andere Anmeldung oder Neustart)",
+        idle_timeout: "Nach 10 Minuten ohne Befehl getrennt",
+        refused: "Die Netzwerk-Konsole ist aus. Schalte in der Weboberfl\u00e4che unter Setup \"net console\" oder in der App \"Remote Netconsole\" ein.",
+        unreachable: "Der Node antwortet nicht. Pr\u00fcfe Adresse und Netzwerk.",
+        auth_failed: "Falsches Passwort. \u00c4ndere das Node-Passwort unter Neu konfigurieren.",
+        auth_required: "Der Node verlangt ein Passwort. Trag das Node-Passwort unter Neu konfigurieren ein.",
+        protocol_error: "Unerwartete Antwort vom Node.",
+      },
+      confirm: {
+        unreachable: "Dieser Befehl kann den Node vom Netz trennen. Trotzdem senden?",
+        credentials: "Dieser Befehl \u00e4ndert ein Passwort. Nach --passwd das gespeicherte Node-Passwort unter Neu konfigurieren anpassen. Trotzdem senden?",
+        identity: "Dieser Befehl \u00e4ndert Rufzeichen, Land oder Sendeleistung. Trotzdem senden?",
+      },
+    },
   },
 };
 
@@ -285,7 +335,9 @@ const ENCODER = new TextEncoder();
 const OSM_URL = "https://www.openstreetmap.org/";
 const NEAR_BOTTOM = 80;
 const VIEW_KEY = "meshcom-panel-view";
-const TABS = ["chat", "nodes", "stations"];
+const TABS = ["chat", "nodes", "stations", "console"];
+const CONSOLE_LINES = 500;
+const CONSOLE_QUICK = ["--info", "--setnet", "--mheard"];
 const STATIONS_REFRESH_MS = 60000;
 
 function el(tag, className, text) {
@@ -352,6 +404,12 @@ const STYLE = `
 .toolbar select { font: inherit; }
 .view { flex: 1; min-height: 0; display: flex; }
 .view[hidden] { display: none; }
+.consolebody { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px 16px; gap: 6px; }
+.consolestate { margin-right: auto; font-weight: 500; }
+.consoleout { flex: 1; min-height: 120px; overflow-y: auto; background: var(--code-editor-background-color, #1e1e1e);
+  color: var(--code-editor-color, #d4d4d4); font-family: var(--code-font-family, monospace); font-size: 12px; padding: 8px; border-radius: 6px; }
+.consoleline { white-space: pre-wrap; word-break: break-all; }
+.consolebody .hint { opacity: .7; font-size: 12px; }
 .sidebar { width: 280px; min-width: 220px; border-right: 1px solid var(--divider-color);
   display: flex; flex-direction: column; min-height: 0; background: var(--card-background-color); }
 .filters { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; border-bottom: 1px solid var(--divider-color); }
@@ -1105,6 +1163,7 @@ class MeshComChatPanel extends HTMLElement {
     clearInterval(this._stationTimer);
     clearInterval(this._nodeTimer);
     this._stopSubscription();
+    this._stopConsole();
     if (this._hass && this._onReady) {
       this._hass.connection.removeEventListener("ready", this._onReady);
     }
@@ -1171,7 +1230,14 @@ class MeshComChatPanel extends HTMLElement {
     toolbar.append(this._menu, el("div", "title", t.title), tabs, this._nodeSelect);
 
     this._errorLine = el("div", "error");
-    root.append(toolbar, this._errorLine, this._buildChat(), this._buildNodes(), this._buildStations());
+    root.append(
+      toolbar,
+      this._errorLine,
+      this._buildChat(),
+      this._buildNodes(),
+      this._buildStations(),
+      this._buildConsole()
+    );
     this._setTab(this._tab);
   }
 
@@ -1264,6 +1330,9 @@ class MeshComChatPanel extends HTMLElement {
     this._chatView.hidden = tab !== "chat";
     this._nodesView.hidden = tab !== "nodes";
     this._stationsView.hidden = tab !== "stations";
+    this._consoleView.hidden = tab !== "console";
+    if (tab === "console") this._startConsole();
+    else this._stopConsole();
     clearInterval(this._stationTimer);
     clearInterval(this._nodeTimer);
     if (tab === "nodes") {
@@ -1280,6 +1349,12 @@ class MeshComChatPanel extends HTMLElement {
     }
   }
 
+  _updateConsoleTab() {
+    const allowed = Boolean(this._node && this._node.console);
+    this._tabButtons.console.hidden = !allowed;
+    if (!allowed && this._tab === "console") this._setTab("chat");
+  }
+
   _renderNodeSelect() {
     this._nodeSelect.replaceChildren();
     for (const node of this._nodes) {
@@ -1294,11 +1369,141 @@ class MeshComChatPanel extends HTMLElement {
     return this._nodes.find((node) => node.entry_id === this._entryId) || null;
   }
 
+  // --- console (administrators only, issue #54) ----------------------------------
+
+  _buildConsole() {
+    const c = this._t.console;
+    this._consoleView = el("div", "view console");
+    const body = el("div", "consolebody");
+    const bar = el("div", "stationbar");
+    this._consoleState = el("span", "consolestate");
+    this._consoleConnect = el("button", "toggle", c.connect);
+    this._consoleConnect.addEventListener("click", () => this._consoleCall("meshcom/console/connect"));
+    this._consoleDisconnect = el("button", "toggle", c.disconnect);
+    this._consoleDisconnect.addEventListener("click", () => this._consoleCall("meshcom/console/disconnect"));
+    bar.append(this._consoleState, this._consoleConnect, this._consoleDisconnect);
+    for (const command of CONSOLE_QUICK) {
+      const quick = el("button", "toggle", command);
+      quick.addEventListener("click", () => this._consoleSend(command, false));
+      bar.append(quick);
+    }
+    this._consoleWarn = el("div", "notice");
+    this._consoleOut = el("div", "consoleout");
+    const form = el("form", "composer");
+    this._consoleInput = el("input");
+    this._consoleInput.placeholder = c.placeholder;
+    this._consoleInput.autocomplete = "off";
+    this._consoleInput.maxLength = 120;
+    this._consoleInput.spellcheck = false;
+    form.append(this._consoleInput, el("button", null, c.send));
+    form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const command = this._consoleInput.value.trim();
+      if (command) this._consoleSend(command, false);
+    });
+    body.append(bar, this._consoleWarn, this._consoleOut, form, el("div", "hint", c.hint));
+    this._consoleView.append(body);
+    this._consoleStatus = { state: "disconnected", open_access: false };
+    this._renderConsoleState();
+    return this._consoleView;
+  }
+
+  async _startConsole() {
+    if (this._consoleUnsub || !this._entryId || !this._hass) return;
+    if (!this._node || !this._node.console) return;
+    const entryId = this._entryId;
+    this._consoleOut.replaceChildren();
+    try {
+      this._consoleUnsub = await this._hass.connection.subscribeMessage(
+        (event) => this._onConsoleEvent(entryId, event),
+        { type: "meshcom/console/subscribe", entry_id: entryId }
+      );
+    } catch (err) {
+      this._showError(err);
+    }
+  }
+
+  _stopConsole() {
+    if (this._consoleUnsub) {
+      const unsubscribe = this._consoleUnsub;
+      this._consoleUnsub = null;
+      // The last viewer leaving closes the session on the server.
+      Promise.resolve(unsubscribe()).catch(() => {});
+    }
+  }
+
+  _onConsoleEvent(entryId, event) {
+    if (entryId !== this._entryId) return;
+    if (event.snapshot) {
+      this._consoleOut.replaceChildren();
+      for (const line of event.snapshot.lines) this._appendConsoleLine(line);
+      this._consoleStatus = event.snapshot;
+      this._renderConsoleState();
+    } else if (event.state) {
+      this._consoleStatus = event.state;
+      this._renderConsoleState();
+    } else if (event.line) {
+      this._appendConsoleLine(event.line.line);
+    }
+  }
+
+  _appendConsoleLine(line) {
+    const out = this._consoleOut;
+    const atBottom = out.scrollHeight - out.scrollTop - out.clientHeight < NEAR_BOTTOM;
+    // Plain text only: console output is untrusted.
+    out.append(el("div", "consoleline", line));
+    while (out.childElementCount > CONSOLE_LINES) out.firstElementChild.remove();
+    if (atBottom) out.scrollTop = out.scrollHeight;
+  }
+
+  _renderConsoleState() {
+    const c = this._t.console;
+    const state = this._consoleStatus.state;
+    this._consoleState.textContent = c.states[state] || state;
+    const connected = state === "connected";
+    this._consoleConnect.hidden = connected || state === "connecting";
+    this._consoleDisconnect.hidden = !connected;
+    this._consoleInput.disabled = !connected;
+    this._consoleWarn.textContent = connected && this._consoleStatus.open_access ? c.openAccess : "";
+    this._consoleWarn.hidden = !this._consoleWarn.textContent;
+  }
+
+  async _consoleCall(type) {
+    try {
+      await this._hass.callWS({ type, entry_id: this._entryId });
+    } catch (err) {
+      this._showError(err);
+    }
+  }
+
+  async _consoleSend(command, confirmed) {
+    const c = this._t.console;
+    try {
+      await this._hass.callWS({
+        type: "meshcom/console/send",
+        entry_id: this._entryId,
+        command,
+        confirm: confirmed,
+      });
+      this._consoleInput.value = "";
+    } catch (err) {
+      if (err && err.code === "console_confirm" && !confirmed) {
+        // eslint-disable-next-line no-alert
+        if (window.confirm(c.confirm[err.message] || c.confirm.identity)) {
+          await this._consoleSend(command, true);
+        }
+        return;
+      }
+      this._showError(err);
+    }
+  }
+
   // --- data ----------------------------------------------------------------------
 
   async _selectNode(entryId) {
     if (!entryId) return;
     this._stopSubscription();
+    this._stopConsole();
     if (entryId !== this._entryId) {
       // Conversations belong to one node: start the other node at "All".
       this._active = "all";
@@ -1331,6 +1536,8 @@ class MeshComChatPanel extends HTMLElement {
     }
     if (this._tab === "stations") this._loadStations();
     if (this._tab === "nodes") this._loadNodeStatus();
+    this._updateConsoleTab();
+    if (this._tab === "console") this._startConsole();
     this._openConversation(this._active);
   }
 

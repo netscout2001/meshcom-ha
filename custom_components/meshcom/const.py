@@ -140,6 +140,15 @@ STATION_SAVE_DELAY: Final = 60
 STATION_CLEANUP_INTERVAL: Final = timedelta(hours=1)
 
 
+SUBENTRY_REMOTE: Final = "remote_node"
+MAX_REMOTE_NODES: Final = 10
+
+
+def signal_remote(entry_id: str, subentry_id: str) -> str:
+    """Dispatcher signal for state changes of one remote-managed node."""
+    return f"{DOMAIN}_remote_{entry_id}_{subentry_id}"
+
+
 def signal_station(entry_id: str, callsign: str) -> str:
     """Dispatcher signal for state changes of one heard station."""
     return f"{DOMAIN}_station_{entry_id}_{callsign}"
@@ -163,6 +172,7 @@ ACCESS_UDP: Final = "udp"
 ACCESS_KISS: Final = "kiss"
 CONF_KISS_PORT: Final = "kiss_port"
 CONF_KISS_PASSWORD: Final = "kiss_password"  # noqa: S105  # config key, not a secret
+CONF_NODE_PASSWORD: Final = "node_password"  # noqa: S105  # config key, not a secret
 ISSUE_KISS_AUTH_OFF: Final = "kiss_auth_off"
 #: Waits between reconnect attempts (seconds); the last one repeats.
 KISS_RECONNECT_DELAYS: Final = (5, 10, 30, 60)

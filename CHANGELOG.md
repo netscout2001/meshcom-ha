@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.0
+
+### Added
+- Console tab in the MeshCom panel for administrators (#54): opens the node's net console (port 2323, HMAC login with the node password) on demand and closes it when the tab is left, after 10 minutes without a command, or when the node ends it. Risky commands (network, passwords, call sign, country, TX power) need a confirmation that the server checks. Output stays in memory, never in the log or diagnostics
+- Node password (`--passwd`) under Reconfigure for UDP nodes; KISS nodes use their KISS password
+- Remote management of other nodes over LoRa (RM1, #50): add a remote node with its callsign and password below your node; it gets a device with status, send position/track, restart, the GPS/track/display/gateway/mesh switches, TX power, LED, battery, uptime and firmware. Commands are signed in Home Assistant, answers are verified; nothing is polled
+
 ## v0.11.4
 
 ### Fixed
