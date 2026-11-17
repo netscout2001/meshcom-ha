@@ -18,6 +18,7 @@ from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.components.websocket_api.const import ERR_NOT_FOUND, ERR_UNAUTHORIZED
 from homeassistant.components.websocket_api.decorators import (
     async_response,
+    require_admin,
     websocket_command,
 )
 from homeassistant.components.websocket_api.messages import event_message
@@ -58,6 +59,10 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     async_register_command(hass, ws_stations)
     async_register_command(hass, ws_subscribe)
     async_register_command(hass, ws_send)
+    async_register_command(hass, ws_console_subscribe)
+    async_register_command(hass, ws_console_connect)
+    async_register_command(hass, ws_console_send)
+    async_register_command(hass, ws_console_disconnect)
 
 
 def _hidden(entry: Any) -> Callable[[str], bool]:
@@ -103,6 +108,8 @@ def ws_nodes(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, A
                 "access": entry.data.get(CONF_ACCESS, ACCESS_UDP),
                 "station_mode": station_mode(entry),
                 "entities": _node_entities(hass, entry),
+                # The console tab is offered to administrators only.
+                "console": connection.user.is_admin,
             }
         )
     connection.send_result(msg["id"], {"nodes": nodes})
@@ -259,4 +266,106 @@ async def ws_send(hass: HomeAssistant, connection: ActiveConnection, msg: dict[s
             msg["id"], err.translation_key or "send_failed", str(err) or "Sending failed"
         )
         return
+    connection.send_result(msg["id"])
+
+
+# --- net console (issue #54): administrators only -----------------------------
+
+
+def _console_entry(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> Any | None:
+    """The loaded entry for a console command, or None after sending an error."""
+    entry = hass.config_entries.async_get_entry(msg["entry_id"])
+    if entry is None or entry.domain != DOMAIN or entry.state is not ConfigEntryState.LOADED:
+        connection.send_error(msg["id"], ERR_NOT_FOUND, "Node not found")
+        return None
+    return entry
+
+
+@websocket_command(
+    {vol.Required("type"): "meshcom/console/subscribe", vol.Required("entry_id"): _ENTRY_ID}
+)
+@require_admin
+@callback
+def ws_console_subscribe(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Stream console state and output; closing the last view ends the session."""
+    if (entry := _console_entry(hass, connection, msg)) is None:
+        return
+    session = entry.runtime_data.console
+    user = connection.user
+
+    @callback
+    def _forward(kind: str, data: dict[str, Any]) -> None:
+        # A user who lost the administrator role while watching sees no more
+        # output (it can contain secrets).
+        if user.is_admin:
+            connection.send_message(event_message(msg["id"], {kind: data}))
+
+    connection.subscriptions[msg["id"]] = session.async_subscribe(_forward)
+    connection.send_result(msg["id"])
+    # The frontend's subscribeMessage drops the result payload: the current
+    # state and scrollback come as the first event.
+    connection.send_message(event_message(msg["id"], {"snapshot": session.snapshot()}))
+
+
+@websocket_command(
+    {vol.Required("type"): "meshcom/console/connect", vol.Required("entry_id"): _ENTRY_ID}
+)
+@require_admin
+@async_response
+async def ws_console_connect(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Open the session; the resulting state arrives as an event."""
+    if (entry := _console_entry(hass, connection, msg)) is None:
+        return
+    session = entry.runtime_data.console
+    await session.async_connect()
+    connection.send_result(msg["id"], {"state": session.state})
+
+
+@websocket_command(
+    {
+        vol.Required("type"): "meshcom/console/send",
+        vol.Required("entry_id"): _ENTRY_ID,
+        vol.Required("command"): vol.All(str, vol.Length(min=1, max=200)),
+        vol.Optional("confirm", default=False): bool,
+    }
+)
+@require_admin
+@async_response
+async def ws_console_send(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Send one command line; risky commands need ``confirm``."""
+    if (entry := _console_entry(hass, connection, msg)) is None:
+        return
+    try:
+        await entry.runtime_data.console.async_send(msg["command"], confirm=msg["confirm"])
+    except HomeAssistantError as err:
+        placeholders = err.translation_placeholders or {}
+        connection.send_error(
+            msg["id"],
+            err.translation_key or "console_failed",
+            placeholders.get("risk", "") or str(err) or "Console error",
+        )
+        return
+    connection.send_result(msg["id"])
+
+
+@websocket_command(
+    {vol.Required("type"): "meshcom/console/disconnect", vol.Required("entry_id"): _ENTRY_ID}
+)
+@require_admin
+@async_response
+async def ws_console_disconnect(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Close the session."""
+    if (entry := _console_entry(hass, connection, msg)) is None:
+        return
+    await entry.runtime_data.console.async_disconnect()
     connection.send_result(msg["id"])

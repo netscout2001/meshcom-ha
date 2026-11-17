@@ -15,6 +15,7 @@ from . import MeshComConfigEntry
 from .coordinator import MeshComWebCoordinator
 from .entity import MeshComEntity, async_require_admin, node_device_info
 from .node import MeshComNode
+from .remote_entity import async_add_remote_entities
 
 PARALLEL_UPDATES = 0
 
@@ -25,6 +26,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the switch."""
+    async_add_remote_entities(hass, entry, async_add_entities, "switch")
     runtime = entry.runtime_data
     async_add_entities(
         [

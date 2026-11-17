@@ -19,7 +19,9 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    ConfigSubentryFlow,
     OptionsFlow,
+    SubentryFlowResult,
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, callback
@@ -46,6 +48,7 @@ from .aiomeshcom import (
     is_callsign,
     is_group,
 )
+from .aiomeshcom.errors import InvalidOutgoingError
 from .aiomeshcom.kiss import KISS_TCP_PORT, MAX_KISS_PASSWORD
 from .aiomeshcom.kiss_client import (
     KissAuthError,
@@ -53,6 +56,7 @@ from .aiomeshcom.kiss_client import (
     KissConnection,
     KissConnectionError,
 )
+from .aiomeshcom.rm import derive_key
 from .aiomeshcom.webapi import (
     AUTH_HMAC,
     MeshComWebClient,
@@ -74,6 +78,7 @@ from .const import (
     CONF_LISTEN_PORT,
     CONF_NEIGHBOUR_LOST_HOURS,
     CONF_NODE_ID,
+    CONF_NODE_PASSWORD,
     CONF_RADIO_STATS,
     CONF_SEND_USERS,
     CONF_STATION_MAX,
@@ -90,12 +95,14 @@ from .const import (
     DEFAULT_STATION_STALE_DAYS,
     DOMAIN,
     INACTIVE_MINUTES_RANGE,
+    MAX_REMOTE_NODES,
     MAX_WATCHED_STATIONS,
     NEIGHBOUR_LOST_HOURS_MAX,
     SETUP_WAIT_TIMEOUT,
     STATION_MAX_LIMIT,
     STATION_MODES,
     STATION_STALE_DAYS_LIMIT,
+    SUBENTRY_REMOTE,
 )
 from .hub import async_acquire_hub, async_release_hub
 from .migration import callsign_node_id
@@ -134,6 +141,14 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> MeshComOptionsFlow:
         """Options: groups and who may transmit."""
         return MeshComOptionsFlow()
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Remote-managed nodes are added below the own node."""
+        return {SUBENTRY_REMOTE: RemoteNodeSubentryFlow}
 
     def __init__(self) -> None:
         self._host = ""
@@ -361,11 +376,13 @@ class MeshComConfigFlow(ConfigFlow, domain=DOMAIN):
             data = _with_password(entry.data, password, method)
             if not errors and _is_kiss(entry):
                 errors, data = await _async_check_kiss_password(entry, user_input, data)
+            elif not errors:
+                errors, data = _with_node_password(user_input, data)
             if not errors:
                 return self.async_update_reload_and_abort(entry, data=data)
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_password_schema(entry),
+            data_schema=_reconfigure_schema(entry),
             errors=errors,
             description_placeholders={"node": entry.title},
         )
@@ -387,6 +404,35 @@ def _password_schema(entry: ConfigEntry) -> vol.Schema:
             )
         }
     )
+
+
+def _reconfigure_schema(entry: ConfigEntry) -> vol.Schema:
+    """Reconfigure also takes the node password (``--passwd``) of a UDP node.
+
+    A KISS node already has it: the KISS password is the same secret.
+    """
+    if _is_kiss(entry):
+        return _password_schema(entry)
+    return _PASSWORD_SCHEMA.extend(
+        {
+            vol.Optional(CONF_NODE_PASSWORD): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )
+        }
+    )
+
+
+def _with_node_password(
+    user_input: dict[str, Any], data: dict[str, Any]
+) -> tuple[dict[str, str], dict[str, Any]]:
+    """Store, replace or (left empty) remove the node password."""
+    password = user_input.get(CONF_NODE_PASSWORD) or None
+    if password is not None and not _valid_kiss_password(password):
+        return {CONF_NODE_PASSWORD: "invalid_kiss_password"}, data
+    new = {key: value for key, value in data.items() if key != CONF_NODE_PASSWORD}
+    if password:
+        new[CONF_NODE_PASSWORD] = password
+    return {}, new
 
 
 def _is_kiss(entry: ConfigEntry) -> bool:
@@ -630,3 +676,81 @@ class MeshComOptionsFlow(OptionsFlow):
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+
+
+class RemoteNodeSubentryFlow(ConfigSubentryFlow):
+    """Add or change a node managed over LoRa (issue #50)."""
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        """Callsign and password of the node to manage."""
+        entry = self._get_entry()
+        errors: dict[str, str] = {}
+        remotes = [sub for sub in entry.subentries.values() if sub.subentry_type == SUBENTRY_REMOTE]
+        if len(remotes) >= MAX_REMOTE_NODES:
+            return self.async_abort(reason="too_many_remote_nodes")
+        if user_input is not None:
+            callsign = str(user_input.get(CONF_CALLSIGN, "")).strip().upper()
+            if not is_callsign(callsign):
+                errors[CONF_CALLSIGN] = "invalid_callsign"
+            elif callsign == entry.data.get(CONF_CALLSIGN):
+                errors[CONF_CALLSIGN] = "remote_is_own_node"
+            elif any(sub.unique_id == callsign for sub in remotes):
+                return self.async_abort(reason="already_configured")
+            elif not _valid_remote_password(user_input.get(CONF_PASSWORD)):
+                errors[CONF_PASSWORD] = "invalid_kiss_password"
+            else:
+                return self.async_create_entry(
+                    title=callsign,
+                    data={CONF_CALLSIGN: callsign, CONF_PASSWORD: user_input[CONF_PASSWORD]},
+                    unique_id=callsign,
+                )
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_CALLSIGN): TextSelector(),
+                    vol.Required(CONF_PASSWORD): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Change the stored password of a managed node."""
+        subentry = self._get_reconfigure_subentry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if _valid_remote_password(user_input.get(CONF_PASSWORD)):
+                return self.async_update_and_abort(
+                    self._get_entry(),
+                    subentry,
+                    data={**subentry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]},
+                )
+            errors[CONF_PASSWORD] = "invalid_kiss_password"
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PASSWORD): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    )
+                }
+            ),
+            errors=errors,
+            description_placeholders={"node": subentry.title},
+        )
+
+
+def _valid_remote_password(password: object) -> bool:
+    """A password the firmware can hold (same rules as ``--passwd``)."""
+    if not isinstance(password, str):
+        return False
+    try:
+        derive_key(password)
+    except InvalidOutgoingError:
+        return False
+    return True

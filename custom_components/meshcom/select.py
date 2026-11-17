@@ -11,6 +11,7 @@ from .aiomeshcom import DestinationKind, is_callsign, is_group
 from .const import CONF_GROUPS
 from .entity import MeshComEntity
 from .node import MeshComNode
+from .remote_entity import async_add_remote_entities
 
 PARALLEL_UPDATES = 0
 
@@ -27,6 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the selects."""
+    async_add_remote_entities(hass, entry, async_add_entities, "select")
     node = entry.runtime_data.node
     async_add_entities(
         [

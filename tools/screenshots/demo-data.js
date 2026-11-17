@@ -129,8 +129,8 @@
   }
   const entityList = (list) => list.map((e) => ({ entity_id: e.entity_id, domain: e.domain, key: e.key }));
   const nodes = [
-    { entry_id: "demo-udp", callsign: own, groups: [262, 20, 9], sending_enabled: true, access: "udp", station_mode: "data", entities: entityList(udp) },
-    { entry_id: "demo-kiss", callsign: mobile, groups: [262], sending_enabled: true, access: "kiss", station_mode: "data", entities: entityList(kiss) },
+    { entry_id: "demo-udp", callsign: own, groups: [262, 20, 9], sending_enabled: true, access: "udp", station_mode: "data", entities: entityList(udp), console: true },
+    { entry_id: "demo-kiss", callsign: mobile, groups: [262], sending_enabled: true, access: "kiss", station_mode: "data", entities: entityList(kiss), console: true },
   ];
 
   // Node dashboard: 48 hours of message activity and channel use (invented).
@@ -195,6 +195,24 @@
     return points;
   };
 
+  // Console tab: invented output of "--setnet" and the start of "--info".
+  const consoleLines = [
+    "MeshCom Console",
+    "Type --help for commands",
+    "--setnet",
+    "",
+    "Network mode: auto (in use: inet)",
+    "--info",
+    "",
+    "--MeshCom 4.40a (build: Nov 14 2026 / 21:59:46)",
+    "...UPDATE: none",
+    `...Call: <${own}> ...ID 4A3F12C0 ...NODE 43 <HELTEC V3> ...UTC-OFF 1.000000 [CET]`,
+    "...BATT 4.02 V ...BATT 88 % ...MAXV 4.200 V",
+    "...TIME 2384117 ms",
+    "...TZ CET ...TZOFF +1.0 h [CET]",
+    "...NET MODE      : auto (in use: inet)",
+  ];
+
   window.demoHass = {
     language: "en",
     themes: { darkMode: true },
@@ -209,6 +227,15 @@
       return {};
     },
     callService: async () => {},
-    connection: { addEventListener() {}, removeEventListener() {}, subscribeMessage: async () => () => {} },
+    connection: {
+      addEventListener() {},
+      removeEventListener() {},
+      subscribeMessage: async (callback, msg) => {
+        if (msg.type === "meshcom/console/subscribe") {
+          setTimeout(() => callback({ snapshot: { state: "connected", open_access: false, lines: consoleLines } }), 0);
+        }
+        return () => {};
+      },
+    },
   };
 })();

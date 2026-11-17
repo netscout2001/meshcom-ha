@@ -11,6 +11,7 @@ from . import MeshComConfigEntry
 from .const import signal_update
 from .entity import MeshComEntity
 from .node import MeshComNode
+from .remote_entity import async_add_remote_entities
 from .sender import async_send_text, compose_destination
 
 PARALLEL_UPDATES = 1
@@ -22,6 +23,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the buttons."""
+    async_add_remote_entities(hass, entry, async_add_entities, "button")
     node = entry.runtime_data.node
     async_add_entities([MeshComSendButton(node, "send", entry), MeshComClearButton(node, "clear")])
 

@@ -12,7 +12,7 @@ import math
 import re
 from typing import Final
 
-from .callsign import is_destination
+from .callsign import is_callsign, is_destination
 from .const import (
     MAX_DESTINATION_CHARS,
     MAX_OUTGOING_TEXT_BYTES,
@@ -20,6 +20,7 @@ from .const import (
     TIME_BEACON_PREFIX,
 )
 from .errors import InvalidOutgoingError
+from .rm import is_command_frame
 from .text import contains_unwanted
 
 _ACK_LIKE_RE: Final = re.compile(r".*:(ack|rej)[0-9]{1,3}\Z", re.IGNORECASE)
@@ -49,6 +50,24 @@ def build_text_message(destination: str, text: str) -> bytes:
     """Build a ``msg`` datagram for broadcast (``*``), a group or a callsign."""
     validate_text_message(destination, text)
     return _encode({"type": "msg", "dst": destination, "msg": text})
+
+
+def build_rm_message(destination: str, text: str) -> bytes:
+    """Build a ``msg`` datagram carrying a signed remote-management command.
+
+    Only a frame made by :func:`aiomeshcom.rm.build_command` passes; the
+    free-text builder keeps refusing the ``RM1`` prefix.
+    """
+    validate_rm_message(destination, text)
+    return _encode({"type": "msg", "dst": destination, "msg": text})
+
+
+def validate_rm_message(destination: str, text: str) -> None:
+    """Raise unless ``text`` is a well-formed RM1 command to a single callsign."""
+    if not is_callsign(destination):
+        raise InvalidOutgoingError("destination")
+    if not is_command_frame(text):
+        raise InvalidOutgoingError("rm_frame")
 
 
 def validate_text_message(destination: str, text: str) -> None:

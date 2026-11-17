@@ -54,6 +54,8 @@ station.
 | **External UDP** setup | **KISS over TCP** setup |
 | ![Options](docs/images/ha-options.png) | ![Station options](docs/images/ha-options-stations.png) |
 | **Options**: groups, users who may send, own groups only | **Options**: how heard stations appear |
+| ![Console](docs/images/panel-console.png) | |
+| **Console** (administrators): the node's net console with quick commands; risky commands need a confirmation | |
 
 ## Supported devices
 
@@ -244,7 +246,8 @@ The station list is stored and survives a restart.
 
 ### MeshCom panel
 
-The sidebar entry **MeshCom** opens a panel with three tabs. With several
+The sidebar entry **MeshCom** opens a panel with three tabs (four for
+administrators, see [Console](#console-administrators)). With several
 nodes, a selector at the top switches between them; the panel remembers the
 selected node and tab per browser.
 
@@ -320,6 +323,82 @@ from outside. With the station modes "One device per station" and "Data only + d
 for watched stations" those stations also appear on the Home Assistant map.
 
 Administrators and the users released in the options may use the panel.
+
+### Console (administrators)
+
+The **Console** tab opens the node's net console (firmware: ESP32 boards,
+"net console" switched on in the node's web setup or "Remote Netconsole" in
+the app, TCP port 2323). Type commands like `--info` or `--setnet` and read
+the node's output, without USB or a separate script.
+
+- Only administrators see the tab; the server checks this too.
+- The connection opens when you press **Connect** and closes when you leave
+  the tab, press **Disconnect**, after 10 minutes without a command, or when
+  the node ends it. The node serves one console client: a new login (from
+  Home Assistant or a PC script) replaces the running one.
+- Login uses the node password (`--passwd`). Enter it under
+  **Reconfigure** ("Node password"); KISS nodes use their KISS password,
+  which is the same secret. A node without password is opened, with a
+  warning that anyone in the network can do so.
+- Commands that can take the node off the network or cut its connection to
+  Home Assistant (`--setssid`, `--setpwd`, `--wifiap on`, `--setownip`,
+  `--setowngw`, `--setownms`, `--setowndns`, `--extudp off`, `--extudpip`,
+  `--kiss off`, `--netconsole off`, `--deepsleep`, updates), change a
+  password or PIN (`--passwd`, `--webpwd`, `--btcode`) or the
+  identity/radio (`--setcall`, `--setctry`, `--txpower`) need a
+  confirmation. The node runs every `--` in a line as its own command, so
+  the check looks at all of them. After `--passwd`, update the stored node
+  password.
+- The output can contain secrets in clear text (`--info` shows the node
+  password, also the Bluetooth PIN and WLAN name).
+  It is kept in memory only (last 500 lines), never written to the log, the
+  recorder or diagnostics.
+
+### Remote management of other nodes (RM1)
+
+A node that is away from your network (a mobile node, a node on a mast) can
+be managed over LoRa through the node Home Assistant is connected to. This
+uses the firmware's authenticated remote management "RM1"
+(icssw-org/MeshCom-Firmware#1189).
+
+On the remote node: switch remote management on and set a password
+(`--passwd`). In Home Assistant: **Settings > Devices & services > MeshCom >
+your node > Add remote-managed node**, then enter its callsign and password.
+Up to 10 nodes per own node.
+
+Each remote node gets its own device with:
+
+| Entity | What it does |
+|---|---|
+| Read status (button) | asks for firmware, uptime, battery, switches and TX power |
+| Send position / Send track beacon (buttons) | `sendpos` / `sendtrack` |
+| Restart (button) | `reboot` |
+| GPS, Track, Display, Gateway, Mesh (switches) | switch on/off |
+| TX power (number) | chip power in dBm, range as reported by the node |
+| LED (select) | on/off/flash, on boards with a usable LED |
+| Battery, Uptime, Firmware, Last answer (sensors) | from the last answer |
+| Answered last command (binary sensor) | whether the node replied |
+
+How it works:
+
+- Home Assistant signs each command with the remote node's password and
+  hands it to your node as a direct message. Your node never learns that
+  password. The answer comes back signed; only a reply with the expected
+  counter and a valid signature is accepted.
+- Nothing is polled. A frame goes out only when you press a button, switch
+  something or an automation does. States come from answers only and stay
+  unknown until the first one.
+- Each command uses a new counter. Before the first command, and after a
+  command without answer, Home Assistant asks the node for its counter
+  (`sync`), which costs one extra frame.
+- At most one command at a time per node, at least 10 s apart; the shared
+  send limit of the integration applies. An answer can take up to about 3
+  minutes; after that the command counts as unanswered.
+- Administrators only. The "Allow sending" switch of your node also stops
+  remote management.
+
+Not included in this version: writing name, beacon text, position, block
+list and firmware updates over RM1.
 
 ### No MSG All and the message filter
 
@@ -616,6 +695,15 @@ Remaining risks you should know:
   to administrators and released users.
 - **The Stations map loads tiles from OpenStreetMap** while the tab is open
   (see [MeshCom panel](#meshcom-panel)).
+- **The net console is plain TCP.** The login is a challenge-response
+  (the password is not sent), but commands and output travel unencrypted
+  through your network, and the node accepts any client that knows the
+  password. The node does not prove its identity: a device that takes over
+  the node's address gets your commands (including a new password you type)
+  and can show you made-up output. Use it only in a trusted network.
+- **Remote-managed nodes' passwords are stored in Home Assistant** (config
+  entry storage, like the web password). Use a separate password per node
+  and switch remote management off on nodes you do not manage.
 
 ## Development
 

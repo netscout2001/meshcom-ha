@@ -160,6 +160,7 @@ class MeshComNode:
         self.delivery_listener: Callable[[str, str], None] | None = None
         #: Own message heard back over the mesh: (packet, time) -> matched.
         self.echo_listener: Callable[[TextMessagePacket, datetime], bool] | None = None
+        self.rm_listener: Callable[[RemoteManagementPacket], None] | None = None
         self.echoes_heard = 0
         self._touched: str | None = None
         self._seen: OrderedDict[tuple[str, int], datetime] = OrderedDict()
@@ -245,8 +246,12 @@ class MeshComNode:
             self._handle_message(packet, now)
         elif isinstance(packet, (AckMessagePacket, DeliveryStatusPacket)):
             self._handle_delivery(packet)
-        elif isinstance(packet, (TimeBeaconPacket, RemoteManagementPacket)):
-            # Control traffic, not chat. Only proves that the node is alive.
+        elif isinstance(packet, RemoteManagementPacket):
+            # Control traffic, not chat: only replies to own commands matter.
+            if self.rm_listener is not None:
+                self.rm_listener(packet)
+        elif isinstance(packet, TimeBeaconPacket):
+            # Only proves that the node is alive.
             pass
         # Signal of the last packet the node received over the air (message,
         # position or telemetry of another station). Own frames and packets

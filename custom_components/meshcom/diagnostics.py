@@ -16,10 +16,17 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 
 from . import MeshComConfigEntry
-from .const import CONF_CALLSIGN, CONF_KISS_PASSWORD, CONF_NODE_ID
+from .const import CONF_CALLSIGN, CONF_KISS_PASSWORD, CONF_NODE_ID, CONF_NODE_PASSWORD
 from .stations import station_mode
 
-TO_REDACT = {CONF_HOST, CONF_PASSWORD, CONF_KISS_PASSWORD, CONF_CALLSIGN, CONF_NODE_ID}
+TO_REDACT = {
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_KISS_PASSWORD,
+    CONF_NODE_PASSWORD,
+    CONF_CALLSIGN,
+    CONF_NODE_ID,
+}
 
 
 async def async_get_config_entry_diagnostics(

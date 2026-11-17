@@ -25,7 +25,11 @@
         "description": "Enter the node's web password, or leave empty if the node has none.",
         "data": {
           "password": "Web password",
-          "kiss_password": "Node password (--passwd)"
+          "kiss_password": "Node password (--passwd)",
+          "node_password": "Node password (--passwd)"
+        },
+        "data_description": {
+          "node_password": "Needed for the console tab. Leave empty to remove it."
         }
       },
       "udp": {
@@ -76,7 +80,8 @@
       "invalid_kiss_password": "The node password has 1 to 14 ASCII characters.",
       "kiss_auth_required": "The node asks for its password (--passwd).",
       "invalid_kiss_auth": "The node rejected the password.",
-      "kiss_cannot_connect": "The KISS interface cannot be reached. Check --kiss on, the address and that no other KISS client is connected."
+      "kiss_cannot_connect": "The KISS interface cannot be reached. Check --kiss on, the address and that no other KISS client is connected.",
+      "remote_is_own_node": "This is the node Home Assistant is connected to."
     },
     "abort": {
       "already_configured": "This node is already configured.",
@@ -212,6 +217,18 @@
       },
       "station_hears_me_snr": {
         "name": "SNR at the station"
+      },
+      "rm_battery": {
+        "name": "Battery"
+      },
+      "rm_uptime": {
+        "name": "Uptime"
+      },
+      "rm_firmware": {
+        "name": "Firmware"
+      },
+      "rm_last_answer": {
+        "name": "Last answer"
       }
     },
     "binary_sensor": {
@@ -223,6 +240,9 @@
       },
       "station_direct": {
         "name": "Heard directly"
+      },
+      "rm_reachable": {
+        "name": "Answered last command"
       }
     },
     "device_tracker": {
@@ -239,6 +259,21 @@
       },
       "no_msg_all": {
         "name": "No MSG All"
+      },
+      "rm_gps": {
+        "name": "GPS"
+      },
+      "rm_track": {
+        "name": "Track"
+      },
+      "rm_display": {
+        "name": "Display"
+      },
+      "rm_gateway": {
+        "name": "Gateway"
+      },
+      "rm_mesh": {
+        "name": "Mesh"
       }
     },
     "select": {
@@ -255,6 +290,14 @@
       },
       "station": {
         "name": "Station"
+      },
+      "rm_led": {
+        "name": "LED",
+        "state": {
+          "on": "On",
+          "off": "Off",
+          "flash": "Flash"
+        }
       }
     },
     "text": {
@@ -268,6 +311,18 @@
       },
       "clear": {
         "name": "Clear message"
+      },
+      "rm_status": {
+        "name": "Read status"
+      },
+      "rm_sendpos": {
+        "name": "Send position"
+      },
+      "rm_sendtrack": {
+        "name": "Send track beacon"
+      },
+      "rm_reboot": {
+        "name": "Restart"
       }
     },
     "notify": {
@@ -278,6 +333,11 @@
     "update": {
       "firmware": {
         "name": "Firmware"
+      }
+    },
+    "number": {
+      "rm_txpower": {
+        "name": "TX power"
       }
     }
   },
@@ -353,6 +413,27 @@
     },
     "update_needs_secure_login": {
       "message": "The node uses the unencrypted web login; Home Assistant does not run a firmware update over it. Update the node once with the web flasher or over USB."
+    },
+    "rm_unknown": {
+      "message": "This remote node is not configured."
+    },
+    "rm_no_answer": {
+      "message": "The node did not answer. It may be out of reach, remote management may be off, or the password is wrong."
+    },
+    "rm_refused": {
+      "message": "The node refused the command: {reason}"
+    },
+    "rm_counter_exhausted": {
+      "message": "The command counter is used up; remove and add the node again."
+    },
+    "console_invalid_command": {
+      "message": "Enter one console command starting with --."
+    },
+    "console_confirm": {
+      "message": "This command needs a confirmation ({risk})."
+    },
+    "console_not_connected": {
+      "message": "The console is not connected."
     }
   },
   "services": {
@@ -449,6 +530,44 @@
       "station_new": "Station heard for the first time",
       "neighbour_lost": "Direct neighbour lost",
       "neighbour_back": "Direct neighbour back"
+    }
+  },
+  "config_subentries": {
+    "remote_node": {
+      "initiate_flow": {
+        "user": "Remote-managed node"
+      },
+      "entry_type": "Remote-managed node",
+      "step": {
+        "user": {
+          "title": "Remote-managed node",
+          "description": "Manage another node over LoRa through this one (firmware remote management RM1). The node needs remote management switched on and a password (--passwd). The password stays in Home Assistant; this node never learns it.",
+          "data": {
+            "callsign": "Callsign with SSID",
+            "password": "Password of that node (--passwd)"
+          },
+          "data_description": {
+            "password": "At most 14 characters. Used to sign commands and to check the answers."
+          }
+        },
+        "reconfigure": {
+          "title": "Password of {node}",
+          "description": "Enter the current password (--passwd) of the managed node.",
+          "data": {
+            "password": "Password of that node (--passwd)"
+          }
+        }
+      },
+      "error": {
+        "invalid_callsign": "Not a valid callsign.",
+        "remote_is_own_node": "This is the node Home Assistant is connected to.",
+        "invalid_kiss_password": "The node password has 1 to 14 ASCII characters."
+      },
+      "abort": {
+        "already_configured": "This node is already managed.",
+        "too_many_remote_nodes": "At most 10 nodes can be managed through one node.",
+        "reconfigure_successful": "The password was changed."
+      }
     }
   }
 }

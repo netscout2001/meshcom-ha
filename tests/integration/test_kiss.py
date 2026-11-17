@@ -126,6 +126,11 @@ class FakeConnection:
         self.on_packet(packet)
         return packet
 
+    async def send_control(self, destination: str, text: str) -> None:
+        if self.fake.send_error is not None:
+            raise self.fake.send_error
+        self.fake.sent.append((destination, text, False))
+
     async def close(self) -> None:
         self.closed = True
 
@@ -521,3 +526,15 @@ async def test_udp_entry_unchanged(hass: HomeAssistant, init_integration: MockCo
     assert init_integration.runtime_data.kiss is None
     assert hass.states.get("binary_sensor.meshcom_qx1yz_12_kiss_connected") is None
     assert OWN_POSITION  # the UDP fixtures stay usable
+
+
+async def test_remote_command_over_kiss(
+    hass: HomeAssistant, kiss_entry: MockConfigEntry, kiss: FakeKiss
+) -> None:
+    entry = await _setup(hass, kiss_entry, kiss)
+    frame = "RM1 6 status 5c3dfef3b6d97ae8"
+    await entry.runtime_data.kiss.async_send_control("TST1-12", frame)
+    assert kiss.sent[-1] == ("TST1-12", frame, False)
+    kiss.send_error = KissSendError(TxStatus.TX_OFF)
+    with pytest.raises(HomeAssistantError):
+        await entry.runtime_data.kiss.async_send_control("TST1-12", frame)

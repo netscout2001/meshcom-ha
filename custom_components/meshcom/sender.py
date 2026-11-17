@@ -22,7 +22,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
 
 from .aiomeshcom import DestinationKind, InvalidOutgoingError, build_text_message
-from .aiomeshcom.builder import validate_text_message
+from .aiomeshcom.builder import build_rm_message, validate_text_message
 from .const import (
     CONF_SEND_USERS,
     DOMAIN,
@@ -152,3 +152,49 @@ async def async_send_text(
         },
         context=context,
     )
+
+
+async def async_send_control(
+    hass: HomeAssistant,
+    entry: MeshComConfigEntry,
+    destination: str,
+    text: str,
+    context: Context | None,
+) -> None:
+    """Transmit a signed remote-management command through the entry's node.
+
+    Same gate as messages: kill switch, permission, shared rate limit. The
+    builder only accepts a frame made by ``aiomeshcom.rm.build_command``.
+    No event and no chat entry: this is control traffic.
+    """
+    runtime = entry.runtime_data
+    node = runtime.node
+    if not node.sending_enabled:
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="sending_disabled")
+    await async_check_send_permission(
+        hass, entry.entry_id, allowed_users(dict(entry.options)), context
+    )
+    try:
+        data = build_rm_message(destination, text)
+    except InvalidOutgoingError as err:  # pragma: no cover - frames are built by the library
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_message",
+            translation_placeholders={"reason": err.reason},
+        ) from err
+    if not _limiter(hass).try_take():
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="rate_limited",
+            translation_placeholders={"seconds": str(int(SEND_INTERVAL.total_seconds()))},
+        )
+    if runtime.kiss is not None:
+        await runtime.kiss.async_send_control(destination, text)
+    else:
+        try:
+            runtime.send_datagram(data)
+        except OSError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="send_failed"
+            ) from err
+    _LOGGER.info("%s: remote command sent to %s", node.callsign, destination)
