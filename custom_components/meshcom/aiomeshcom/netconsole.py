@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import itertools
 import re
 from collections.abc import Callable
 from typing import Final
@@ -75,12 +76,28 @@ class ConsoleProtocolError(ConsoleError):
     """The node answered something that is not the console handshake."""
 
 
+_SEVERITY: Final = (UNREACHABLE, CREDENTIALS, IDENTITY)
+
+
+def _segments(line: str) -> list[str]:
+    """The commands the firmware runs for one console line.
+
+    The net console hands a line to ``commandAction()``, which starts a new
+    command at every ``--`` after the first two characters, also inside a
+    word or an argument (``--info --setssid x`` runs both).
+    """
+    cuts = [0, *(i for i in range(2, len(line)) if line.startswith("--", i)), len(line)]
+    return [line[a:b].strip() for a, b in itertools.pairwise(cuts)]
+
+
 def command_risk(command: str) -> str | None:
-    """Risk class of a console command line, or None for a harmless one."""
-    word = command.strip().split(" ", 1)[0]
-    if not word.startswith("--"):
-        return None
-    return _RISK.get(word[2:].lower())
+    """Most severe risk class of the commands in one line, or None."""
+    found = set()
+    for segment in _segments(command.strip()):
+        word = segment.split(" ", 1)[0]
+        if word.startswith("--") and (risk := _RISK.get(word[2:].lower())) is not None:
+            found.add(risk)
+    return next((risk for risk in _SEVERITY if risk in found), None)
 
 
 def validate_command(command: str) -> str:

@@ -213,6 +213,12 @@ def test_clean_line() -> None:
         ("--setcall X1ABC-1", IDENTITY),
         ("--txpower 22", IDENTITY),
         ("info", None),
+        # The firmware runs every "--" in a line as its own command.
+        ("--info --setssid x", UNREACHABLE),
+        ("--setname a--passwd b", CREDENTIALS),
+        ("--txpower 5 --passwd b --deepsleep", UNREACHABLE),
+        ("--setname a-b", None),
+        ("--info ---setssid", UNREACHABLE),  # the second "--" starts it
     ],
 )
 def test_command_risk(command: str, risk: str | None) -> None:

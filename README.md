@@ -341,7 +341,9 @@ the node's output, without USB or a separate script.
 - Commands that can take the node off the network (`--setssid`, `--setpwd`,
   `--deepsleep`, updates), change a password (`--passwd`, `--webpwd`) or
   the identity/radio (`--setcall`, `--setctry`, `--txpower`) need a
-  confirmation. After `--passwd`, update the stored node password.
+  confirmation. The node runs every `--` in a line as its own command, so
+  the check looks at all of them. After `--passwd`, update the stored node
+  password.
 - The output can contain secrets in clear text (Bluetooth PIN, WLAN name).
   It is kept in memory only (last 500 lines), never written to the log, the
   recorder or diagnostics.
@@ -690,7 +692,9 @@ Remaining risks you should know:
 - **The net console is plain TCP.** The login is a challenge-response
   (the password is not sent), but commands and output travel unencrypted
   through your network, and the node accepts any client that knows the
-  password. Use it only in a trusted network.
+  password. The node does not prove its identity: a device that takes over
+  the node's address gets your commands (including a new password you type)
+  and can show you made-up output. Use it only in a trusted network.
 - **Remote-managed nodes' passwords are stored in Home Assistant** (config
   entry storage, like the web password). Use a separate password per node
   and switch remote management off on nodes you do not manage.

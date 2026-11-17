@@ -295,10 +295,14 @@ def ws_console_subscribe(
     if (entry := _console_entry(hass, connection, msg)) is None:
         return
     session = entry.runtime_data.console
+    user = connection.user
 
     @callback
     def _forward(kind: str, data: dict[str, Any]) -> None:
-        connection.send_message(event_message(msg["id"], {kind: data}))
+        # A user who lost the administrator role while watching sees no more
+        # output (it can contain secrets).
+        if user.is_admin:
+            connection.send_message(event_message(msg["id"], {kind: data}))
 
     connection.subscriptions[msg["id"]] = session.async_subscribe(_forward)
     connection.send_result(msg["id"])

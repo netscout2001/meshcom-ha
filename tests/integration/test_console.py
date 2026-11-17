@@ -254,3 +254,29 @@ async def test_reconfigure_node_password(
     flow = await entry.start_reconfigure_flow(hass)
     flow = await hass.config_entries.flow.async_configure(flow["flow_id"], {})
     assert CONF_NODE_PASSWORD not in entry.data
+
+
+async def test_websocket_stops_after_demotion(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    hass_ws_client: WebSocketGenerator,
+    hass_admin_user: Any,
+) -> None:
+    client = await hass_ws_client(hass)
+    entry_id = init_integration.entry_id
+    await client.send_json_auto_id({"type": "meshcom/console/subscribe", "entry_id": entry_id})
+    assert (await client.receive_json())["success"]
+    await client.receive_json()  # snapshot
+    session = init_integration.runtime_data.console
+    await session.async_connect()
+    await client.receive_json()  # connecting
+    await client.receive_json()  # connected or first line
+    hass_admin_user.groups = []
+    assert not hass_admin_user.is_admin
+    await session.async_send("--info")
+    await client.send_json_auto_id({"type": "meshcom/chat/nodes"})
+    reply = await client.receive_json()
+    while reply.get("type") == "event":
+        assert "echo --info" not in str(reply)
+        reply = await client.receive_json()
+    await session.async_disconnect()
