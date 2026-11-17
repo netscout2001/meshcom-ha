@@ -61,6 +61,7 @@ async def main(out: Path, font_dir: Path | None) -> None:
             "panel._setTab('chat'); panel._openConversation('group:262')",
         )
         await _shot(page, out / "panel-nodes.png", "panel._setTab('nodes')")
+        await _shot(page, out / "panel-console.png", "panel._setTab('console')")
         await browser.close()
 
 

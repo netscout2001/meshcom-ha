@@ -54,6 +54,8 @@ station.
 | **External UDP** setup | **KISS over TCP** setup |
 | ![Options](docs/images/ha-options.png) | ![Station options](docs/images/ha-options-stations.png) |
 | **Options**: groups, users who may send, own groups only | **Options**: how heard stations appear |
+| ![Console](docs/images/panel-console.png) | |
+| **Console** (administrators): the node's net console with quick commands; risky commands need a confirmation | |
 
 ## Supported devices
 
@@ -347,7 +349,8 @@ the node's output, without USB or a separate script.
   confirmation. The node runs every `--` in a line as its own command, so
   the check looks at all of them. After `--passwd`, update the stored node
   password.
-- The output can contain secrets in clear text (Bluetooth PIN, WLAN name).
+- The output can contain secrets in clear text (`--info` shows the node
+  password, also the Bluetooth PIN and WLAN name).
   It is kept in memory only (last 500 lines), never written to the log, the
   recorder or diagnostics.
 

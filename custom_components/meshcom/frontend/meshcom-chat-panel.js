@@ -146,7 +146,7 @@ const TEXT = {
       disconnect: "Disconnect",
       send: "Send",
       placeholder: "--info",
-      hint: "Opens only on demand and closes when you leave this tab or after 10 minutes without a command. The output can contain secrets (BT PIN, WLAN name): do not share screenshots unchecked.",
+      hint: "Opens only on demand and closes when you leave this tab or after 10 minutes without a command. The output can contain secrets (node password, BT PIN, WLAN name): do not share screenshots unchecked.",
       openAccess: "The node has no password (--passwd): anyone on the network can open its console. Set one with --passwd.",
       states: {
         disconnected: "Not connected",
@@ -304,7 +304,7 @@ const TEXT = {
       disconnect: "Trennen",
       send: "Senden",
       placeholder: "--info",
-      hint: "\u00d6ffnet sich nur auf Wunsch und schlie\u00dft, wenn du den Reiter verl\u00e4sst oder 10 Minuten lang kein Befehl kommt. Die Ausgabe kann Geheimnisse enthalten (BT-PIN, WLAN-Name): Screenshots nicht ungepr\u00fcft teilen.",
+      hint: "\u00d6ffnet sich nur auf Wunsch und schlie\u00dft, wenn du den Reiter verl\u00e4sst oder 10 Minuten lang kein Befehl kommt. Die Ausgabe kann Geheimnisse enthalten (Node-Passwort, BT-PIN, WLAN-Name): Screenshots nicht ungepr\u00fcft teilen.",
       openAccess: "Der Node hat kein Passwort (--passwd): Jeder im Netz kann seine Konsole \u00f6ffnen. Setze eines mit --passwd.",
       states: {
         disconnected: "Nicht verbunden",
@@ -408,7 +408,8 @@ const STYLE = `
 .consolestate { margin-right: auto; font-weight: 500; }
 .consoleout { flex: 1; min-height: 120px; overflow-y: auto; background: var(--code-editor-background-color, #1e1e1e);
   color: var(--code-editor-color, #d4d4d4); font-family: var(--code-font-family, monospace); font-size: 12px; padding: 8px; border-radius: 6px; }
-.consoleline { white-space: pre-wrap; word-break: break-all; }
+.consoleline { white-space: pre-wrap; word-break: break-all; min-height: 1.2em; }
+.consolebody .toggle.cmd, .consolebody input { font-family: var(--code-font-family, monospace); }
 .consolebody .hint { opacity: .7; font-size: 12px; }
 .sidebar { width: 280px; min-width: 220px; border-right: 1px solid var(--divider-color);
   display: flex; flex-direction: column; min-height: 0; background: var(--card-background-color); }
@@ -1383,7 +1384,7 @@ class MeshComChatPanel extends HTMLElement {
     this._consoleDisconnect.addEventListener("click", () => this._consoleCall("meshcom/console/disconnect"));
     bar.append(this._consoleState, this._consoleConnect, this._consoleDisconnect);
     for (const command of CONSOLE_QUICK) {
-      const quick = el("button", "toggle", command);
+      const quick = el("button", "toggle cmd", command);
       quick.addEventListener("click", () => this._consoleSend(command, false));
       bar.append(quick);
     }
