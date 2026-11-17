@@ -218,7 +218,22 @@ def test_clean_line() -> None:
         ("--setname a--passwd b", CREDENTIALS),
         ("--txpower 5 --passwd b --deepsleep", UNREACHABLE),
         ("--setname a-b", None),
-        ("--info ---setssid", UNREACHABLE),  # the second "--" starts it
+        ("--info ---setssid", UNREACHABLE),
+        ("--wifiap on", UNREACHABLE),
+        ("--wifiap off", None),
+        ("--KISS OFF", UNREACHABLE),
+        ("--kiss tx off", None),
+        ("--kiss", None),
+        ("--extudp off", UNREACHABLE),
+        ("--extudp on", None),
+        ("--extudpip 192.0.2.1", UNREACHABLE),
+        ("--netconsole off", UNREACHABLE),
+        ("--setownip 192.0.2.5", UNREACHABLE),
+        ("--setowngw 192.0.2.1", UNREACHABLE),
+        ("--setownms 255.255.255.0", UNREACHABLE),
+        ("--setowndns 192.0.2.1", UNREACHABLE),
+        ("--setownntp 192.0.2.1", None),
+        ("--btcode 123456", CREDENTIALS),  # the second "--" starts it
     ],
 )
 def test_command_risk(command: str, risk: str | None) -> None:

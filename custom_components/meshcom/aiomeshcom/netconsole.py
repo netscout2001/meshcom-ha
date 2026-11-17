@@ -44,8 +44,19 @@ _RISK: Final = {
     "ota-update": UNREACHABLE,
     "update": UNREACHABLE,
     "autoupdate": UNREACHABLE,
+    # Cut the connection of Home Assistant (UDP, KISS, console, address).
+    "wifiap on": UNREACHABLE,
+    "setownip": UNREACHABLE,
+    "setowngw": UNREACHABLE,
+    "setownms": UNREACHABLE,
+    "setowndns": UNREACHABLE,
+    "extudp off": UNREACHABLE,
+    "extudpip": UNREACHABLE,
+    "kiss off": UNREACHABLE,
+    "netconsole off": UNREACHABLE,
     "passwd": CREDENTIALS,
     "webpwd": CREDENTIALS,
+    "btcode": CREDENTIALS,
     "setcall": IDENTITY,
     "setctry": IDENTITY,
     "txpower": IDENTITY,
@@ -94,9 +105,14 @@ def command_risk(command: str) -> str | None:
     """Most severe risk class of the commands in one line, or None."""
     found = set()
     for segment in _segments(command.strip()):
-        word = segment.split(" ", 1)[0]
-        if word.startswith("--") and (risk := _RISK.get(word[2:].lower())) is not None:
-            found.add(risk)
+        if not segment.startswith("--"):
+            continue
+        # A name is one word ("setssid") or, for on/off rows, two ("kiss off").
+        words = segment[2:].lower().split()
+        for name in (" ".join(words[:2]), " ".join(words[:1])):
+            if (risk := _RISK.get(name)) is not None:
+                found.add(risk)
+                break
     return next((risk for risk in _SEVERITY if risk in found), None)
 
 

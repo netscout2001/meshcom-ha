@@ -338,9 +338,12 @@ the node's output, without USB or a separate script.
   **Reconfigure** ("Node password"); KISS nodes use their KISS password,
   which is the same secret. A node without password is opened, with a
   warning that anyone in the network can do so.
-- Commands that can take the node off the network (`--setssid`, `--setpwd`,
-  `--deepsleep`, updates), change a password (`--passwd`, `--webpwd`) or
-  the identity/radio (`--setcall`, `--setctry`, `--txpower`) need a
+- Commands that can take the node off the network or cut its connection to
+  Home Assistant (`--setssid`, `--setpwd`, `--wifiap on`, `--setownip`,
+  `--setowngw`, `--setownms`, `--setowndns`, `--extudp off`, `--extudpip`,
+  `--kiss off`, `--netconsole off`, `--deepsleep`, updates), change a
+  password or PIN (`--passwd`, `--webpwd`, `--btcode`) or the
+  identity/radio (`--setcall`, `--setctry`, `--txpower`) need a
   confirmation. The node runs every `--` in a line as its own command, so
   the check looks at all of them. After `--passwd`, update the stored node
   password.

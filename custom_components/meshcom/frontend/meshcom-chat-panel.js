@@ -161,8 +161,8 @@ const TEXT = {
         protocol_error: "Unexpected answer from the node.",
       },
       confirm: {
-        unreachable: "This command can take the node off the network. Send it anyway?",
-        credentials: "This command changes a password. After --passwd, update the stored node password under Reconfigure. Send it anyway?",
+        unreachable: "This command can take the node off the network or cut its connection to Home Assistant. Send it anyway?",
+        credentials: "This command changes a password or the Bluetooth PIN. After --passwd, update the stored node password under Reconfigure. Send it anyway?",
         identity: "This command changes the call sign, country or transmit power. Send it anyway?",
       },
     },
@@ -319,8 +319,8 @@ const TEXT = {
         protocol_error: "Unerwartete Antwort vom Node.",
       },
       confirm: {
-        unreachable: "Dieser Befehl kann den Node vom Netz trennen. Trotzdem senden?",
-        credentials: "Dieser Befehl \u00e4ndert ein Passwort. Nach --passwd das gespeicherte Node-Passwort unter Neu konfigurieren anpassen. Trotzdem senden?",
+        unreachable: "Dieser Befehl kann den Node vom Netz oder von Home Assistant trennen. Trotzdem senden?",
+        credentials: "Dieser Befehl \u00e4ndert ein Passwort oder die Bluetooth-PIN. Nach --passwd das gespeicherte Node-Passwort unter Neu konfigurieren anpassen. Trotzdem senden?",
         identity: "Dieser Befehl \u00e4ndert Rufzeichen, Land oder Sendeleistung. Trotzdem senden?",
       },
     },
