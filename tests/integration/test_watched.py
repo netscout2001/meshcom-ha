@@ -92,11 +92,14 @@ async def test_watched_not_removed_when_stale(
     """A watched station keeps its device however long it is silent."""
     entry = await _setup(hass, mock_config_entry, **WATCH)
     inject(entry, station_position("QB0AAA-12", "40000101"))
+    inject(entry, station_position("QB0OTH-12", "40000102"))
     await hass.async_block_till_done()
     freezer.tick(timedelta(days=30))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert set(_station_devices(hass, entry)) == {"QB0AAA-12"}
+    # The watched station stays in the list, the other one leaves it.
+    assert list(entry.runtime_data.node.stations) == ["QB0AAA-12"]
     # Also after a reload.
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()

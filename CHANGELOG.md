@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.12.1
+
+### Changed
+- "Remove station devices after (days)" is now "Remove stations after (days)" and applies to the station list and the map as well, in every station mode: stations not heard for that many days leave the list (checked every hour and at start), so the map no longer keeps grey stations for up to 90 days. Watched stations stay. Default 7 days; a station that is heard again comes back, its long-term statistics start anew
+
 ## v0.12.0
 
 ### Added

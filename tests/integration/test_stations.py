@@ -200,11 +200,41 @@ async def test_stale_devices_removed(
     await hass.async_block_till_done()
     assert set(_station_devices(hass, entry)) == {"QB0BBB-12"}
     assert entry.runtime_data.stations.tracked == {"QB0BBB-12"}
+    assert list(entry.runtime_data.node.stations) == ["QB0BBB-12"]
 
     # Heard again: the device comes back.
     inject(entry, station_position("QB0AAA-12", "40000103"))
     await hass.async_block_till_done()
     assert set(_station_devices(hass, entry)) == {"QB0AAA-12", "QB0BBB-12"}
+
+
+async def test_stale_stations_leave_list(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, freezer: FrozenDateTimeFactory
+) -> None:
+    """In every mode, stations not heard for the configured days leave the list."""
+    entry = await _setup(hass, mock_config_entry, **{CONF_STATION_STALE_DAYS: 1})
+    inject(entry, station_position("QB0AAA-12", "40000101"))
+    await hass.async_block_till_done()
+    freezer.tick(timedelta(hours=20))
+    inject(entry, station_position("QB0BBB-12", "40000102"))
+    await hass.async_block_till_done()
+    freezer.tick(timedelta(hours=5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert list(entry.runtime_data.node.stations) == ["QB0BBB-12"]
+
+    # The shorter list is saved; after a reload with a shorter time the
+    # remaining station goes at start, not only after the next hour.
+    freezer.tick(timedelta(minutes=10))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_STATION_STALE_DAYS: 1}
+    )
+    freezer.tick(timedelta(hours=20))
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.runtime_data.node.stations == {}
 
 
 async def test_switch_to_data_removes_devices(
