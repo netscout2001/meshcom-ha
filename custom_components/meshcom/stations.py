@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -241,6 +241,8 @@ class StationDevices:
 
     "entities": the first stations heard get a device, removed when stale.
     "watch": only the watched stations get a device, never removed for age.
+    In every mode, stations not heard for the same time leave the station
+    list (map, panel); watched stations stay.
     """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, node: MeshComNode) -> None:
@@ -264,6 +266,8 @@ class StationDevices:
         )
         #: Callsigns that have a device (and entities).
         self.tracked: set[str] = set()
+        #: Called after stations left the list (to save it).
+        self.on_list_pruned: Callable[[], None] | None = None
 
     def _station_devices(self) -> dict[str, dr.DeviceEntry]:
         """Station devices of this entry in the registry, by callsign."""
@@ -281,6 +285,7 @@ class StationDevices:
         """Sync the registry with the mode and the stored stations."""
         registry = dr.async_get(self.hass)
         now = dt_util.utcnow()
+        self._prune_list(now)
         for callsign, device in self._station_devices().items():
             station = self.node.stations.get(callsign)
             keep = (
@@ -297,10 +302,14 @@ class StationDevices:
             # Stations heard recently but without a device yet, newest first.
             for station in reversed(self.node.stations.values()):
                 self.async_station_heard(station.callsign, notify=False)
-        if self.enabled and not self.watch_mode:
-            self.entry.async_on_unload(
-                async_track_time_interval(self.hass, self._cleanup, STATION_CLEANUP_INTERVAL)
-            )
+        self.entry.async_on_unload(
+            async_track_time_interval(self.hass, self._cleanup, STATION_CLEANUP_INTERVAL)
+        )
+
+    def _prune_list(self, now: datetime) -> None:
+        """Drop stations not heard for too long from the list (watched stay)."""
+        if self.node.prune_stations(now - self.stale_after, self.watched) and self.on_list_pruned:
+            self.on_list_pruned()
 
     def _wanted(self, callsign: str, station: StationInfo, now: datetime) -> bool:
         """Watched stations always; otherwise only while heard recently."""
@@ -324,9 +333,12 @@ class StationDevices:
 
     @callback
     def _cleanup(self, _now: datetime | None = None) -> None:
-        """Remove devices of stations not heard for too long (stale devices)."""
-        registry = dr.async_get(self.hass)
+        """Remove stale stations from the list and their devices."""
         now = dt_util.utcnow()
+        self._prune_list(now)
+        if not self.enabled or self.watch_mode:
+            return
+        registry = dr.async_get(self.hass)
         for callsign, device in self._station_devices().items():
             station = self.node.stations.get(callsign)
             if station is None or now - station.last_heard >= self.stale_after:

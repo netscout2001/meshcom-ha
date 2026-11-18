@@ -143,7 +143,7 @@ Leave it empty if the node has none (not recommended, see
 | Stations | Off / Data only (default) / Data only + devices for watched stations / One device per station |
 | Watched stations (max. 10) | Only in the mode "Data only + devices for watched stations": the callsigns that get a device. Offers the stations the node knows, direct neighbours first and marked "(MHeard)"; a callsign can also be typed in |
 | Maximum station devices | Default 50, only in the mode "One device per station" |
-| Remove station devices after (days) | Default 7, only in the mode "One device per station" |
+| Remove stations after (days) | Default 7: stations not heard for this long leave the station list and the map (checked every hour); in the mode "One device per station" their devices are removed as well. Watched stations stay. A station comes back when it is heard again; its long-term statistics start anew |
 | Node inactive after (minutes) | Default 65: "Active" turns off when the node sent nothing for this long (the node beacons every 30 minutes by default) |
 | Read radio statistics (LoRa queue) | Off by default: reads the node's RX log page (web API) for channel use and TX queue of the last 5 minutes and adds three sensors. The first request makes the node set aside memory for its RX log, which it keeps until it restarts |
 | Neighbour lost after (hours) | Default 6: a direct neighbour counts as lost when the node has not received it directly for this long (fires "Direct neighbour lost", later "Direct neighbour back"). Needs the web password; 0 switches it off |
@@ -242,7 +242,8 @@ kept (positions on the MHeard page have only three decimals). A station
 stays a direct neighbour until it has been off the list for 3 hours. This
 needs firmware 4.40a and the web password if the node has one.
 
-The station list is stored and survives a restart.
+The station list is stored and survives a restart. Stations not heard for the
+days set in "Remove stations after" leave it (at most 500 stations).
 
 ### MeshCom panel
 

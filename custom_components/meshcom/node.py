@@ -200,6 +200,17 @@ class MeshComNode:
         while len(self.stations) > MAX_STATIONS:
             self.stations.popitem(last=False)
 
+    def prune_stations(self, older_than: datetime, keep: frozenset[str] = frozenset()) -> int:
+        """Drop stations last heard before ``older_than``, except ``keep``."""
+        old = [
+            callsign
+            for callsign, station in self.stations.items()
+            if station.last_heard < older_than and callsign not in keep
+        ]
+        for callsign in old:
+            del self.stations[callsign]
+        return len(old)
+
     def stations_heard(self, window: timedelta = STATIONS_WINDOW) -> int:
         """Number of distinct stations heard within ``window``."""
         limit = dt_util.utcnow() - window

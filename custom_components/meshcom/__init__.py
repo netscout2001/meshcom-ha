@@ -168,6 +168,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MeshComConfigEntry) -> b
         stations.async_station_heard(callsign)
 
     node.station_listener = _station_heard
+    stations.on_list_pruned = lambda: store.async_schedule_save(node)
     stations.async_start()
 
     # Chat history for the panel.

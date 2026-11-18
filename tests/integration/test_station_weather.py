@@ -9,6 +9,7 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -143,6 +144,7 @@ async def test_stored_weather_and_path_validated(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, hass_storage: dict[str, Any]
 ) -> None:
     """Out-of-range values and broken paths from disk are dropped."""
+    heard = dt_util.utcnow().isoformat()
     hass_storage[f"{DOMAIN}.stations.{mock_config_entry.entry_id}"] = {
         "version": 1,
         "minor_version": 1,
@@ -151,7 +153,7 @@ async def test_stored_weather_and_path_validated(
             "stations": [
                 {
                     "callsign": "TST4-12",
-                    "last_heard": "2026-11-09T10:00:00+00:00",
+                    "last_heard": heard,
                     "temperature": 300,
                     "humidity": "92",
                     "pressure_qnh": 1021.4,
@@ -160,7 +162,7 @@ async def test_stored_weather_and_path_validated(
                 },
                 {
                     "callsign": "TST7-12",
-                    "last_heard": "2026-11-09T10:00:00+00:00",
+                    "last_heard": heard,
                     "path": ["TST5-1"] * 13,
                     "weather_time": "2026-11-09T09:00:00",
                 },
