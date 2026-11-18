@@ -53,9 +53,9 @@ station.
 | ![UDP setup](docs/images/ha-add-udp.png) | ![KISS setup](docs/images/ha-add-kiss.png) |
 | **External UDP** setup | **KISS over TCP** setup |
 | ![Options](docs/images/ha-options.png) | ![Station options](docs/images/ha-options-stations.png) |
-| **Options**: groups, users who may send, own groups only | **Options**: how heard stations appear |
-| ![Console](docs/images/panel-console.png) | |
-| **Console** (administrators): the node's net console with quick commands; risky commands need a confirmation | |
+| **Options**: groups, users who may send, own groups only | **Station options**: watched stations, device limit, removal after days |
+| ![Console](docs/images/panel-console.png) | ![Add a remote-managed node](docs/images/ha-add-remote.png) |
+| **Console** (administrators): the node's net console with quick commands; risky commands need a confirmation | **Remote management**: add another node by callsign and its password; it gets its own device |
 
 ## Supported devices
 
