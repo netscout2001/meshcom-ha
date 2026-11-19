@@ -24,8 +24,10 @@ from aiomeshcom.netconsole import (
     ConsoleRefusedError,
     ConsoleUnreachableError,
     NetConsole,
+    RadioInfo,
     clean_line,
     command_risk,
+    parse_radio_info,
     validate_command,
 )
 
@@ -246,3 +248,40 @@ def test_command_risk(command: str, risk: str | None) -> None:
 def test_invalid_commands(command: str) -> None:
     with pytest.raises(InvalidOutgoingError):
         validate_command(command)
+
+
+INFO = [
+    "...DISPLAY on",
+    "...CTRY EU8",
+    "...FREQ 433.1750 MHz TXPWR 22 dBm RXBOOST off",
+    "...PASSWD <secret>",
+]
+
+
+def test_parse_radio_info() -> None:
+    assert parse_radio_info(INFO) == RadioInfo(433.175, 22, False, "EU8")
+    on = ["...FREQ 433.1750 MHz TXPWR 30 dBm RXBOOST on"]
+    assert parse_radio_info(on) == RadioInfo(433.175, 30, True, None)
+    # Firmware without RXBOOST.
+    assert parse_radio_info(["...FREQ 869.5250 MHz TXPWR 14 dBm"]) == RadioInfo(
+        869.525, 14, None, None
+    )
+    # The last radio line wins.
+    assert parse_radio_info([*INFO, on[0]]) == RadioInfo(433.175, 30, True, "EU8")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "",
+        "...FREQ 433.1750 MHz TXPWR 22 dBm RXBOOST maybe",
+        "...FREQ 50.0000 MHz TXPWR 22 dBm",
+        "...FREQ 2400.0000 MHz TXPWR 22 dBm",
+        "...FREQ 433.1750 MHz TXPWR 99 dBm",
+        "...FREQ 433.1750 MHz TXPWR -20 dBm",
+        "echo ...FREQ 433.1750 MHz TXPWR 22 dBm",
+        "...CTRY EU8",
+    ],
+)
+def test_parse_radio_info_rejects(line: str) -> None:
+    assert parse_radio_info([line]) is None

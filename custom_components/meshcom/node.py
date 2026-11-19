@@ -25,6 +25,7 @@ from .aiomeshcom import (
     TextMessagePacket,
     TimeBeaconPacket,
 )
+from .aiomeshcom.netconsole import RadioInfo
 from .aiomeshcom.webapi import MHeardEntry
 from .const import (
     DEDUP_MAX_ENTRIES,
@@ -161,6 +162,8 @@ class MeshComNode:
         #: Own message heard back over the mesh: (packet, time) -> matched.
         self.echo_listener: Callable[[TextMessagePacket, datetime], bool] | None = None
         self.rm_listener: Callable[[RemoteManagementPacket], None] | None = None
+        #: Radio settings, read from the net console on request.
+        self.radio_info: RadioInfo | None = None
         self.echoes_heard = 0
         self._touched: str | None = None
         self._seen: OrderedDict[tuple[str, int], datetime] = OrderedDict()

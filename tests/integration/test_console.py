@@ -8,10 +8,15 @@ from typing import Any, ClassVar
 from unittest.mock import patch
 
 import pytest
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant, State
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+    mock_restore_cache_with_extra_data,
+)
 from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.meshcom.aiomeshcom.netconsole import (
@@ -22,11 +27,20 @@ from custom_components.meshcom.aiomeshcom.netconsole import (
 from custom_components.meshcom.console import IDLE_TIMEOUT, node_password
 from custom_components.meshcom.const import CONF_KISS_PASSWORD, CONF_NODE_PASSWORD
 
+from .conftest import NODE_ID
+
+INFO_LINES = (
+    "...PASSWD <secret>",
+    "...CTRY EU8",
+    "...FREQ 433.1750 MHz TXPWR 22 dBm RXBOOST off",
+)
+
 
 class FakeConsole:
     """Stands in for aiomeshcom.netconsole.NetConsole."""
 
     instances: ClassVar[list[FakeConsole]] = []
+    info: ClassVar[list[str]] = []
     fail: type[ConsoleError] | None = None
     open_access = False
 
@@ -54,6 +68,9 @@ class FakeConsole:
             raise ConsoleError("not connected")
         self.sent.append(command)
         self.on_line(f"echo {command}")
+        if command == "--info":
+            for line in FakeConsole.info:
+                self.on_line(line)
 
     async def close(self) -> None:
         self.connected = False
@@ -67,6 +84,7 @@ class FakeConsole:
 @pytest.fixture(autouse=True)
 def fake_console() -> Generator[type[FakeConsole]]:
     FakeConsole.instances = []
+    FakeConsole.info = []
     FakeConsole.fail = None
     FakeConsole.open_access = False
     with patch("custom_components.meshcom.console.NetConsole", FakeConsole):
@@ -280,3 +298,120 @@ async def test_websocket_stops_after_demotion(
         assert "echo --info" not in str(reply)
         reply = await client.receive_json()
     await session.async_disconnect()
+
+
+def _entity_id(hass: HomeAssistant, platform: str, key: str) -> str:
+    entity_id = er.async_get(hass).async_get_entity_id(platform, "meshcom", f"{NODE_ID:06x}_{key}")
+    assert entity_id is not None
+    return entity_id
+
+
+def _state(hass: HomeAssistant, entity_id: str) -> str:
+    state = hass.states.get(entity_id)
+    assert state is not None
+    return state.state
+
+
+async def _press(hass: HomeAssistant, **kwargs: Any) -> None:
+    await hass.services.async_call(
+        "button",
+        "press",
+        {"entity_id": _entity_id(hass, "button", "read_radio")},
+        blocking=True,
+        **kwargs,
+    )
+
+
+async def test_read_radio_settings(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
+    boost = _entity_id(hass, "binary_sensor", "rx_boost")
+    freq = _entity_id(hass, "sensor", "radio_frequency")
+    power = _entity_id(hass, "sensor", "tx_power")
+    country = _entity_id(hass, "sensor", "lora_country")
+    assert _state(hass, boost) == "unknown"
+    assert _state(hass, freq) == "unknown"
+    FakeConsole.info = list(INFO_LINES)
+
+    await _press(hass)
+    await hass.async_block_till_done()
+    assert _state(hass, boost) == "off"
+    assert _state(hass, freq) == "433.175"
+    assert _state(hass, power) == "22"
+    assert _state(hass, country) == "EU8"
+    # Logged in just for this, then closed again.
+    assert FakeConsole.instances[0].sent == ["--info"]
+    assert init_integration.runtime_data.console.state == "disconnected"
+
+    # With the console tab open the running session is used, not a new login.
+    session = init_integration.runtime_data.console
+    remove = session.async_subscribe(lambda kind, data: None)
+    await session.async_connect()
+    FakeConsole.info = ["...CTRY EU8", "...FREQ 433.1750 MHz TXPWR 30 dBm RXBOOST on"]
+    await _press(hass)
+    await hass.async_block_till_done()
+    assert len(FakeConsole.instances) == 2
+    assert session.state == "connected"
+    assert _state(hass, boost) == "on"
+    assert _state(hass, power) == "30"
+    remove()
+    await hass.async_block_till_done()
+
+
+async def test_read_radio_errors(hass: HomeAssistant, init_integration: MockConfigEntry) -> None:
+    FakeConsole.fail = ConsoleRefusedError
+    with pytest.raises(HomeAssistantError) as err:
+        await _press(hass)
+    assert err.value.translation_key == "radio_read_failed"
+    assert err.value.translation_placeholders == {"state": "refused"}
+
+    FakeConsole.fail = None
+    FakeConsole.info = ["...nothing useful"]
+    with (
+        patch("custom_components.meshcom.console.RADIO_INFO_TIMEOUT", 0.05),
+        pytest.raises(HomeAssistantError) as err,
+    ):
+        await _press(hass)
+    assert err.value.translation_key == "radio_read_no_answer"
+    await hass.async_block_till_done()
+    assert init_integration.runtime_data.console.state == "disconnected"
+
+
+async def test_read_radio_admin_only(
+    hass: HomeAssistant, init_integration: MockConfigEntry, hass_read_only_user: Any
+) -> None:
+    with pytest.raises(Unauthorized):
+        await _press(hass, context=Context(user_id=hass_read_only_user.id))
+    assert FakeConsole.instances == []
+
+
+async def test_read_radio_restored(hass: HomeAssistant, mock_config_entry: MockConfigEntry) -> None:
+    unique = f"{NODE_ID:06x}"
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (State("binary_sensor.meshcom_qx1yz_12_rx_boost", "on"), {}),
+            (
+                State("sensor.meshcom_qx1yz_12_frequency", "433.175"),
+                {"native_value": 433.175, "native_unit_of_measurement": "MHz"},
+            ),
+        ],
+    )
+    registry = er.async_get(hass)
+    mock_config_entry.add_to_hass(hass)
+    registry.async_get_or_create(
+        "binary_sensor",
+        "meshcom",
+        f"{unique}_rx_boost",
+        suggested_object_id="meshcom_qx1yz_12_rx_boost",
+        config_entry=mock_config_entry,
+    )
+    registry.async_get_or_create(
+        "sensor",
+        "meshcom",
+        f"{unique}_radio_frequency",
+        suggested_object_id="meshcom_qx1yz_12_frequency",
+        config_entry=mock_config_entry,
+    )
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert _state(hass, "binary_sensor.meshcom_qx1yz_12_rx_boost") == "on"
+    assert _state(hass, "sensor.meshcom_qx1yz_12_frequency") == "433.175"

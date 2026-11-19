@@ -17,7 +17,8 @@ import asyncio
 import contextlib
 import itertools
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from typing import Final
 
 from .errors import InvalidOutgoingError, MeshComError
@@ -122,6 +123,50 @@ def validate_command(command: str) -> str:
     if len(command) > MAX_COMMAND_CHARS or not _COMMAND_RE.fullmatch(command):
         raise InvalidOutgoingError("console_command")
     return command
+
+
+# The radio line of "--info" (firmware 4.40a): "...FREQ 433.1750 MHz TXPWR 22
+# dBm RXBOOST off"; older firmware has no RXBOOST. The country line comes
+# just before it: "...CTRY EU8". Nothing else of "--info" is read (it also
+# shows the node password, the BT PIN, the WLAN name and IP addresses).
+_FREQ_RE: Final = re.compile(
+    r"^\.\.\.FREQ (\d{3,4}\.\d{1,6}) MHz TXPWR (-?\d{1,2}) dBm(?: RXBOOST (on|off))?\s*$"
+)
+_CTRY_RE: Final = re.compile(r"^\.\.\.CTRY ([A-Za-z0-9]{1,8})\s*$")
+_FREQ_RANGE: Final = (137.0, 1100.0)
+_POWER_RANGE: Final = (-10, 40)
+
+
+@dataclass(frozen=True, slots=True)
+class RadioInfo:
+    """Radio settings from the node's "--info" output."""
+
+    frequency_mhz: float
+    tx_power_dbm: int
+    #: None on firmware that does not report it.
+    rx_boost: bool | None
+    country: str | None
+
+
+def parse_radio_info(lines: Iterable[str]) -> RadioInfo | None:
+    """Radio settings from console lines, or None if they are not there or implausible."""
+    country: str | None = None
+    info: RadioInfo | None = None
+    for line in lines:
+        if (match := _CTRY_RE.match(line)) is not None:
+            country = match.group(1)
+            continue
+        if (match := _FREQ_RE.match(line)) is None:
+            continue
+        frequency, power = float(match.group(1)), int(match.group(2))
+        if not (
+            _FREQ_RANGE[0] <= frequency <= _FREQ_RANGE[1]
+            and _POWER_RANGE[0] <= power <= _POWER_RANGE[1]
+        ):
+            continue
+        boost = None if match.group(3) is None else match.group(3) == "on"
+        info = RadioInfo(frequency, power, boost, country)
+    return info
 
 
 def clean_line(raw: bytes) -> str:

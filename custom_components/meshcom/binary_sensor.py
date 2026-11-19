@@ -10,6 +10,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from . import MeshComConfigEntry
@@ -30,7 +31,10 @@ async def async_setup_entry(
     """Set up binary sensors."""
     async_add_remote_entities(hass, entry, async_add_entities, "binary_sensor")
     runtime = entry.runtime_data
-    entities: list[BinarySensorEntity] = [MeshComActiveSensor(runtime.node, "active")]
+    entities: list[BinarySensorEntity] = [
+        MeshComActiveSensor(runtime.node, "active"),
+        MeshComRxBoostSensor(runtime.node, "rx_boost"),
+    ]
     if runtime.kiss is not None:
         entities.append(MeshComKissConnectedSensor(runtime.node, runtime.kiss))
     async_add_entities(entities)
@@ -56,6 +60,32 @@ class MeshComActiveSensor(MeshComEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         """True if a packet arrived recently."""
         return self.node.active
+
+
+class MeshComRxBoostSensor(MeshComEntity, BinarySensorEntity, RestoreEntity):
+    """Boosted RX gain (--setboostedgain), read with "Read radio settings".
+
+    Unknown until the first read; the last read value survives a restart.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, node: MeshComNode, key: str) -> None:
+        super().__init__(node, key)
+        self._restored: bool | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last read value."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is not None and last.state in ("on", "off"):
+            self._restored = last.state == "on"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Last read value; None if never read or the firmware does not report it."""
+        if self.node.radio_info is not None:
+            return self.node.radio_info.rx_boost
+        return self._restored
 
 
 class MeshComKissConnectedSensor(MeshComEntity, BinarySensorEntity):

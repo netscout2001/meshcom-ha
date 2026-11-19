@@ -20,6 +20,7 @@ from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfElectricPotential,
+    UnitOfFrequency,
     UnitOfLength,
     UnitOfPressure,
     UnitOfTemperature,
@@ -168,6 +169,29 @@ NODE_SENSORS: tuple[MeshComSensorDescription, ...] = (
         value_fn=lambda node: node.last_packet,
         restore=True,
         seed_fn=_seed_last_packet,
+    ),
+    # Read from the net console on request ("Read radio settings").
+    MeshComSensorDescription(
+        key="radio_frequency",
+        device_class=SensorDeviceClass.FREQUENCY,
+        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
+        suggested_display_precision=4,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda node: node.radio_info.frequency_mhz if node.radio_info else None,
+        restore=True,
+    ),
+    MeshComSensorDescription(
+        key="tx_power",
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda node: node.radio_info.tx_power_dbm if node.radio_info else None,
+        restore=True,
+    ),
+    MeshComSensorDescription(
+        key="lora_country",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda node: node.radio_info.country if node.radio_info else None,
+        restore=True,
     ),
     MeshComSensorDescription(
         key="battery_voltage",
