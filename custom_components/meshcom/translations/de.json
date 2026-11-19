@@ -229,6 +229,15 @@
       },
       "rm_last_answer": {
         "name": "Letzte Antwort"
+      },
+      "radio_frequency": {
+        "name": "Frequenz"
+      },
+      "tx_power": {
+        "name": "Sendeleistung"
+      },
+      "lora_country": {
+        "name": "LoRa-Land"
       }
     },
     "binary_sensor": {
@@ -243,6 +252,9 @@
       },
       "rm_reachable": {
         "name": "Letzten Befehl beantwortet"
+      },
+      "rx_boost": {
+        "name": "RX-Boost"
       }
     },
     "device_tracker": {
@@ -323,6 +335,9 @@
       },
       "rm_reboot": {
         "name": "Neustart"
+      },
+      "read_radio": {
+        "name": "Funkeinstellungen lesen (Netzkonsole)"
       }
     },
     "notify": {
@@ -434,6 +449,12 @@
     },
     "console_not_connected": {
       "message": "Die Konsole ist nicht verbunden."
+    },
+    "radio_read_failed": {
+      "message": "Die Netzkonsole des Nodes ließ sich nicht öffnen ({state}). Ist die Netzkonsole eingeschaltet (Port 2323) und das Node-Passwort unter Neu konfigurieren eingetragen?"
+    },
+    "radio_read_no_answer": {
+      "message": "Der Node hat auf \"--info\" keine Funkeinstellungen geliefert."
     }
   },
   "services": {

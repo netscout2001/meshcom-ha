@@ -3,6 +3,12 @@
     "binary_sensor": {
       "active": {
         "default": "mdi:radio-tower"
+      },
+      "rx_boost": {
+        "default": "mdi:signal-cellular-outline",
+        "state": {
+          "on": "mdi:signal-cellular-3"
+        }
       }
     },
     "button": {
@@ -11,6 +17,9 @@
       },
       "clear": {
         "default": "mdi:close-circle-outline"
+      },
+      "read_radio": {
+        "default": "mdi:radio-tower"
       }
     },
     "select": {
@@ -54,6 +63,15 @@
       },
       "tx_queue": {
         "default": "mdi:tray-full"
+      },
+      "radio_frequency": {
+        "default": "mdi:sine-wave"
+      },
+      "tx_power": {
+        "default": "mdi:antenna"
+      },
+      "lora_country": {
+        "default": "mdi:earth"
       }
     },
     "switch": {

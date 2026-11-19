@@ -174,6 +174,7 @@ Changing the options reloads the node.
 | No MSG All (switch) | The node's setting, read and written via the web API (administrators only). Not polled while the node is inactive |
 | Message (notify) | Send with the standard action `notify.send_message`, to the recipient chosen in the recipient selects (all by default). A title is put in front of the text. Same checks as every send (kill switch, who may send, rate limit) |
 | Firmware (update) | Firmware with the built-in update only (ESP32 boards; the node's `/austatus` page): installed and newest release as the node reports them, with a link to the release. **Install** (administrators only) lets the node download the release and then install it; the node restarts. Not offered over the unencrypted web login. Installing needs a board with Safeboot partition; while a phone is connected by Bluetooth the node may lack memory for the download |
+| Read radio settings (net console) (button), RX boost (binary sensor), Frequency, TX power, LoRa country | Administrators only. The button runs `--info` on the node's net console and reads only its radio line: boosted RX gain (`--setboostedgain`), frequency, TX power and country (`--setctry`). These values are not on the node's web pages or in its packets, so they update only when you press the button (or an automation does) and are kept over a restart. **Unless the Console tab is open, the button logs in for a moment and so ends any other console session** (e.g. a PC script); with the tab open it uses that session. Needs the net console switched on and the node password (see [Console](#console-administrators)). RX boost stays unknown on firmware that does not report it |
 | Channel use RX, Channel use TX, TX queue | Only with the option "Read radio statistics": share of the last 5 minutes the channel was busy receiving / sending, and frames waiting to be sent (attributes: size, per priority, waiting for acknowledgement, slow-down and refuse levels, state of own messages) |
 
 **When a node is switched off**, Home Assistant notices it at different speeds:
@@ -354,6 +355,9 @@ the node's output, without USB or a separate script.
   password, also the Bluetooth PIN and WLAN name).
   It is kept in memory only (last 500 lines), never written to the log, the
   recorder or diagnostics.
+- The button **Read radio settings** uses the same console and the same
+  login; from its output it keeps only the radio line (frequency, TX power,
+  RX boost) and the country.
 
 ### Remote management of other nodes (RM1)
 

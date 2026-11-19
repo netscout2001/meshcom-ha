@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.13.0
+
+### Added
+- Button "Read radio settings (net console)" with the binary sensor "RX boost" and the sensors "Frequency", "TX power" and "LoRa country" (diagnostic, administrators only). The button runs `--info` on the node's net console and keeps only its radio line and the country; the node shows boosted RX gain (`--setboostedgain`) nowhere else. Values update only on a press and are kept over a restart. Unless the Console tab is open the button logs in for a moment, which ends any other console session
+
 ## v0.12.1
 
 ### Changed

@@ -229,6 +229,15 @@
       },
       "rm_last_answer": {
         "name": "Last answer"
+      },
+      "radio_frequency": {
+        "name": "Frequency"
+      },
+      "tx_power": {
+        "name": "TX power"
+      },
+      "lora_country": {
+        "name": "LoRa country"
       }
     },
     "binary_sensor": {
@@ -243,6 +252,9 @@
       },
       "rm_reachable": {
         "name": "Answered last command"
+      },
+      "rx_boost": {
+        "name": "RX boost"
       }
     },
     "device_tracker": {
@@ -323,6 +335,9 @@
       },
       "rm_reboot": {
         "name": "Restart"
+      },
+      "read_radio": {
+        "name": "Read radio settings (net console)"
       }
     },
     "notify": {
@@ -434,6 +449,12 @@
     },
     "console_not_connected": {
       "message": "The console is not connected."
+    },
+    "radio_read_failed": {
+      "message": "Could not open the node's net console ({state}). Is the net console switched on (port 2323) and the node password entered under Reconfigure?"
+    },
+    "radio_read_no_answer": {
+      "message": "The node did not answer \"--info\" with its radio settings."
     }
   },
   "services": {

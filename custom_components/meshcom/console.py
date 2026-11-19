@@ -37,7 +37,9 @@ from .aiomeshcom.netconsole import (
     ConsoleRefusedError,
     ConsoleUnreachableError,
     NetConsole,
+    RadioInfo,
     command_risk,
+    parse_radio_info,
     validate_command,
 )
 from .const import CONF_KISS_PASSWORD, CONF_NODE_PASSWORD, DOMAIN
@@ -48,6 +50,8 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 IDLE_TIMEOUT: Final = timedelta(minutes=10)
+#: How long to wait for the radio line of "--info".
+RADIO_INFO_TIMEOUT: Final = 15
 SCROLLBACK: Final = 500
 
 STATE_DISCONNECTED: Final = "disconnected"
@@ -188,6 +192,50 @@ class ConsoleSession:
         # Only the command word is logged; arguments may be passwords.
         _LOGGER.info("%s: console command %s", self.entry.title, line.split(" ", 1)[0])
         self._touch()
+
+    async def async_read_radio_info(self) -> RadioInfo:
+        """Run "--info" and read the radio settings from its output.
+
+        Uses the open session if the console tab has one; otherwise it logs
+        in for this and closes again, which ends any other console client
+        (the node serves one).
+        """
+        lines: list[str] = []
+        done = asyncio.Event()
+
+        @callback
+        def _collect(kind: str, data: dict[str, Any]) -> None:
+            if kind == "line":
+                lines.append(data["line"])
+                if parse_radio_info((data["line"],)) is not None:
+                    done.set()
+
+        remove = self.async_subscribe(_collect)
+        try:
+            await self.async_connect()
+            if self.state != STATE_CONNECTED:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="radio_read_failed",
+                    translation_placeholders={"state": self.state},
+                )
+            await self.async_send("--info")
+            try:
+                async with asyncio.timeout(RADIO_INFO_TIMEOUT):
+                    await done.wait()
+            except TimeoutError as err:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN, translation_key="radio_read_no_answer"
+                ) from err
+        finally:
+            # The last viewer leaving closes a session opened just for this.
+            remove()
+        info = parse_radio_info(lines)
+        if info is None:  # pragma: no cover - a line just parsed
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="radio_read_no_answer"
+            )
+        return info
 
     async def async_disconnect(self, state: str = STATE_DISCONNECTED) -> None:
         """Close the session (idempotent)."""
