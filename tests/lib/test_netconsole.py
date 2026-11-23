@@ -236,6 +236,10 @@ def test_clean_line() -> None:
         ("--setowndns 192.0.2.1", UNREACHABLE),
         ("--setownntp 192.0.2.1", None),
         ("--btcode 123456", CREDENTIALS),  # the second "--" starts it
+        ("--aprsis pass 12345", CREDENTIALS),
+        ("--APRSIS PASS 12345", CREDENTIALS),
+        ("--aprsis server example.org", None),
+        ("--aprswx on", None),
     ],
 )
 def test_command_risk(command: str, risk: str | None) -> None:

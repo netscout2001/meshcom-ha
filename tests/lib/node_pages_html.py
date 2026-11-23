@@ -6,10 +6,18 @@ All values are invented; no real network names, addresses or positions.
 from __future__ import annotations
 
 
-def subheader(title: str, now: str = "2026-11-10&nbsp;16:41:39") -> str:
-    """_create_meshcom_subheader(): node time, zone, time source, title."""
+def subheader(
+    title: str, now: str = "2026-11-10&nbsp;16:41:39", *, clock: str | None = None
+) -> str:
+    """_create_meshcom_subheader(): node time, zone, time source, title.
+
+    clock: None renders the page up to 4.40a.11.14; "" or the attributes
+    (' id="mc_clock" data-epoch="..."') render 4.40a.11.22, which wraps the
+    time in a <span> for its live clock.
+    """
+    shown = now if clock is None else f"<span{clock}>{now}</span>"
     return (
-        f'<div id="content_title"><p class="font-small">{now}&nbsp;CET&nbsp;[GPS]</p>'
+        f'<div id="content_title"><p class="font-small">{shown}&nbsp;CET&nbsp;[GPS]</p>'
         f'<h1 class="font-bold">{title}</h1></div>'
     )
 
@@ -24,6 +32,7 @@ def info_page(
     blocked: str = "none (dropped 0)",
     server_label: str = "Server",
     gateway_setting: str = "on",
+    clock: str | None = None,
 ) -> str:
     """sub_page_info(), the rows the integration reads plus their neighbours.
 
@@ -58,7 +67,7 @@ def info_page(
         ]
     rows.append(f"<tr><td>Blocked calls</td><td>{blocked}</td></tr>")
     return (
-        subheader("Node Information", now)
+        subheader("Node Information", now, clock=clock)
         + '<div id="content_inner">\n<table class="table mw-600">\n'
         + '<thead><tr class="font-bold"><td>Item</td><td>Value</td></tr></thead>\n'
         + "\n".join(rows)
