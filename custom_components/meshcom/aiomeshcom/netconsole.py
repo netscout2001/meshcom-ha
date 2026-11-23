@@ -34,10 +34,14 @@ _READ_LIMIT: Final = 4096
 
 _COMMAND_RE: Final = re.compile(r"--[A-Za-z0-9][\x20-\x7e]*")
 
-# Command words by risk (checked against the firmware's console commands).
+# Command words by risk (checked against the firmware's console commands, 4.40a.11.22).
 UNREACHABLE: Final = "unreachable"
 CREDENTIALS: Final = "credentials"
 IDENTITY: Final = "identity"
+RADIO: Final = "radio"
+HARDWARE: Final = "hardware"
+SECURITY: Final = "security"
+SYSTEM: Final = "system"
 _RISK: Final = {
     "setssid": UNREACHABLE,
     "setpwd": UNREACHABLE,
@@ -47,6 +51,9 @@ _RISK: Final = {
     "autoupdate": UNREACHABLE,
     # Cut the connection of Home Assistant (UDP, KISS, console, address).
     "wifiap on": UNREACHABLE,
+    "wifi off": UNREACHABLE,
+    "wifitxpower": UNREACHABLE,
+    "netmode": UNREACHABLE,
     "setownip": UNREACHABLE,
     "setowngw": UNREACHABLE,
     "setownms": UNREACHABLE,
@@ -59,9 +66,44 @@ _RISK: Final = {
     "webpwd": CREDENTIALS,
     "btcode": CREDENTIALS,
     "aprsis pass": CREDENTIALS,
+    # Who and where the node says it is on air and on APRS-IS.
     "setcall": IDENTITY,
     "setctry": IDENTITY,
-    "txpower": IDENTITY,
+    "setudpcall": IDENTITY,
+    "aprswxcall": IDENTITY,
+    "setname": IDENTITY,
+    "setlat": IDENTITY,
+    "setlon": IDENTITY,
+    "setalt": IDENTITY,
+    # LoRa settings: wrong values leave the mesh.
+    "txpower": RADIO,
+    "txfreq": RADIO,
+    "txbw": RADIO,
+    "txsf": RADIO,
+    "txcr": RADIO,
+    "setboostedgain": RADIO,
+    # Pins and what is wired to them (relays, sensors, buttons).
+    "gpio": HARDWARE,
+    "gpiocontrol": HARDWARE,
+    "setout": HARDWARE,
+    "setio": HARDWARE,
+    "relay on": HARDWARE,
+    "relay off": HARDWARE,
+    "button gpio": HARDWARE,
+    "onewire gpio": HARDWARE,
+    "analog gpio": HARDWARE,
+    "softser rxpin": HARDWARE,
+    "softser txpin": HARDWARE,
+    "windpin": HARDWARE,
+    # Who may control the node.
+    "kiss auth off": SECURITY,
+    "remotemgmt": SECURITY,
+    "rmstrictsecurity": SECURITY,
+    # Erase settings or files, or start the bootloader.
+    "cleanflash": SYSTEM,
+    "spiffs reset": SYSTEM,
+    "flashpoke": SYSTEM,
+    "dfu": SYSTEM,
 }
 
 
@@ -89,7 +131,7 @@ class ConsoleProtocolError(ConsoleError):
     """The node answered something that is not the console handshake."""
 
 
-_SEVERITY: Final = (UNREACHABLE, CREDENTIALS, IDENTITY)
+_SEVERITY: Final = (UNREACHABLE, SYSTEM, CREDENTIALS, SECURITY, RADIO, IDENTITY, HARDWARE)
 
 
 def _segments(line: str) -> list[str]:
@@ -109,9 +151,9 @@ def command_risk(command: str) -> str | None:
     for segment in _segments(command.strip()):
         if not segment.startswith("--"):
             continue
-        # A name is one word ("setssid") or, for on/off rows, two ("kiss off").
+        # A name is one to three words: "setssid", "kiss off", "kiss auth off".
         words = segment[2:].lower().split()
-        for name in (" ".join(words[:2]), " ".join(words[:1])):
+        for name in (" ".join(words[:3]), " ".join(words[:2]), " ".join(words[:1])):
             if (risk := _RISK.get(name)) is not None:
                 found.add(risk)
                 break

@@ -14,8 +14,12 @@ import pytest
 from aiomeshcom import InvalidOutgoingError
 from aiomeshcom.netconsole import (
     CREDENTIALS,
+    HARDWARE,
     IDENTITY,
     MAX_LINE_CHARS,
+    RADIO,
+    SECURITY,
+    SYSTEM,
     UNREACHABLE,
     ConsoleAuthError,
     ConsoleAuthRequiredError,
@@ -213,13 +217,12 @@ def test_clean_line() -> None:
         ("--deepsleep", UNREACHABLE),
         ("--ota-update", UNREACHABLE),
         ("--setcall X1ABC-1", IDENTITY),
-        ("--txpower 22", IDENTITY),
         ("info", None),
         # The firmware runs every "--" in a line as its own command.
         ("--info --setssid x", UNREACHABLE),
         ("--setname a--passwd b", CREDENTIALS),
         ("--txpower 5 --passwd b --deepsleep", UNREACHABLE),
-        ("--setname a-b", None),
+        ("--setname a-b", IDENTITY),  # a single "-" does not split
         ("--info ---setssid", UNREACHABLE),
         ("--wifiap on", UNREACHABLE),
         ("--wifiap off", None),
@@ -240,6 +243,29 @@ def test_clean_line() -> None:
         ("--APRSIS PASS 12345", CREDENTIALS),
         ("--aprsis server example.org", None),
         ("--aprswx on", None),
+        ("--txpower 22", RADIO),
+        ("--txfreq 433.175", RADIO),
+        ("--txsf 11", RADIO),
+        ("--setboostedgain on", RADIO),
+        ("--gpio 5 on", HARDWARE),
+        ("--gpiocontrol on", HARDWARE),
+        ("--relay off", HARDWARE),
+        ("--button gpio 12", HARDWARE),
+        ("--setlat 47.9", IDENTITY),
+        ("--setudpcall QX1YZ-1", IDENTITY),
+        ("--aprswxcall QX1YZ-13", IDENTITY),
+        ("--kiss auth off", SECURITY),
+        ("--kiss auth on", None),
+        ("--remotemgmt on", SECURITY),
+        ("--cleanflash", SYSTEM),
+        ("--spiffs reset", SYSTEM),
+        ("--dfu", SYSTEM),
+        ("--wifi off", UNREACHABLE),
+        ("--wifi on", None),
+        ("--netmode eth", UNREACHABLE),
+        ("--gpiox", None),  # the node runs no command for it
+        ("--info --gpio 5 on --setssid x", UNREACHABLE),  # the most severe wins
+        ("--gpio 5 on --txsf 7", RADIO),
     ],
 )
 def test_command_risk(command: str, risk: str | None) -> None:

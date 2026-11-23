@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.13.2
+
+### Changed
+- Console tab: every command that changes a basic setting now needs a confirmation, with a message that says what it affects. New are LoRa settings (`--txfreq`, `--txbw`, `--txsf`, `--txcr`, `--setboostedgain`, with `--txpower`), pins (`--gpio`, `--gpiocontrol`, `--setout`, `--setio`, `--relay`, pin assignments for button, 1-Wire, analog input, serial port and wind sensor), position and names (`--setlat`, `--setlon`, `--setalt`, `--setname`, `--setudpcall`, `--aprswxcall`), access (`--kiss auth off`, `--remotemgmt`, `--rmstrictsecurity`), network (`--wifi off`, `--wifitxpower`, `--netmode`) and erasing or the bootloader (`--cleanflash`, `--spiffs reset`, `--flashpoke`, `--dfu`)
+
 ## v0.13.1
 
 ### Fixed
