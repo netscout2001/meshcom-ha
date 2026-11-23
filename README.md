@@ -342,15 +342,24 @@ the node's output, without USB or a separate script.
   **Reconfigure** ("Node password"); KISS nodes use their KISS password,
   which is the same secret. A node without password is opened, with a
   warning that anyone in the network can do so.
-- Commands that can take the node off the network or cut its connection to
-  Home Assistant (`--setssid`, `--setpwd`, `--wifiap on`, `--setownip`,
-  `--setowngw`, `--setownms`, `--setowndns`, `--extudp off`, `--extudpip`,
-  `--kiss off`, `--netconsole off`, `--deepsleep`, updates), change a
-  password or PIN (`--passwd`, `--webpwd`, `--btcode`) or the
-  identity/radio (`--setcall`, `--setctry`, `--txpower`) need a
-  confirmation. The node runs every `--` in a line as its own command, so
-  the check looks at all of them. After `--passwd`, update the stored node
-  password.
+- Commands that change basic settings need a confirmation:
+  - off the network or cut from Home Assistant: `--setssid`, `--setpwd`,
+    `--wifi off`, `--wifiap on`, `--wifitxpower`, `--netmode`, `--setownip`,
+    `--setowngw`, `--setownms`, `--setowndns`, `--extudp off`, `--extudpip`,
+    `--kiss off`, `--netconsole off`, `--deepsleep`, updates
+  - passwords and PINs: `--passwd`, `--webpwd`, `--btcode`, `--aprsis pass`
+  - access: `--kiss auth off`, `--remotemgmt`, `--rmstrictsecurity`
+  - identity and position: `--setcall`, `--setctry`, `--setudpcall`,
+    `--aprswxcall`, `--setname`, `--setlat`, `--setlon`, `--setalt`
+  - LoRa: `--txpower`, `--txfreq`, `--txbw`, `--txsf`, `--txcr`,
+    `--setboostedgain`
+  - pins: `--gpio`, `--gpiocontrol`, `--setout`, `--setio`, `--relay`,
+    `--button gpio`, `--onewire gpio`, `--analog gpio`, `--softser rxpin`/`txpin`,
+    `--windpin`
+  - erase or bootloader: `--cleanflash`, `--spiffs reset`, `--flashpoke`, `--dfu`
+
+  The node runs every `--` in a line as its own command, so the check looks
+  at all of them. After `--passwd`, update the stored node password.
 - The output can contain secrets in clear text (`--info` shows the node
   password, also the Bluetooth PIN and WLAN name).
   It is kept in memory only (last 500 lines), never written to the log, the
