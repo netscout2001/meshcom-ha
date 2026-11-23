@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.13.1
+
+### Fixed
+- Firmware 4.40a.11.22 wraps the node time at the top of its web pages in a live clock. The panel's "Running for" (Nodes tab) then stayed empty, because the start of the node could no longer be worked out. Both forms are read now
+
+### Changed
+- Console tab: `--aprsis pass` (APRS-IS passcode, new in 4.40a.11.22) now needs a confirmation like the other password commands
+
 ## v0.13.0
 
 ### Added

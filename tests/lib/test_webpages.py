@@ -36,6 +36,19 @@ def test_node_info() -> None:
     )
 
 
+@pytest.mark.parametrize("clock", ["", ' id="mc_clock" data-epoch="1795252899"'])
+def test_node_info_live_clock(clock: str) -> None:
+    """4.40a.11.22 wraps the node time in a <span>: the uptime still reads."""
+    info = parse_node_info(info_page(clock=clock))
+    assert info.uptime_seconds == 2 * 86400 + 3 * 3600 + 28 * 60 + 4
+
+
+def test_node_info_clock_span_other_attributes() -> None:
+    """Only the firmware's own span attributes are taken."""
+    info = parse_node_info(info_page(clock=' onclick="x"'))
+    assert info.uptime_seconds is None
+
+
 @pytest.mark.parametrize(
     ("server", "state", "age"),
     [

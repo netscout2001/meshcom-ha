@@ -58,6 +58,7 @@ _RISK: Final = {
     "passwd": CREDENTIALS,
     "webpwd": CREDENTIALS,
     "btcode": CREDENTIALS,
+    "aprsis pass": CREDENTIALS,
     "setcall": IDENTITY,
     "setctry": IDENTITY,
     "txpower": IDENTITY,

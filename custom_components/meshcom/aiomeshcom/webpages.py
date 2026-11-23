@@ -25,9 +25,11 @@ RXLOG_PAGE: Final = "/?page=rxlog"
 
 # Subheader of every page: the node's current local time, the same clock the
 # start date is written with. Their difference is the uptime, without any
-# time zone conversion.
+# time zone conversion. 4.40a.11.22 wraps the time in a <span> for its live
+# clock (' id="mc_clock" data-epoch="..."', or no attributes without a valid time).
 _NOW_RE: Final = re.compile(
-    r'<p class="font-small">(\d{4})-(\d{2})-(\d{2})&nbsp;(\d{2}):(\d{2}):(\d{2})&nbsp;'
+    r'<p class="font-small">(?:<span(?: id="mc_clock" data-epoch="\d{1,10}")?>)?'
+    r"(\d{4})-(\d{2})-(\d{2})&nbsp;(\d{2}):(\d{2}):(\d{2})(?:</span>)?&nbsp;"
 )
 _START_RE: Final = re.compile(
     r"<tr><td>Start Date</td><td>(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})</td></tr>"
